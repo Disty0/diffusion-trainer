@@ -1,0 +1,6 @@
+# defaults
+__pycache__
+.ruff_cache
+venv
+.history
+cache
