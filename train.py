@@ -150,11 +150,11 @@ if __name__ == '__main__':
         model.enable_gradient_checkpointing()
     if config["fused_optimizer"]:
         optimizer_dict = {p: accelerator.prepare(
-                train_utils.get_optimizer(config["optimizer"], [p], config["learning_rate"], foreach=False, **config["optimizer_args"])
+                train_utils.get_optimizer(config["optimizer"], [p], config["learning_rate"], **config["optimizer_args"])
             ) for p in model.parameters()
         }
         for key, optimizer in optimizer_dict.items():
-            optimizer_dict[key] = [optimizer, accelerator.prepare(train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, config["lr_scheduler_args"]))]
+            optimizer_dict[key] = [optimizer, accelerator.prepare(train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))]
         def optimizer_hook(parameter):
             optimizer_dict[parameter][0].step()
             optimizer_dict[parameter][1].step()
