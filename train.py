@@ -154,7 +154,7 @@ if __name__ == '__main__':
             ) for p in model.parameters()
         }
         for key, optimizer in optimizer_dict.items():
-            optimizer_dict[key] = [optimizer, train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, config["lr_scheduler_args"])]
+            optimizer_dict[key] = [optimizer, accelerator.prepare(train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, config["lr_scheduler_args"]))]
         def optimizer_hook(parameter):
             optimizer_dict[parameter][0].step()
             optimizer_dict[parameter][1].step()
@@ -164,8 +164,8 @@ if __name__ == '__main__':
         train_dataloader, model = accelerator.prepare(train_dataloader, model)
     else:
         optimizer = train_utils.get_optimizer(config["optimizer"], model.parameters(), config["learning_rate"], **config["optimizer_args"])
-        lr_scheduler = train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, config["lr_scheduler_args"])
-        train_dataloader, model, optimizer = accelerator.prepare(train_dataloader, model, optimizer)
+        lr_scheduler = train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
+        train_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(train_dataloader, model, optimizer, lr_scheduler)
 
     empty_embed = loader_utils.load_from_file(os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt"))
 
@@ -175,10 +175,11 @@ if __name__ == '__main__':
         current_step = int(config["resume_from"].split("-")[1])
         first_epoch = current_step // math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"])
 
+    accelerator.init_trackers(project_name=config["project_name"], config=config)
+
     progress_bar = tqdm(
         range(0, len(train_dataloader) * config["epochs"]),
         initial=current_step,
-        desc="Steps",
         disable=not accelerator.is_local_main_process,
     )
 
@@ -219,9 +220,13 @@ if __name__ == '__main__':
                             accelerator.save_state(save_path)
                             accelerator.print(f"Saved state to {save_path}")
 
-                logs = {"loss": loss.detach().item(), "lr": lr_scheduler.get_last_lr()[0], "epoch": current_epoch}
-                progress_bar.set_postfix(**logs)
-                accelerator.log(logs, step=current_step)
+                    logs = {"loss": loss.detach().item(), "epoch": current_epoch}
+                    if not config["fused_optimizer"]:
+                        logs["lr"] = lr_scheduler.get_last_lr()[0]
+                    else:
+                        logs["lr"] = optimizer_dict[list(optimizer_dict.keys())[0]][1].get_last_lr()[0]
+                    progress_bar.set_postfix(**logs)
+                    accelerator.log(logs, step=current_step)
 
         current_epoch = current_epoch + 1
         accelerator.print("\n" + print_filler)

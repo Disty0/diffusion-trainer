@@ -11,8 +11,8 @@ def get_optimizer(optimizer, parameters, learning_rate, **kwargs):
     return getattr(torch.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
 
 
-def get_lr_scheduler(lr_scheduler, optimizer, lr_scheduler_args):
-    return getattr(torch.optim.lr_scheduler, lr_scheduler)(optimizer, **lr_scheduler_args)
+def get_lr_scheduler(lr_scheduler, optimizer, **kwargs):
+    return getattr(torch.optim.lr_scheduler, lr_scheduler)(optimizer, **kwargs)
 
 
 def get_diffusion_model(model_type, path, device, dtype):
@@ -33,7 +33,7 @@ def run_model(model, scheduler, model_type, accelerator, dtype, latents, embeds,
     if model_type == "sd3":
         latents = torch.cat(latents, dim=0).to(accelerator.device, dtype=dtype)
 
-        if random.randint(0,100) > dropout_rate:
+        if random.randint(0,100) > dropout_rate * 10:
             prompt_embeds = []
             pooled_embeds = []
             for embed in embeds:
@@ -78,6 +78,8 @@ def get_flowmatch_inputs(scheduler, accelerator, latents):
     timesteps = scheduler.timesteps[indices].to(device=accelerator.device)
     sigmas = get_flowmatch_sigmas(scheduler, accelerator, timesteps, n_dim=latents.ndim, dtype=latents.dtype)
     noisy_model_input = (1.0 - sigmas) * latents + sigmas * noise
+    noisy_model_input = noisy_model_input.to(accelerator.device)
+    noise = noise.to(accelerator.device)
     return noisy_model_input, timesteps, noise
 
 
