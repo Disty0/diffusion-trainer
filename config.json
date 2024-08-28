@@ -1,7 +1,7 @@
 {
     "model_type": "sd3",
     "dynamo_backend": "inductor",
-    "epochs": 10,
+    "epochs": 100,
     "optimizer": "Adafactor",
     "optimizer_args": {"scale_parameter": false, "relative_step": false, "warmup_init": false},
     "fused_optimizer": false,
@@ -25,7 +25,6 @@
     "dataset_index": "cache/dataset_index.json",
     "model_path": "/mnt/DataSSD/AI/models/sd-webui/Diffusers/models--stabilityai--stable-diffusion-3-medium-diffusers/snapshots/ea42f8cef0f178587cf766dc8129abd379c90671",
     "dataset_paths": [
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/raifu/raifu-latent", ["/mnt/DataSSD/AI/anime_image_dataset/dataset/raifu/raifu-embed", "/mnt/DataSSD/AI/anime_image_dataset/dataset/raifu/raifu-embed"], 4],
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/raifu/raifu_no_veg-latent", ["/mnt/DataSSD/AI/anime_image_dataset/dataset/raifu/raifu_no_veg-embed", "/mnt/DataSSD/AI/anime_image_dataset/dataset/raifu/raifu_no_veg-embed"], 6]
+        ["//mnt/DataSSD/AI/anime_image_dataset/latents/raifu", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu"], 1]
     ]
 }
