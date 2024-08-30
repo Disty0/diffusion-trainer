@@ -4,9 +4,9 @@ Currently supports SD3.
 To create a latent + embed dataset from images and text files:  
 
 1) Run `create_bucket_list.py dataset_path` to create a bucket list of the images.  
-2) Run `create_bucket_list.py model_path dataset_path new_latent_dataset_path --model_type sd3 --image_ext .jpg` to create latents from the images.  
+2) Run `create_latents.py model_path dataset_path new_latent_dataset_path --model_type sd3 --image_ext .jpg` to create latents from the images.  
    You can delete the original images after this step if you want, we don't need them after creating latents.
-4) Run `create_bucket_list.py model_path dataset_path new_embed_dataset_path --model_type sd3 --text_ext .txt` to create embeds from the texts.  
+4) Run `create_embeds.py model_path dataset_path new_embed_dataset_path --model_type sd3 --text_ext .txt` to create embeds from the texts.  
    You can delete the original texts after this step if you want, we don't need them after creating embeds.
 5) Configure `config.json` with your desired configuration.  
 6) Run `train.py path_to_config` to start the training.  
