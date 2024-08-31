@@ -123,7 +123,7 @@ if __name__ == '__main__':
     image_backend.load_thread.shutdown(wait=True)
     del image_backend
 
-    while cache_backend.save_queue.qsize() > 0:
+    while not cache_backend.save_queue.empty():
         print(f"Waiting for the remaining writes: {cache_backend.save_queue.qsize()}")
         time.sleep(1)
     cache_backend.keep_saving = False

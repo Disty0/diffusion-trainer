@@ -101,7 +101,7 @@ if __name__ == '__main__':
     for _ in tqdm(range(epoch_len)):
         write_embeds(embed_encoder, device, args.model_type, cache_backend, text_batches.pop(0), path_batches.pop(0))
 
-    while cache_backend.save_queue.qsize() > 0:
+    while not cache_backend.save_queue.empty():
         print(f"Waiting for the remaining writes: {cache_backend.save_queue.qsize()}")
         time.sleep(1)
 

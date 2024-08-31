@@ -1,5 +1,5 @@
 import os
-import gzip
+import brotli
 import random
 import time
 import torch
@@ -13,10 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 def load_from_file(path):
     with open(path, "rb") as file:
         data = file.read()
-    gzip_data = BytesIO(data)
-    gzip_data.seek(0)
-    with gzip.GzipFile(fileobj=gzip_data, mode="rb") as file:
-        decompressed_data = file.read()
+    decompressed_data = brotli.decompress(data)
     stored_tensor = BytesIO(decompressed_data)
     stored_tensor.seek(0)
     return torch.load(stored_tensor, map_location="cpu", weights_only=True)
@@ -72,10 +69,7 @@ class SaveBackend():
         output_data_container = BytesIO()
         torch.save(data, output_data_container)
         output_data_container.seek(0)
-        with BytesIO() as compressed_output:
-            with gzip.GzipFile(fileobj=compressed_output, mode="wb") as file:
-                file.write(output_data_container.getvalue())
-            compressed_data = compressed_output.getvalue()
+        compressed_data = brotli.compress(output_data_container.getvalue(), quality=10)
         with open(path, "wb") as file:
             file.write(compressed_data)
 
