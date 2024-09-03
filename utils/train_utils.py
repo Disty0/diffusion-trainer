@@ -41,7 +41,7 @@ def run_model(model, scheduler, config, accelerator, dtype, latents, embeds, emp
     if config["model_type"] == "sd3":
         latents = torch.cat(latents, dim=0).to(accelerator.device, dtype=dtype)
 
-        if random.randint(0,100) > config["dropout_rate"] * 10:
+        if random.randint(0,100) > config["dropout_rate"] * 100:
             prompt_embeds = []
             pooled_embeds = []
             for embed in embeds:
