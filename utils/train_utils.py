@@ -4,10 +4,18 @@ import random
 import diffusers
 import transformers
 
+from utils import optim_utils
+
 
 def get_optimizer(optimizer, parameters, learning_rate, **kwargs):
+    if optimizer.lower() == "adamw":
+        return transformers.AdamW(parameters, lr=learning_rate, **kwargs)
+    if optimizer.lower() == "adamweightdecay":
+        return transformers.AdamWeightDecay(parameters, lr=learning_rate, **kwargs)
     if optimizer.lower() == "adafactor":
         return transformers.Adafactor(parameters, lr=learning_rate, **kwargs)
+    if optimizer.lower() == "came":
+        return optim_utils.CAME(parameters, lr=learning_rate, **kwargs)
     return getattr(torch.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
 
 
@@ -29,11 +37,11 @@ def get_model_class(model_type):
         raise NotImplementedError
 
 
-def run_model(model, scheduler, model_type, accelerator, dtype, latents, embeds, empty_embed, dropout_rate):
-    if model_type == "sd3":
+def run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed):
+    if config["model_type"] == "sd3":
         latents = torch.cat(latents, dim=0).to(accelerator.device, dtype=dtype)
 
-        if random.randint(0,100) > dropout_rate * 10:
+        if random.randint(0,100) > config["dropout_rate"] * 10:
             prompt_embeds = []
             pooled_embeds = []
             for embed in embeds:
@@ -45,7 +53,7 @@ def run_model(model, scheduler, model_type, accelerator, dtype, latents, embeds,
             prompt_embeds = empty_embed[0].repeat(latents.shape[0],1,1).to(accelerator.device, dtype=dtype)
             pooled_embeds = empty_embed[1].repeat(latents.shape[0],1).to(accelerator.device, dtype=dtype)
 
-        noisy_model_input, timesteps, noise = get_flowmatch_inputs(scheduler, accelerator, latents)
+        noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents)
 
         with accelerator.autocast():
             model_pred = model(
@@ -56,9 +64,7 @@ def run_model(model, scheduler, model_type, accelerator, dtype, latents, embeds,
                 return_dict=False,
             )[0]
 
-        target = noise.float() - latents.float()
-
-        return model_pred.float(), target.float()
+        return model_pred.float(), target.float(), timesteps
     else:
         raise NotImplementedError
 
@@ -67,28 +73,19 @@ def get_sd3_diffusion_model(path, device, dtype):
     pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
     diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
     diffusion_model.requires_grad_(True)
-    #diffusion_model = torch.compile(diffusion_model, backend="inductor")
     return diffusion_model, copy.deepcopy(pipe.scheduler)
 
 
-def get_flowmatch_inputs(scheduler, accelerator, latents):
-    noise = torch.randn_like(latents)
-    u = torch.rand(size=(latents.shape[0],), device="cpu")
-    indices = (u * scheduler.config.num_train_timesteps).long()
-    timesteps = scheduler.timesteps[indices].to(device=accelerator.device)
-    sigmas = get_flowmatch_sigmas(scheduler, accelerator, timesteps, n_dim=latents.ndim, dtype=latents.dtype)
+def get_flowmatch_inputs(device, latents, shift=1.5):
+    sigmas = torch.sigmoid(torch.randn((latents.shape[0],), device=device))
+    sigmas = (sigmas * shift) / (1 + (shift - 1) * sigmas)
+    timesteps = sigmas * 1000.0
+    sigmas = sigmas.view(-1, 1, 1, 1)
+
+    noise = torch.randn_like(latents, device=device)
     noisy_model_input = (1.0 - sigmas) * latents + sigmas * noise
-    noisy_model_input = noisy_model_input.to(accelerator.device)
-    noise = noise.to(accelerator.device)
-    return noisy_model_input, timesteps, noise
+    noisy_model_input = noisy_model_input.to(device)
+    noise = noise.to(device)
+    target = noise.float() - latents.float()
 
-
-def get_flowmatch_sigmas(scheduler, accelerator, timesteps, n_dim=4, dtype=torch.float32):
-    sigmas = scheduler.sigmas.to(device=accelerator.device, dtype=dtype)
-    schedule_timesteps = scheduler.timesteps.to(accelerator.device)
-    timesteps = timesteps.to(accelerator.device)
-    step_indices = [(schedule_timesteps == t).nonzero().item() for t in timesteps]
-    sigma = sigmas[step_indices].flatten()
-    while len(sigma.shape) < n_dim:
-        sigma = sigma.unsqueeze(-1)
-    return sigma
+    return noisy_model_input, timesteps, target

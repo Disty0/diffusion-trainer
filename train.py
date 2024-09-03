@@ -189,7 +189,7 @@ if __name__ == '__main__':
 
         for epoch_step, (latents, embeds) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
-                model_pred, target = train_utils.run_model(model, scheduler, config["model_type"], accelerator, dtype, latents, embeds, empty_embed, config["dropout_rate"])
+                model_pred, target, timesteps = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed)
                 loss = torch.nn.functional.l1_loss(model_pred, target, reduction="mean")
                 accelerator.backward(loss)
                 if not config["fused_optimizer"]:
@@ -227,6 +227,8 @@ if __name__ == '__main__':
                     else:
                         logs["lr"] = optimizer_dict[list(optimizer_dict.keys())[0]][1].get_last_lr()[0]
                     progress_bar.set_postfix(**logs)
+                    if timesteps is not None:
+                        logs["timesteps"] = timesteps.detach().tolist()
                     accelerator.log(logs, step=current_step)
 
         current_epoch = current_epoch + 1
