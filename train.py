@@ -203,6 +203,7 @@ if __name__ == '__main__':
 
                     if accelerator.is_main_process:
                         if current_step % config["checkpoint_save_steps"] == 0:
+                            os.makedirs(config["project_dir"], exist_ok=True)
                             if config["checkpoints_limit"] != 0:
                                 checkpoints = os.listdir(config["project_dir"])
                                 checkpoints = [d for d in checkpoints if d.startswith("checkpoint")]
