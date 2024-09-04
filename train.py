@@ -92,6 +92,9 @@ if __name__ == '__main__':
     with open(args.config_path, "r") as f:
         config = json.load(f)
 
+    if config["tunableop"]:
+        torch.cuda.tunable.enable(val=True)
+
     first_epoch = 0
     current_epoch = 0
     current_step = 0
