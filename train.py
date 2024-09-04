@@ -187,9 +187,8 @@ if __name__ == '__main__':
         disable=not accelerator.is_local_main_process,
     )
 
+    model.train()
     for _ in range(first_epoch, config["epochs"]):
-        model.train()
-
         for epoch_step, (latents, embeds) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
                 model_pred, target, timesteps = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed)

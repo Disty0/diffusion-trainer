@@ -68,6 +68,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--max_save_workers', default=8, type=int)
     parser.add_argument('--text_ext', default=".txt", type=str)
+    parser.add_argument('--disable_tunableop', default=False, action='store_true')
     args = parser.parse_args()
 
     if torch.version.hip:
@@ -86,6 +87,9 @@ if __name__ == '__main__':
             torch.nn.functional.scaled_dot_product_attention = sdpa_hijack
         except Exception as e:
             print(f"Failed to enable Flash Atten for ROCm: {e}")
+
+    if not args.disable_tunableop:
+        torch.cuda.tunable.enable(val=True)
 
     dtype = getattr(torch, args.dtype)
     device = torch.device(args.device)
