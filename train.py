@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size, dataset_paths):
+def get_bucket_list(batch_size, dataset_paths, empty_embed_path):
     print("Creating bucket list")
     bucket_list = {}
 
@@ -28,7 +28,10 @@ def get_bucket_list(batch_size, dataset_paths):
                 for _ in range(repeat):
                     for embed_dataset in embed_datasets:
                         latent_path = os.path.join(latent_dataset, bucket[key][i])
-                        embed_path = os.path.join(embed_dataset, bucket[key][i][:-9]+"embed.pt")
+                        if embed_dataset == "empty_embed":
+                            embed_path = empty_embed_path
+                        else:
+                            embed_path = os.path.join(embed_dataset, bucket[key][i][:-9]+"embed.pt")
                         bucket_list[key].append([latent_path, embed_path])
 
     keys_to_remove = []
@@ -55,8 +58,8 @@ def get_bucket_list(batch_size, dataset_paths):
     return bucket_list
 
 
-def get_batches(batch_size, dataset_paths, dataset_index):
-    bucket_list = get_bucket_list(batch_size, dataset_paths)
+def get_batches(batch_size, dataset_paths, dataset_index, empty_embed_path):
+    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path)
     print("Creating epoch batches")
     epoch_batch = []
     images_left_out_count = 0
@@ -95,6 +98,8 @@ if __name__ == '__main__':
     if config["tunableop"]:
         torch.cuda.tunable.enable(val=True)
 
+    empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
+    empty_embed = loader_utils.load_from_file(empty_embed_path)
     first_epoch = 0
     current_epoch = 0
     current_step = 0
@@ -139,7 +144,7 @@ if __name__ == '__main__':
 
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"])
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path)
     with open(config["dataset_index"], "r") as f:
         epoch_batch = json.load(f)
     dataset = loader_utils.LatentAndEmbedsDataset(epoch_batch)
@@ -169,8 +174,6 @@ if __name__ == '__main__':
         optimizer = train_utils.get_optimizer(config["optimizer"], model.parameters(), config["learning_rate"], **config["optimizer_args"])
         lr_scheduler = train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
         train_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(train_dataloader, model, optimizer, lr_scheduler)
-
-    empty_embed = loader_utils.load_from_file(os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt"))
 
     if config["resume_from"] != "none":
         accelerator.print(f"Resuming from: {config['resume_from']}")
