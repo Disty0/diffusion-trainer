@@ -2,6 +2,7 @@ import os
 import glob
 import time
 import torch
+import atexit
 import argparse
 from tqdm import tqdm
 from utils import loader_utils, embed_utils
@@ -101,14 +102,18 @@ if __name__ == '__main__':
     text_batches, path_batches = get_batches(args.batch_size, args.dataset_path, args.out_path, args.model_type, args.text_ext)
     epoch_len = len(text_batches)
 
+    def exit_handler(cache_backend):
+        while not cache_backend.save_queue.empty():
+            print(f"Waiting for the remaining writes: {cache_backend.save_queue.qsize()}")
+            time.sleep(1)
+        cache_backend.keep_saving = False
+        cache_backend.save_thread.shutdown(wait=True)
+        del cache_backend
+    atexit.register(exit_handler, cache_backend)
+
     print(f"Starting to encode {epoch_len} batches with batch size {args.batch_size}")
     for _ in tqdm(range(epoch_len)):
         write_embeds(embed_encoder, device, args.model_type, cache_backend, text_batches.pop(0), path_batches.pop(0))
 
-    while not cache_backend.save_queue.empty():
-        print(f"Waiting for the remaining writes: {cache_backend.save_queue.qsize()}")
-        time.sleep(1)
-
-    cache_backend.keep_saving = False
-    cache_backend.save_thread.shutdown(wait=True)
-    del cache_backend
+    atexit.unregister(exit_handler)
+    exit_handler(cache_backend)

@@ -2,6 +2,7 @@ import os
 import json
 import time
 import torch
+import atexit
 import argparse
 from tqdm import tqdm
 from utils import loader_utils, latent_utils
@@ -116,20 +117,25 @@ if __name__ == '__main__':
     epoch_len = len(epoch_batches)
     cache_backend = loader_utils.SaveBackend(args.model_type, max_save_workers=args.max_save_workers)
     image_backend = loader_utils.ImageBackend(epoch_batches, load_queue_lenght=args.load_queue_lenght, max_load_workers=args.max_load_workers)
+
+    def exit_handler(image_backend, cache_backend):
+        image_backend.keep_loading = False
+        image_backend.load_thread.shutdown(wait=True)
+        del image_backend
+
+        while not cache_backend.save_queue.empty():
+            print(f"Waiting for the remaining writes: {cache_backend.save_queue.qsize()}")
+            time.sleep(1)
+        cache_backend.keep_saving = False
+        cache_backend.save_thread.shutdown(wait=True)
+        del cache_backend
+    atexit.register(exit_handler, image_backend, cache_backend)
+
     print(print_filler)
     print(f"Starting to encode {epoch_len} batches with batch size {args.batch_size}")
-
     for _ in tqdm(range(epoch_len)):
         batch = image_backend.get_images()
         write_latents(latent_encoder, device, args.model_type, args.dataset_path, args.out_path, cache_backend, image_backend, batch)
 
-    image_backend.keep_loading = False
-    image_backend.load_thread.shutdown(wait=True)
-    del image_backend
-
-    while not cache_backend.save_queue.empty():
-        print(f"Waiting for the remaining writes: {cache_backend.save_queue.qsize()}")
-        time.sleep(1)
-    cache_backend.keep_saving = False
-    cache_backend.save_thread.shutdown(wait=True)
-    del cache_backend
+    atexit.unregister(exit_handler)
+    exit_handler(image_backend, cache_backend)
