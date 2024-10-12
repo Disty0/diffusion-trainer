@@ -3,7 +3,7 @@ import brotli
 import random
 import time
 import torch
-import pillow_jxl
+import pillow_jxl # noqa: F401
 from PIL import Image
 from io import BytesIO
 from queue import Queue
@@ -54,7 +54,7 @@ class SaveBackend():
                 data = self.save_queue.get()
                 self.save_to_file(data[0], data[1])
             else:
-                time.sleep(0.1)
+                time.sleep(0.25)
         print("Stopping the save backend threads")
         return
 
@@ -77,11 +77,12 @@ class SaveBackend():
 
 class ImageBackend():
     def __init__(self, batches, load_queue_lenght=32, max_load_workers=8):
+        self.load_queue_lenght = 0
         self.keep_loading = True
         self.batches = Queue()
         for batch in batches:
             self.batches.put(batch)
-        self.load_queue_lenght = load_queue_lenght
+        self.max_load_queue_lenght = load_queue_lenght
         self.load_queue = Queue()
         self.load_thread = ThreadPoolExecutor(max_workers=max_load_workers)
         for _ in range(max_load_workers):
@@ -89,19 +90,24 @@ class ImageBackend():
 
 
     def get_images(self):
-        return self.load_queue.get()
+        result = self.load_queue.get()
+        self.load_queue_lenght -= 1
+        return result
 
 
     def load_thread_func(self):
         while self.keep_loading:
-            if self.load_queue.qsize() >= self.load_queue_lenght:
-                time.sleep(0.1)
+            if self.load_queue_lenght >= self.max_load_queue_lenght:
+                time.sleep(0.25)
             elif not self.batches.empty():
                 batches = self.batches.get()
                 curren_batch = []
                 for batch in batches[0]:
                     curren_batch.append(self.load_from_file(batch, batches[1]))
                 self.load_queue.put(curren_batch)
+                self.load_queue_lenght += 1
+            else:
+                time.sleep(5)
         print("Stopping the image loader threads")
         return
 
