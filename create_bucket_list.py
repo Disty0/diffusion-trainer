@@ -3,7 +3,6 @@ import math
 import glob
 import json
 import argparse
-import imagesize
 from tqdm import tqdm
 
 
@@ -32,11 +31,11 @@ def calc_crop_res(orig_res, target_size, res_steps):
     return new_res
 
 
-def write_bucket_list(dataset_path, target_size, res_steps, image_ext):
+def write_bucket_list(dataset_path, target_size, res_steps, image_ext, size_function):
     res_map = {}
     file_list = glob.glob(f"{dataset_path}/**/*{image_ext}", recursive=True)
     for image in tqdm(file_list):
-        width, height = imagesize.get(image)
+        width, height = size_function(image)
         new_res = calc_crop_res([width, height], target_size, res_steps)
         bucket_name = f"{new_res[0]}x{new_res[1]}"
         if bucket_name not in res_map:
@@ -51,7 +50,12 @@ if __name__ == '__main__':
     parser.add_argument('dataset_path', type=str)
     parser.add_argument('--pixel_count', default=1048576, type=int)
     parser.add_argument('--res_steps', default=64, type=int)
-    parser.add_argument('--image_ext', default=".jpg", type=str)
+    parser.add_argument('--image_ext', default=".jxl", type=str)
     args = parser.parse_args()
 
-    write_bucket_list(args.dataset_path, args.pixel_count, args.res_steps, args.image_ext)
+    if args.image_ext == ".jxl":
+        from utils.jpeg_xl_utils import get_jxl_size as size_function
+    else:
+        from imagesize import get as size_function
+
+    write_bucket_list(args.dataset_path, args.pixel_count, args.res_steps, args.image_ext, size_function)

@@ -3,6 +3,7 @@ import brotli
 import random
 import time
 import torch
+import pillow_jxl
 from PIL import Image
 from io import BytesIO
 from queue import Queue
