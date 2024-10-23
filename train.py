@@ -32,7 +32,10 @@ def get_bucket_list(batch_size, dataset_paths, empty_embed_path):
                             embed_path = empty_embed_path
                         else:
                             embed_path = os.path.join(embed_dataset, bucket[key][i][:-9]+"embed.pt")
-                        bucket_list[key].append([latent_path, embed_path])
+                        if os.path.exists(latent_path) and os.path.exists(embed_path):
+                            bucket_list[key].append([latent_path, embed_path])
+                        else:
+                            print(f"File not found: {bucket[key][i]}")
 
     keys_to_remove = []
     total_image_count = 0
@@ -190,6 +193,7 @@ if __name__ == '__main__':
         disable=not accelerator.is_local_main_process,
     )
 
+    timesteps_list = []
     model.train()
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents, embeds) in enumerate(train_dataloader):
@@ -201,6 +205,9 @@ if __name__ == '__main__':
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
+
+                if timesteps is not None:
+                    timesteps_list.extend(timesteps.detach().tolist())
 
                 if accelerator.sync_gradients:
                     progress_bar.update(1)
@@ -233,8 +240,9 @@ if __name__ == '__main__':
                     else:
                         logs["lr"] = optimizer_dict[list(optimizer_dict.keys())[0]][1].get_last_lr()[0]
                     progress_bar.set_postfix(**logs)
-                    if timesteps is not None:
-                        logs["timesteps"] = timesteps.detach().tolist()
+                    if timesteps_list:
+                        logs["timesteps"] = timesteps_list
+                        timesteps_list = []
                     accelerator.log(logs, step=current_step)
 
         current_epoch = current_epoch + 1
