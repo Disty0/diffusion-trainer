@@ -24,8 +24,8 @@
     "checkpoints_limit": 10,
     "project_dir": "/mnt/DataSSD/AI/SoteDiffusion/StableDiffusion3/train",
     "dataset_index": "cache/dataset_index.json",
-    "model_path": "/mnt/DataSSD/AI/models/sd-webui/Diffusers/models--stabilityai--stable-diffusion-3-medium-diffusers/snapshots/ea42f8cef0f178587cf766dc8129abd379c90671",
+    "model_path": "stabilityai/stable-diffusion-3-medium-diffusers",
     "dataset_paths": [
-        ["//mnt/DataSSD/AI/anime_image_dataset/latents/raifu", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu", "empty_embed"], 1]
+        ["//mnt/DataSSD/AI/anime_image_dataset/latents/raifu", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu"], 1]
     ]
 }
