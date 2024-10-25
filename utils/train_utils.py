@@ -76,8 +76,10 @@ def get_sd3_diffusion_model(path, device, dtype):
     return diffusion_model, copy.deepcopy(pipe.scheduler)
 
 
-def get_flowmatch_inputs(device, latents, shift=1.5):
-    sigmas = torch.sigmoid(torch.randn((latents.shape[0],), device=device))
+def get_flowmatch_inputs(device, latents, shift=1.75):
+    # use timestep 1000 as well for zero snr
+    # torch.randn is not random so we use uniform instead
+    sigmas = torch.empty((latents.shape[0],), device=device, dtype=latents.dtype).uniform_(0, 1.00174).clamp(0.000571,1)
     sigmas = (sigmas * shift) / (1 + (shift - 1) * sigmas)
     timesteps = sigmas * 1000.0
     sigmas = sigmas.view(-1, 1, 1, 1)
