@@ -37,7 +37,7 @@ def get_sd3_embed_encoder(path, device, dtype, dynamo_backend):
 
 
 def encode_sd3_embeds(embed_encoders, device, texts):
-    prompt_embeds, pooled_prompt_embeds = sd3_utils.encode_sd3_prompt(embed_encoders[0], embed_encoders[1], texts, device=device, return_masked_embed=True)
+    prompt_embeds, pooled_prompt_embeds = sd3_utils.encode_sd3_prompt(embed_encoders[0], embed_encoders[1], texts, device=device, no_clip=True)
     embeds = []
     for i in range(len(prompt_embeds)):
         embeds.append([prompt_embeds[i], pooled_prompt_embeds[i]])

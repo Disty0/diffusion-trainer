@@ -40,7 +40,7 @@ def _encode_sd3_prompt_with_clip(text_encoder, tokenizer, prompt=None, device=No
     return prompt_embeds, pooled_prompt_embeds
 
 
-def encode_sd3_prompt(text_encoders, tokenizers, prompt=None, device=None):
+def encode_sd3_prompt(text_encoders, tokenizers, prompt=None, device=None, no_clip=True):
         prompt = [prompt] if isinstance(prompt, str) else prompt
 
         clip_tokenizers = tokenizers[:2]
@@ -68,10 +68,13 @@ def encode_sd3_prompt(text_encoders, tokenizers, prompt=None, device=None):
             device=device,
         )
 
-        clip_prompt_embeds = torch.nn.functional.pad(
-            clip_prompt_embeds,
-            (0, t5_prompt_embed.shape[-1] - clip_prompt_embeds.shape[-1]),
-        )
-        prompt_embeds = torch.cat([clip_prompt_embeds, t5_prompt_embed], dim=-2)
+        if no_clip:
+            prompt_embeds = t5_prompt_embed
+        else:
+            clip_prompt_embeds = torch.nn.functional.pad(
+                clip_prompt_embeds,
+                (0, t5_prompt_embed.shape[-1] - clip_prompt_embeds.shape[-1]),
+            )
+            prompt_embeds = torch.cat([clip_prompt_embeds, t5_prompt_embed], dim=-2)
 
         return prompt_embeds, pooled_prompt_embeds
