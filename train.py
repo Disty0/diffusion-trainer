@@ -183,7 +183,6 @@ if __name__ == '__main__':
         accelerator.load_state(os.path.join(config["project_dir"], config["resume_from"]))
         current_step = int(config["resume_from"].split("-")[1])
         first_epoch = current_step // math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"])
-        first_epoch += 1
         current_epoch = first_epoch
 
     accelerator.init_trackers(project_name=config["project_name"], config=config)

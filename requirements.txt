@@ -1,11 +1,11 @@
 accelerate==1.0.1
 brotli==1.1.0
-diffusers==0.30.3
-protobuf==5.28.2
+diffusers==0.31.0
+protobuf==5.28.3
 pillow==10.4.0
 pillow-jxl-plugin==1.2.8
 sentencepiece==0.2.0
-transformers==4.45.2
-tqdm==4.66.5
+transformers==4.46.0
+tqdm==4.66.6
 imagesize==1.4.1
-wandb==0.18.3
+wandb==0.18.5
