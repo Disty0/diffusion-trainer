@@ -192,7 +192,7 @@ if __name__ == '__main__':
     accelerator.init_trackers(project_name=config["project_name"], config=config)
 
     progress_bar = tqdm(
-        range(0, len(train_dataloader) * config["epochs"]),
+        range(0, math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"]) * config["epochs"]),
         initial=current_step,
         disable=not accelerator.is_local_main_process,
     )
