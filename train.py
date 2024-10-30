@@ -108,7 +108,7 @@ if __name__ == '__main__':
     current_step = 0
 
     accelerator = Accelerator(
-        mixed_precision=config["accelerate_mixed_precision"],
+        mixed_precision=config["mixed_precision"],
         gradient_accumulation_steps=config["gradient_accumulation_steps"],
         log_with=config["log_with"],
         project_dir=config["project_dir"],
@@ -167,6 +167,10 @@ if __name__ == '__main__':
         for key, optimizer in optimizer_dict.items():
             optimizer_dict[key] = [optimizer, accelerator.prepare(train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))]
         def optimizer_hook(parameter):
+            if accelerator.sync_gradients and config["max_grad_norm"] > 0:
+                # this is **very** slow with fp16 and norming per parameter isn't ideal
+                global grad_norm
+                grad_norm.append(accelerator.clip_grad_norm_(parameter, config["max_grad_norm"]))
             optimizer_dict[parameter][0].step()
             optimizer_dict[parameter][1].step()
             optimizer_dict[parameter][0].zero_grad()
@@ -194,6 +198,7 @@ if __name__ == '__main__':
     )
 
     timesteps_list = []
+    grad_norm = []
     model.train()
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents, embeds) in enumerate(train_dataloader):
@@ -202,6 +207,8 @@ if __name__ == '__main__':
                 loss = torch.nn.functional.l1_loss(model_pred, target, reduction="mean")
                 accelerator.backward(loss)
                 if not config["fused_optimizer"]:
+                    if accelerator.sync_gradients and config["max_grad_norm"] > 0:
+                        grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
@@ -243,6 +250,13 @@ if __name__ == '__main__':
                     if timesteps_list:
                         logs["timesteps"] = timesteps_list
                         timesteps_list = []
+                    if len(grad_norm) > 0:
+                        avg_grad_norm = 0
+                        for i in grad_norm:
+                            avg_grad_norm += i
+                        avg_grad_norm = avg_grad_norm / len(grad_norm)
+                        grad_norm = []
+                        logs["grad_norm"] = avg_grad_norm
                     accelerator.log(logs, step=current_step)
 
         current_epoch = current_epoch + 1
