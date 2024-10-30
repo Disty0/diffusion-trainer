@@ -23,7 +23,9 @@ def get_paths(dataset_path, out_path, model_type, text_ext):
         if not os.path.exists(embed_path):
             paths.append(embed_path)
             with open(text_file, "r") as file:
-                text = file.readlines()[0].replace("\n","")
+                text = file.read()
+            if text[-1] == "\n":
+                text = text[:-1]
             texts.append(text)
     print(f"Found {len(paths)} {text_ext} files to encode")
     return texts, paths
@@ -31,29 +33,29 @@ def get_paths(dataset_path, out_path, model_type, text_ext):
 
 def get_batches(batch_size, dataset_path, out_path, model_type, text_ext):
     texts, paths = get_paths(dataset_path, out_path, model_type, text_ext)
-    path_batches = []
-    path_batch = []
+    embed_pathes = []
+    embed_path = []
     text_batches = []
     text_batch = []
     for i in range(len(paths)):
-        path_batch.append(paths[i])
+        embed_path.append(paths[i])
         text_batch.append(texts[i])
-        if len(path_batch) >= batch_size:
-            path_batches.append(path_batch)
+        if len(embed_path) >= batch_size:
+            embed_pathes.append(embed_path)
             text_batches.append(text_batch)
-            path_batch = []
+            embed_path = []
             text_batch = []
-    if len(path_batch) != 0:
-        path_batches.append(path_batch)
+    if len(embed_path) != 0:
+        embed_pathes.append(embed_path)
         text_batches.append(text_batch)
-    return text_batches, path_batches
+    return text_batches, embed_pathes
 
 
-def write_embeds(embed_encoder, device, model_type, cache_backend, text_batch, path_batch):
+def write_embeds(embed_encoder, device, model_type, cache_backend, text_batch, embed_path):
     embeds = embed_utils.encode_embeds(embed_encoder, device, model_type, text_batch)
     getattr(torch, device.type).synchronize(device)
     for i in range(len(text_batch)):
-        cache_backend.save(embeds[i], path_batch[i])
+        cache_backend.save(embeds[i], embed_path[i])
 
 
 if __name__ == '__main__':
@@ -81,7 +83,7 @@ if __name__ == '__main__':
             backup_sdpa = torch.nn.functional.scaled_dot_product_attention
             @wraps(torch.nn.functional.scaled_dot_product_attention)
             def sdpa_hijack(query, key, value, attn_mask=None, dropout_p=0.0, is_causal=False, scale=None):
-                if query.shape[3] <= 128 and attn_mask is None and query.dtype != torch.float32:
+                if query.shape[-1] <= 128 and attn_mask is None and query.dtype != torch.float32:
                     return flash_attn_func(q=query.transpose(1, 2), k=key.transpose(1, 2), v=value.transpose(1, 2), dropout_p=dropout_p, causal=is_causal, softmax_scale=scale).transpose(1, 2)
                 else:
                     return backup_sdpa(query=query, key=key, value=value, attn_mask=attn_mask, dropout_p=dropout_p, is_causal=is_causal, scale=scale)
@@ -99,7 +101,7 @@ if __name__ == '__main__':
     embed_encoder = embed_utils.get_embed_encoder(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
 
     cache_backend = loader_utils.SaveBackend(args.model_type, max_save_workers=args.max_save_workers)
-    text_batches, path_batches = get_batches(args.batch_size, args.dataset_path, args.out_path, args.model_type, args.text_ext)
+    text_batches, embed_pathes = get_batches(args.batch_size, args.dataset_path, args.out_path, args.model_type, args.text_ext)
     epoch_len = len(text_batches)
 
     def exit_handler(cache_backend):
@@ -113,7 +115,7 @@ if __name__ == '__main__':
 
     print(f"Starting to encode {epoch_len} batches with batch size {args.batch_size}")
     for _ in tqdm(range(epoch_len)):
-        write_embeds(embed_encoder, device, args.model_type, cache_backend, text_batches.pop(0), path_batches.pop(0))
+        write_embeds(embed_encoder, device, args.model_type, cache_backend, text_batches.pop(0), embed_pathes.pop(0))
 
     atexit.unregister(exit_handler)
     exit_handler(cache_backend)

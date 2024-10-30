@@ -62,11 +62,12 @@ class SaveBackend():
     def save_to_file(self, data, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         if isinstance(data, torch.Tensor):
-            data = data.to("cpu", torch.float16).clone()
+            data = data.to("cpu", dtype=torch.float16).clone()
         elif isinstance(data, list):
             for i in range(len(data)):
                 if isinstance(data[i], torch.Tensor):
-                    data[i] = data[i].to("cpu", torch.float16).clone()
+                    data[i] = data[i].to("cpu", dtype=torch.float16).clone()
+        torch.cpu.synchronize()
         output_data_container = BytesIO()
         torch.save(data, output_data_container)
         output_data_container.seek(0)
