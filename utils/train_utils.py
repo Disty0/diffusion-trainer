@@ -4,18 +4,25 @@ import random
 import diffusers
 import transformers
 
-from utils import optim_utils
-
 
 def get_optimizer(optimizer, parameters, learning_rate, **kwargs):
     if optimizer.lower() == "adamw":
         return transformers.AdamW(parameters, lr=learning_rate, **kwargs)
+    if optimizer.lower() == "adamw_bf16":
+        from utils.optimizers.adamw_bf16 import AdamWBF16
+        return AdamWBF16(parameters, lr=learning_rate, **kwargs)
     if optimizer.lower() == "adamweightdecay":
         return transformers.AdamWeightDecay(parameters, lr=learning_rate, **kwargs)
     if optimizer.lower() == "adafactor":
         return transformers.Adafactor(parameters, lr=learning_rate, **kwargs)
+    if optimizer.lower() == "adafactor_bf16":
+        from utils.optimizers.adafactor_bf16 import patch_adafactor
+        selected_optimizer = transformers.Adafactor(parameters, lr=learning_rate, **kwargs)
+        patch_adafactor(optimizer=selected_optimizer, stochastic_rounding=True)
+        return selected_optimizer
     if optimizer.lower() == "came":
-        return optim_utils.CAME(parameters, lr=learning_rate, **kwargs)
+        from utils.optimizers.came import CAME
+        return CAME(parameters, lr=learning_rate, **kwargs)
     return getattr(torch.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
 
 
@@ -88,6 +95,6 @@ def get_flowmatch_inputs(device, latents, shift=1.75):
     noisy_model_input = (1.0 - sigmas) * latents + sigmas * noise
     noisy_model_input = noisy_model_input.to(device)
     noise = noise.to(device)
-    target = noise.float() - latents.float()
+    target = (noisy_model_input.float() - latents.float()) / sigmas.view(-1, 1, 1, 1)
 
     return noisy_model_input, timesteps, target
