@@ -53,6 +53,9 @@ if __name__ == '__main__':
     parser.add_argument('--image_ext', default=".jxl", type=str)
     args = parser.parse_args()
 
+    if args.dataset_path[-1] == "/":
+        args.dataset_path = args.dataset_path[:-1]
+
     if args.image_ext == ".jxl":
         from utils.jpeg_xl_utils import get_jxl_size as size_function
     else:
