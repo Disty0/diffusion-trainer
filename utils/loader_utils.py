@@ -120,6 +120,8 @@ class ImageBackend():
             target_size[1] = int(target_size[1])
 
         image = Image.open(image_path)
+        background = Image.new('RGBA', image.size, (255, 255, 255))
+        image = Image.alpha_composite(background, image.convert("RGBA")).convert("RGB")
 
         orig_size = image.size
         new_size = [int(target_size[1] * orig_size[0] / orig_size[1]), int(target_size[0] * orig_size[1] / orig_size[0])]
