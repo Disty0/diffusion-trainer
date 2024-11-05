@@ -24,7 +24,8 @@ def get_bucket_list(model_type, dataset_path, out_path):
             new_bucket_list[key] = []
         for i in range(len(bucket[key])):
             latent_path = os.path.splitext(bucket[key][i])[0] + "_" + model_type + "_latent.pt"
-            if not os.path.exists(os.path.join(out_path, latent_path)):
+            latent_path_full = os.path.join(out_path, latent_path)
+            if not os.path.exists(latent_path_full) or os.path.getsize(latent_path_full) == 0:
                 bucket_list[key].append(os.path.join(dataset_path, bucket[key][i]))
                 images_to_encode = images_to_encode + 1
             new_bucket_list[key].append(latent_path)
@@ -86,6 +87,9 @@ if __name__ == '__main__':
     parser.add_argument('--max_save_workers', default=2, type=int)
     parser.add_argument('--disable_tunableop', default=False, action='store_true')
     args = parser.parse_args()
+
+    if args.dataset_path[-1] == "/":
+        args.dataset_path = args.dataset_path[:-1]
 
     if torch.version.hip:
         try:

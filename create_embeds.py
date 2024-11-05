@@ -20,7 +20,7 @@ def get_paths(dataset_path, out_path, model_type, text_ext):
     for text_file in file_list:
         embed_path = os.path.splitext(text_file[len(dataset_path)+1:])[0] + "_" + model_type + "_embed.pt"
         embed_path = os.path.join(out_path, embed_path)
-        if not os.path.exists(embed_path):
+        if not os.path.exists(embed_path) or os.path.getsize(embed_path) == 0:
             paths.append(embed_path)
             with open(text_file, "r") as file:
                 text = file.read()
@@ -73,6 +73,9 @@ if __name__ == '__main__':
     parser.add_argument('--text_ext', default=".txt", type=str)
     parser.add_argument('--disable_tunableop', default=False, action='store_true')
     args = parser.parse_args()
+
+    if args.dataset_path[-1] == "/":
+        args.dataset_path = args.dataset_path[:-1]
 
     if torch.version.hip:
         try:
