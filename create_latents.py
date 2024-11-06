@@ -1,4 +1,5 @@
 import os
+import gc
 import json
 import time
 import torch
@@ -137,9 +138,17 @@ if __name__ == '__main__':
 
     print(print_filler)
     print(f"Starting to encode {epoch_len} batches with batch size {args.batch_size}")
-    for _ in tqdm(range(epoch_len)):
-        batch = image_backend.get_images()
-        write_latents(latent_encoder, device, args.model_type, args.dataset_path, args.out_path, cache_backend, image_backend, batch)
+    for steps_done in tqdm(range(epoch_len)):
+        try:
+            batch = image_backend.get_images()
+            write_latents(latent_encoder, device, args.model_type, args.dataset_path, args.out_path, cache_backend, image_backend, batch)
+            if steps_done % (2000 / args.batch_size) == 0:
+                getattr(torch, device.type).synchronize(device)
+                getattr(torch, device.type).empty_cache()
+                gc.collect()
+        except Exception as e:
+            print(batch[:,1], " : ", str(e))
+            break # break so torch can save the new tunableops table
 
     atexit.unregister(exit_handler)
     exit_handler(image_backend, cache_backend)

@@ -1,4 +1,5 @@
 import os
+import math
 import brotli
 import random
 import time
@@ -45,6 +46,13 @@ class SaveBackend():
 
 
     def save(self, data, path):
+        if isinstance(data, torch.Tensor):
+            data = data.to("cpu", dtype=torch.float16).clone()
+        elif isinstance(data, list):
+            for i in range(len(data)):
+                if isinstance(data[i], torch.Tensor):
+                    data[i] = data[i].to("cpu", dtype=torch.float16).clone()
+        torch.cpu.synchronize()
         self.save_queue.put([data,path])
 
 
@@ -61,12 +69,6 @@ class SaveBackend():
 
     def save_to_file(self, data, path):
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        if isinstance(data, torch.Tensor):
-            data = data.to("cpu", dtype=torch.float16).clone()
-        elif isinstance(data, list):
-            for i in range(len(data)):
-                if isinstance(data[i], torch.Tensor):
-                    data[i] = data[i].to("cpu", dtype=torch.float16).clone()
         torch.cpu.synchronize()
         output_data_container = BytesIO()
         torch.save(data, output_data_container)
@@ -124,7 +126,7 @@ class ImageBackend():
         image = Image.alpha_composite(background, image.convert("RGBA")).convert("RGB")
 
         orig_size = image.size
-        new_size = [int(target_size[1] * orig_size[0] / orig_size[1]), int(target_size[0] * orig_size[1] / orig_size[0])]
+        new_size = [math.ceil(target_size[1] * orig_size[0] / orig_size[1]), math.ceil(target_size[0] * orig_size[1] / orig_size[0])]
         if new_size[0] > target_size[0]:
             image = image.resize((new_size[0], target_size[1]), Image.LANCZOS)
         else:

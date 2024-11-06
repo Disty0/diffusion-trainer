@@ -1,4 +1,5 @@
 import os
+import gc
 import glob
 import time
 import torch
@@ -117,8 +118,15 @@ if __name__ == '__main__':
     atexit.register(exit_handler, cache_backend)
 
     print(f"Starting to encode {epoch_len} batches with batch size {args.batch_size}")
-    for _ in tqdm(range(epoch_len)):
-        write_embeds(embed_encoder, device, args.model_type, cache_backend, text_batches.pop(0), embed_pathes.pop(0))
-
+    for steps_done in tqdm(range(epoch_len)):
+        try:
+            write_embeds(embed_encoder, device, args.model_type, cache_backend, text_batches.pop(0), embed_pathes.pop(0))
+            if steps_done % (2000 / args.batch_size) == 0:
+                getattr(torch, device.type).synchronize(device)
+                getattr(torch, device.type).empty_cache()
+                gc.collect()
+        except Exception as e:
+            print(embed_pathes[0], " : ", str(e))
+            break # break so torch can save the new tunableops table
     atexit.unregister(exit_handler)
     exit_handler(cache_backend)
