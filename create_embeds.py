@@ -71,7 +71,7 @@ if __name__ == '__main__':
     parser.add_argument('--dynamo_backend', default="inductor", type=str)
     parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--save_queue_lenght', default=4096, type=int)
-    parser.add_argument('--max_save_workers', default=8, type=int)
+    parser.add_argument('--max_save_workers', default=12, type=int)
     parser.add_argument('--gc_steps', default=2048, type=int)
     parser.add_argument('--text_ext', default=".txt", type=str)
     parser.add_argument('--disable_tunableop', default=False, action='store_true')
