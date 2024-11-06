@@ -1,4 +1,5 @@
 import os
+import gc
 import math
 import brotli
 import random
@@ -36,9 +37,11 @@ class LatentAndEmbedsDataset(Dataset):
 
 
 class SaveBackend():
-    def __init__(self, model_type, max_save_workers=8):
+    def __init__(self, model_type, save_queue_lenght=4096, max_save_workers=8):
+        self.save_queue_lenght = 0
         self.model_type = model_type
         self.keep_saving = True
+        self.max_save_queue_lenght = save_queue_lenght
         self.save_queue = Queue()
         self.save_thread = ThreadPoolExecutor(max_workers=max_save_workers)
         for _ in range(max_save_workers):
@@ -53,7 +56,12 @@ class SaveBackend():
                 if isinstance(data[i], torch.Tensor):
                     data[i] = data[i].to("cpu", dtype=torch.float16).clone()
         torch.cpu.synchronize()
+        if self.save_queue_lenght > self.max_save_queue_lenght:
+            print(f"Hit the max save queue lenght of {self.max_save_queue_lenght}. Sleeping for 10 seconds")
+            time.sleep(10)
+            gc.collect()
         self.save_queue.put([data,path])
+        self.save_queue_lenght += 1
 
 
     def save_thread_func(self):
@@ -61,6 +69,7 @@ class SaveBackend():
             if not self.save_queue.empty():
                 data = self.save_queue.get()
                 self.save_to_file(data[0], data[1])
+                self.save_queue_lenght -= 1
             else:
                 time.sleep(0.25)
         print("Stopping the save backend threads")

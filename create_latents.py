@@ -84,8 +84,10 @@ if __name__ == '__main__':
     parser.add_argument('--dynamo_backend', default="inductor", type=str)
     parser.add_argument('--batch_size', default=1, type=int)
     parser.add_argument('--load_queue_lenght', default=32, type=int)
+    parser.add_argument('--save_queue_lenght', default=4096, type=int)
     parser.add_argument('--max_load_workers', default=8, type=int)
     parser.add_argument('--max_save_workers', default=2, type=int)
+    parser.add_argument('--gc_steps', default=2048, type=int)
     parser.add_argument('--disable_tunableop', default=False, action='store_true')
     args = parser.parse_args()
 
@@ -120,7 +122,7 @@ if __name__ == '__main__':
 
     epoch_batches = get_batches(args.batch_size, args.model_type, args.dataset_path, args.out_path)
     epoch_len = len(epoch_batches)
-    cache_backend = loader_utils.SaveBackend(args.model_type, max_save_workers=args.max_save_workers)
+    cache_backend = loader_utils.SaveBackend(args.model_type, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     image_backend = loader_utils.ImageBackend(epoch_batches, load_queue_lenght=args.load_queue_lenght, max_load_workers=args.max_load_workers)
 
     def exit_handler(image_backend, cache_backend):
@@ -142,7 +144,7 @@ if __name__ == '__main__':
         try:
             batch = image_backend.get_images()
             write_latents(latent_encoder, device, args.model_type, args.dataset_path, args.out_path, cache_backend, image_backend, batch)
-            if steps_done % (2000 / args.batch_size) == 0:
+            if steps_done % args.gc_steps == 0:
                 getattr(torch, device.type).synchronize(device)
                 getattr(torch, device.type).empty_cache()
                 gc.collect()

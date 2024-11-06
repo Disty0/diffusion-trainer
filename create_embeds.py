@@ -70,7 +70,9 @@ if __name__ == '__main__':
     parser.add_argument('--dtype', default="bfloat16", type=str)
     parser.add_argument('--dynamo_backend', default="inductor", type=str)
     parser.add_argument('--batch_size', default=1, type=int)
+    parser.add_argument('--save_queue_lenght', default=4096, type=int)
     parser.add_argument('--max_save_workers', default=8, type=int)
+    parser.add_argument('--gc_steps', default=2048, type=int)
     parser.add_argument('--text_ext', default=".txt", type=str)
     parser.add_argument('--disable_tunableop', default=False, action='store_true')
     args = parser.parse_args()
@@ -104,7 +106,7 @@ if __name__ == '__main__':
     print(print_filler)
     embed_encoder = embed_utils.get_embed_encoder(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
 
-    cache_backend = loader_utils.SaveBackend(args.model_type, max_save_workers=args.max_save_workers)
+    cache_backend = loader_utils.SaveBackend(args.model_type, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     text_batches, embed_pathes = get_batches(args.batch_size, args.dataset_path, args.out_path, args.model_type, args.text_ext)
     epoch_len = len(text_batches)
 
@@ -121,7 +123,7 @@ if __name__ == '__main__':
     for steps_done in tqdm(range(epoch_len)):
         try:
             write_embeds(embed_encoder, device, args.model_type, cache_backend, text_batches.pop(0), embed_pathes.pop(0))
-            if steps_done % (2000 / args.batch_size) == 0:
+            if steps_done % args.gc_steps == 0:
                 getattr(torch, device.type).synchronize(device)
                 getattr(torch, device.type).empty_cache()
                 gc.collect()
