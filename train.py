@@ -2,6 +2,7 @@ import os
 import math
 import json
 import torch
+import wandb
 import random
 import shutil
 import argparse
@@ -248,7 +249,9 @@ if __name__ == '__main__':
                         logs["lr"] = optimizer_dict[list(optimizer_dict.keys())[0]][1].get_last_lr()[0]
                     progress_bar.set_postfix(**logs)
                     if timesteps_list:
-                        logs["timesteps"] = timesteps_list
+                        logs["timesteps"] = wandb.Histogram(timesteps_list)
+                        logs["timesteps_min"] = min(timesteps_list)
+                        logs["timesteps_max"] = max(timesteps_list)
                         timesteps_list = []
                     if len(grad_norm) > 0:
                         avg_grad_norm = 0

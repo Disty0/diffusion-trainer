@@ -86,9 +86,11 @@ def get_sd3_diffusion_model(path, device, dtype):
 def get_flowmatch_inputs(device, latents, shift=1.75):
     # use timestep 1000 as well for zero snr
     # torch.randn is not random so we use uniform instead
-    sigmas = torch.empty((latents.shape[0],), device=device, dtype=latents.dtype).uniform_(0.00056, 1.0005).clamp(0.0005717,1.0)
+    # uniform range is larger than 1.0 to hit the timestep 1000 more
+    # clamp min is smaller than 0.001 to offset shift 1.75
+    sigmas = torch.empty((latents.shape[0],), device=device, dtype=latents.dtype).uniform_(0.00056, 1.0056).clamp(0.0005717,1.0)
     sigmas = (sigmas * shift) / (1 + (shift - 1) * sigmas)
-    timesteps = sigmas * 1000.0
+    timesteps = (sigmas * 1000.0).long().clamp(1,1000).to(latents.dtype)
     sigmas = sigmas.view(-1, 1, 1, 1)
 
     noise = torch.randn_like(latents, device=device)
