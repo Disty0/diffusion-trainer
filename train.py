@@ -215,7 +215,7 @@ if __name__ == '__main__':
                     optimizer.zero_grad()
 
                 if timesteps is not None:
-                    timesteps_list.extend(timesteps.detach().tolist())
+                    timesteps_list.extend(timesteps.to("cpu", dtype=torch.float32).detach().tolist())
 
                 if accelerator.sync_gradients:
                     progress_bar.update(1)
