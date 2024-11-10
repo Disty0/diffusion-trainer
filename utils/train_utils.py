@@ -32,7 +32,10 @@ def get_lr_scheduler(lr_scheduler, optimizer, **kwargs):
 
 def get_diffusion_model(model_type, path, device, dtype):
     if model_type == "sd3":
-        return get_sd3_diffusion_model(path, device, dtype)
+        pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
+        diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
+        diffusion_model.requires_grad_(True)
+        return diffusion_model, copy.deepcopy(pipe.scheduler)
     else:
         raise NotImplementedError
 
@@ -46,21 +49,21 @@ def get_model_class(model_type):
 
 def run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed):
     if config["model_type"] == "sd3":
-        latents = torch.cat(latents, dim=0).to(accelerator.device, dtype=dtype)
+        with torch.no_grad():
+            latents = torch.cat(latents, dim=0).to(accelerator.device, dtype=dtype)
+            if random.randint(0,100) > config["dropout_rate"] * 100:
+                prompt_embeds = []
+                pooled_embeds = []
+                for embed in embeds:
+                    prompt_embeds.append(embed[0])
+                    pooled_embeds.append(embed[1])
+                prompt_embeds = torch.cat(prompt_embeds, dim=0).to(accelerator.device, dtype=dtype)
+                pooled_embeds = torch.cat(pooled_embeds, dim=0).to(accelerator.device, dtype=dtype)
+            else:
+                prompt_embeds = empty_embed[0].repeat(latents.shape[0],1,1).to(accelerator.device, dtype=dtype)
+                pooled_embeds = empty_embed[1].repeat(latents.shape[0],1).to(accelerator.device, dtype=dtype)
 
-        if random.randint(0,100) > config["dropout_rate"] * 100:
-            prompt_embeds = []
-            pooled_embeds = []
-            for embed in embeds:
-                prompt_embeds.append(embed[0])
-                pooled_embeds.append(embed[1])
-            prompt_embeds = torch.cat(prompt_embeds, dim=0).to(accelerator.device, dtype=dtype)
-            pooled_embeds = torch.cat(pooled_embeds, dim=0).to(accelerator.device, dtype=dtype)
-        else:
-            prompt_embeds = empty_embed[0].repeat(latents.shape[0],1,1).to(accelerator.device, dtype=dtype)
-            pooled_embeds = empty_embed[1].repeat(latents.shape[0],1).to(accelerator.device, dtype=dtype)
-
-        noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents)
+            noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
 
         with accelerator.autocast():
             model_pred = model(
@@ -76,22 +79,15 @@ def run_model(model, scheduler, config, accelerator, dtype, latents, embeds, emp
         raise NotImplementedError
 
 
-def get_sd3_diffusion_model(path, device, dtype):
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
-    diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
-    diffusion_model.requires_grad_(True)
-    return diffusion_model, copy.deepcopy(pipe.scheduler)
-
-
-def get_flowmatch_inputs(device, latents, shift=1.75):
+def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=1.75):
     # use timestep 1000 as well for zero snr
     # torch.randn is not random so we use uniform instead
     # uniform range is larger than 1.0 to hit the timestep 1000 more
     # clamp min is smaller than 0.001 to offset shift 1.75
-    sigmas = torch.empty((latents.shape[0],), device=device, dtype=latents.dtype).uniform_(0.00056, 1.0056).clamp(0.0005717,1.0)
-    sigmas = (sigmas * shift) / (1 + (shift - 1) * sigmas)
-    timesteps = (sigmas * 1000.0).long().clamp(1,1000).to(latents.dtype)
-    sigmas = sigmas.view(-1, 1, 1, 1)
+    u = torch.empty((latents.shape[0],), device=device, dtype=latents.dtype).uniform_(0.00056, 1.0056).clamp(0.0005717,1.0)
+    u = (u * shift) / (1 + (shift - 1) * u)
+    timesteps = (u * num_train_timesteps).long().clamp(1,num_train_timesteps).to(latents.dtype)
+    sigmas = (timesteps / num_train_timesteps).view(-1, 1, 1, 1)
 
     noise = torch.randn_like(latents, device=device)
     noisy_model_input = (1.0 - sigmas) * latents + sigmas * noise
