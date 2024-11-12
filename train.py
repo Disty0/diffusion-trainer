@@ -198,13 +198,15 @@ if __name__ == '__main__':
         disable=not accelerator.is_local_main_process,
     )
 
+    empty_embeds_added_count = 0
     timesteps_list = []
     grad_norm = []
     model.train()
+    getattr(torch, accelerator.device.type).empty_cache()
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents, embeds) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
-                model_pred, target, timesteps = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed)
+                model_pred, target, timesteps, empty_embeds_added = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed)
                 loss = torch.nn.functional.l1_loss(model_pred, target, reduction="mean")
                 accelerator.backward(loss)
                 if not config["fused_optimizer"]:
@@ -216,6 +218,8 @@ if __name__ == '__main__':
 
                 if timesteps is not None:
                     timesteps_list.extend(timesteps.to("cpu", dtype=torch.float32).detach().tolist())
+                if empty_embeds_added is not None:
+                    empty_embeds_added_count += empty_embeds_added
 
                 if accelerator.sync_gradients:
                     progress_bar.update(1)
@@ -253,6 +257,8 @@ if __name__ == '__main__':
                         logs["timesteps_min"] = min(timesteps_list)
                         logs["timesteps_max"] = max(timesteps_list)
                         timesteps_list = []
+                    if config["dropout_rate"] > 0:
+                        logs["empty_embeds_added_count"] = empty_embeds_added_count
                     if len(grad_norm) > 0:
                         avg_grad_norm = 0
                         for i in grad_norm:

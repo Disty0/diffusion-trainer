@@ -50,18 +50,20 @@ def get_model_class(model_type):
 def run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed):
     if config["model_type"] == "sd3":
         with torch.no_grad():
-            latents = torch.cat(latents, dim=0).to(accelerator.device, dtype=dtype)
-            if random.randint(0,100) > config["dropout_rate"] * 100:
-                prompt_embeds = []
-                pooled_embeds = []
-                for embed in embeds:
-                    prompt_embeds.append(embed[0])
-                    pooled_embeds.append(embed[1])
-                prompt_embeds = torch.cat(prompt_embeds, dim=0).to(accelerator.device, dtype=dtype)
-                pooled_embeds = torch.cat(pooled_embeds, dim=0).to(accelerator.device, dtype=dtype)
-            else:
-                prompt_embeds = empty_embed[0].repeat(latents.shape[0],1,1).to(accelerator.device, dtype=dtype)
-                pooled_embeds = empty_embed[1].repeat(latents.shape[0],1).to(accelerator.device, dtype=dtype)
+            latents = torch.cat(latents, dim=0).to(accelerator.device, dtype=torch.float32)
+            prompt_embeds = []
+            pooled_embeds = []
+            empty_embeds_added = 0
+            for i in range(len(embeds)):
+                if random.randint(0,100) > config["dropout_rate"] * 100:
+                    prompt_embeds.append(embeds[i][0].to(dtype=torch.float32))
+                    pooled_embeds.append(embeds[i][1].to(dtype=torch.float32))
+                else:
+                    prompt_embeds.append(empty_embed[0].unsqueeze(0).to(dtype=torch.float32))
+                    pooled_embeds.append(empty_embed[1].unsqueeze(0).to(dtype=torch.float32))
+                    empty_embeds_added += 1
+            prompt_embeds = torch.cat(prompt_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
+            pooled_embeds = torch.cat(pooled_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
 
             noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
 
@@ -74,7 +76,7 @@ def run_model(model, scheduler, config, accelerator, dtype, latents, embeds, emp
                 return_dict=False,
             )[0]
 
-        return model_pred.float(), target.float(), timesteps
+        return model_pred.float(), target.float(), timesteps, empty_embeds_added
     else:
         raise NotImplementedError
 
@@ -84,15 +86,15 @@ def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=1.75):
     # torch.randn is not random so we use uniform instead
     # uniform range is larger than 1.0 to hit the timestep 1000 more
     # clamp min is smaller than 0.001 to offset shift 1.75
-    u = torch.empty((latents.shape[0],), device=device, dtype=latents.dtype).uniform_(0.00056, 1.0056).clamp(0.0005717,1.0)
+    u = torch.empty((latents.shape[0],), device=device, dtype=torch.float32).uniform_(0.00056, 1.0056).clamp(0.0005717,1.0)
     u = (u * shift) / (1 + (shift - 1) * u)
-    timesteps = (u * num_train_timesteps).long().clamp(1,num_train_timesteps).to(latents.dtype)
+    timesteps = (u * num_train_timesteps).long().clamp(1,num_train_timesteps).to(dtype=torch.float32)
     sigmas = (timesteps / num_train_timesteps).view(-1, 1, 1, 1)
 
     noise = torch.randn_like(latents, device=device)
     noisy_model_input = (1.0 - sigmas) * latents + sigmas * noise
     noisy_model_input = noisy_model_input.to(device)
     noise = noise.to(device)
-    target = (noisy_model_input.float() - latents.float()) / sigmas
+    target = (noisy_model_input - latents) / sigmas
 
     return noisy_model_input, timesteps, target
