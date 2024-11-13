@@ -18,6 +18,7 @@
     "mixed_precision": "bf16",
     "load_queue_lenght": 64,
     "max_load_workers": 8,
+    "gc_steps": 1024,
     "log_with": "wandb",
     "project_name": "raifu",
     "resume_from": "none",

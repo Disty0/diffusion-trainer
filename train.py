@@ -1,4 +1,5 @@
 import os
+import gc
 import math
 import json
 import torch
@@ -107,6 +108,7 @@ if __name__ == '__main__':
     first_epoch = 0
     current_epoch = 0
     current_step = 0
+    start_step = 0
 
     accelerator = Accelerator(
         mixed_precision=config["mixed_precision"],
@@ -189,6 +191,7 @@ if __name__ == '__main__':
         current_step = int(config["resume_from"].split("-")[1])
         first_epoch = current_step // math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"])
         current_epoch = first_epoch
+        start_step = current_step
 
     accelerator.init_trackers(project_name=config["project_name"], config=config)
 
@@ -267,6 +270,9 @@ if __name__ == '__main__':
                         grad_norm = []
                         logs["grad_norm"] = avg_grad_norm
                     accelerator.log(logs, step=current_step)
+                    if current_step == start_step + 1 or (config["gc_steps"] != 0 and current_step % config["gc_steps"] == 0):
+                        gc.collect()
+                        getattr(torch, accelerator.device.type).empty_cache()
 
         current_epoch = current_epoch + 1
         accelerator.print("\n" + print_filler)
