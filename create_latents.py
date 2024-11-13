@@ -145,9 +145,9 @@ if __name__ == '__main__':
             batch = image_backend.get_images()
             write_latents(latent_encoder, device, args.model_type, args.dataset_path, args.out_path, cache_backend, image_backend, batch)
             if steps_done % args.gc_steps == 0:
+                gc.collect()
                 getattr(torch, device.type).synchronize(device)
                 getattr(torch, device.type).empty_cache()
-                gc.collect()
         except Exception as e:
             print(batch[:,1], " : ", str(e))
             break # break so torch can save the new tunableops table
