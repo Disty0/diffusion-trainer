@@ -128,7 +128,7 @@ if __name__ == '__main__':
                 getattr(torch, device.type).synchronize(device)
                 getattr(torch, device.type).empty_cache()
         except Exception as e:
-            print(embed_pathes[0], " : ", str(e))
+            print("ERROR: ", embed_pathes[0], " : ", str(e))
             break # break so torch can save the new tunableops table
     atexit.unregister(exit_handler)
     exit_handler(cache_backend)

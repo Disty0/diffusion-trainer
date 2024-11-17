@@ -24,7 +24,7 @@ def get_bucket_list(batch_size, dataset_paths, empty_embed_path):
         with open(os.path.join(latent_dataset, "bucket_list.json"), "r") as f:
             bucket = json.load(f)
         for key in bucket.keys():
-            if key not in bucket_list:
+            if key not in bucket_list.keys():
                 bucket_list[key] = []
             for i in range(len(bucket[key])):
                 for _ in range(repeat):
@@ -41,7 +41,7 @@ def get_bucket_list(batch_size, dataset_paths, empty_embed_path):
 
     keys_to_remove = []
     total_image_count = 0
-    for key in bucket_list:
+    for key in bucket_list.keys():
         if len(bucket_list[key]) < batch_size:
             keys_to_remove.append(key)
         else:

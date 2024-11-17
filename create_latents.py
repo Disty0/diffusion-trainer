@@ -149,7 +149,7 @@ if __name__ == '__main__':
                 getattr(torch, device.type).synchronize(device)
                 getattr(torch, device.type).empty_cache()
         except Exception as e:
-            print(batch[:,1], " : ", str(e))
+            print("ERROR: ", str(e))
             break # break so torch can save the new tunableops table
 
     atexit.unregister(exit_handler)
