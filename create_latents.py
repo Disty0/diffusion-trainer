@@ -20,7 +20,7 @@ def get_bucket_list(model_type, dataset_path, out_path):
     with open(os.path.join(dataset_path, "bucket_list.json"), "r") as f:
         bucket = json.load(f)
     for key in bucket.keys():
-        if key not in bucket_list:
+        if key not in bucket_list.keys():
             bucket_list[key] = []
             new_bucket_list[key] = []
         for i in range(len(bucket[key])):
