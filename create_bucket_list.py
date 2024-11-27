@@ -38,7 +38,7 @@ def write_bucket_list(dataset_path, target_size, res_steps, image_ext, size_func
         width, height = size_function(image)
         new_res = calc_crop_res([width, height], target_size, res_steps)
         bucket_name = f"{new_res[0]}x{new_res[1]}"
-        if bucket_name not in res_map:
+        if bucket_name not in res_map.keys():
             res_map[bucket_name] = []
         res_map[bucket_name].append(image[len(dataset_path)+1:])
     with open(os.path.join(dataset_path, "bucket_list.json"), "w") as f:
