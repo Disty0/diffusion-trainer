@@ -102,6 +102,10 @@ if __name__ == '__main__':
 
     if config["tunableop"]:
         torch.cuda.tunable.enable(val=True)
+    try:
+        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
+    except Exception:
+        pass
 
     empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
     empty_embed = loader_utils.load_from_file(empty_embed_path)
@@ -185,7 +189,7 @@ if __name__ == '__main__':
         lr_scheduler = train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
         train_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(train_dataloader, model, optimizer, lr_scheduler)
 
-    if config["resume_from"] != "none":
+    if config.get("resume_from", "") and config["resume_from"] != "none":
         accelerator.print(f"Resuming from: {config['resume_from']}")
         accelerator.load_state(os.path.join(config["project_dir"], config["resume_from"]))
         current_step = int(config["resume_from"].split("-")[1])

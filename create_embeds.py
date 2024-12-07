@@ -99,6 +99,10 @@ if __name__ == '__main__':
 
     if not args.disable_tunableop:
         torch.cuda.tunable.enable(val=True)
+    try:
+        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
+    except Exception:
+        pass
 
     dtype = getattr(torch, args.dtype)
     device = torch.device(args.device)

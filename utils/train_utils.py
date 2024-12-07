@@ -67,6 +67,12 @@ def run_model(model, scheduler, config, accelerator, dtype, latents, embeds, emp
 
             noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
 
+            if config["mixed_precision"] == "no":
+                noisy_model_input = noisy_model_input.to(dtype=model.dtype)
+                timesteps = timesteps.to(dtype=model.dtype)
+                prompt_embeds = prompt_embeds.to(dtype=model.dtype)
+                pooled_embeds = pooled_embeds.to(dtype=model.dtype)
+
         with accelerator.autocast():
             model_pred = model(
                 hidden_states=noisy_model_input,
