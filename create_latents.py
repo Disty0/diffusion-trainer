@@ -58,41 +58,63 @@ def get_batches(batch_size, model_type, dataset_path, out_path):
     return epoch_batch
 
 
-def write_latents(latent_encoder, device, model_type, dataset_path, out_path, cache_backend, image_backend, batch):
+def write_latents(latent_encoder, device, args, cache_backend, image_backend, save_image_backend, batch):
     images = []
     latent_paths = []
+    save_image_paths = []
     for item in batch:
-        latent_path = os.path.splitext(item[1][len(dataset_path)+1:])[0] + "_" + model_type + "_latent.pt"
-        latent_path = os.path.join(out_path, latent_path)
+        latent_path = os.path.splitext(item[1][len(args.dataset_path)+1:])[0] + "_" + args.model_type + "_latent.pt"
+        latent_path = os.path.join(args.out_path, latent_path)
         latent_paths.append(latent_path)
+        if args.save_images:
+            save_image_path = os.path.splitext(item[1][len(args.dataset_path)+1:])[0] + "_" + args.model_type + "_image" + args.save_images_ext
+            save_image_path = os.path.join(args.save_images_path, save_image_path)
+            save_image_paths.append(save_image_path)
         images.append(item[0])
-    latents = latent_utils.encode_latents(latent_encoder, images, model_type, device)
+    latents = latent_utils.encode_latents(latent_encoder, images, args.model_type, device)
     getattr(torch, device.type).synchronize(device)
     for i in range(len(latent_paths)):
         cache_backend.save(latents[i], latent_paths[i])
+        if args.save_images:
+            save_image_backend.save(images[i], save_image_paths[i])
 
 
 if __name__ == '__main__':
     print("\n" + print_filler)
     parser = argparse.ArgumentParser(description='Create latent cache')
+
     parser.add_argument('model_path', type=str)
     parser.add_argument('dataset_path', type=str)
     parser.add_argument('out_path', type=str)
     parser.add_argument('--model_type', default="sd3", type=str)
+
     parser.add_argument('--device', default="cuda", type=str)
     parser.add_argument('--dtype', default="float16", type=str)
-    parser.add_argument('--dynamo_backend', default="inductor", type=str)
     parser.add_argument('--batch_size', default=1, type=int)
+
+    parser.add_argument('--gc_steps', default=2048, type=int)
+    parser.add_argument('--dynamo_backend', default="inductor", type=str)
+    parser.add_argument('--disable_tunableop', default=False, action='store_true')
+
+    parser.add_argument('--save_images', default=False, action='store_true')
+    parser.add_argument('--save_images_path', default="cropped_images", type=str)
+    parser.add_argument('--save_images_ext', default=".jxl", type=str)
+    parser.add_argument('--save_images_lossless', default=True, action='store_true')
+    parser.add_argument('--save_images_quality', default=100, type=int)
+
     parser.add_argument('--load_queue_lenght', default=32, type=int)
     parser.add_argument('--save_queue_lenght', default=4096, type=int)
+    parser.add_argument('--save_image_queue_lenght', default=4096, type=int)
     parser.add_argument('--max_load_workers', default=8, type=int)
     parser.add_argument('--max_save_workers', default=8, type=int)
-    parser.add_argument('--gc_steps', default=2048, type=int)
-    parser.add_argument('--disable_tunableop', default=False, action='store_true')
+    parser.add_argument('--max_save_image_workers', default=8, type=int)
+
     args = parser.parse_args()
 
     if args.dataset_path[-1] == "/":
         args.dataset_path = args.dataset_path[:-1]
+    if args.save_images_path[-1] == "/":
+        args.save_images_path = args.save_images_path[:-1]
 
     if torch.version.hip:
         try:
@@ -128,8 +150,12 @@ if __name__ == '__main__':
     epoch_len = len(epoch_batches)
     cache_backend = loader_utils.SaveBackend(args.model_type, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     image_backend = loader_utils.ImageBackend(epoch_batches, load_queue_lenght=args.load_queue_lenght, max_load_workers=args.max_load_workers)
+    if args.save_images:
+        save_image_backend = loader_utils.SaveImageBackend(save_queue_lenght=args.save_image_queue_lenght, max_save_workers=args.max_save_image_workers, lossless=args.save_images_lossless, quality=args.save_images_quality)
+    else:
+        save_image_backend = None
 
-    def exit_handler(image_backend, cache_backend):
+    def exit_handler(image_backend, cache_backend, save_image_backend):
         image_backend.keep_loading = False
         image_backend.load_thread.shutdown(wait=True)
         del image_backend
@@ -140,14 +166,23 @@ if __name__ == '__main__':
         cache_backend.keep_saving = False
         cache_backend.save_thread.shutdown(wait=True)
         del cache_backend
-    atexit.register(exit_handler, image_backend, cache_backend)
+
+        if save_image_backend is not None:
+            while not save_image_backend.save_queue.empty():
+                print(f"Waiting for the remaining image writes: {save_image_backend.save_queue.qsize()}")
+                time.sleep(1)
+            save_image_backend.keep_saving = False
+            save_image_backend.save_thread.shutdown(wait=True)
+            del save_image_backend
+
+    atexit.register(exit_handler, image_backend, cache_backend, save_image_backend)
 
     print(print_filler)
     print(f"Starting to encode {epoch_len} batches with batch size {args.batch_size}")
     for steps_done in tqdm(range(epoch_len)):
         try:
             batch = image_backend.get_images()
-            write_latents(latent_encoder, device, args.model_type, args.dataset_path, args.out_path, cache_backend, image_backend, batch)
+            write_latents(latent_encoder, device, args, cache_backend, image_backend, save_image_backend, batch)
             if steps_done % args.gc_steps == 0:
                 gc.collect()
                 getattr(torch, device.type).synchronize(device)
@@ -157,4 +192,4 @@ if __name__ == '__main__':
             break # break so torch can save the new tunableops table
 
     atexit.unregister(exit_handler)
-    exit_handler(image_backend, cache_backend)
+    exit_handler(image_backend, cache_backend, save_image_backend)

@@ -137,20 +137,20 @@ class ImageBackend():
         orig_size = image.size
         new_size = [math.ceil(target_size[1] * orig_size[0] / orig_size[1]), math.ceil(target_size[0] * orig_size[1] / orig_size[0])]
         if new_size[0] > target_size[0]:
-            image = image.resize((new_size[0], target_size[1]), Image.LANCZOS)
+            image = image.resize((new_size[0], target_size[1]), Image.BICUBIC)
         else:
-            image = image.resize((target_size[0], new_size[1]), Image.LANCZOS)
+            image = image.resize((target_size[0], new_size[1]), Image.BICUBIC)
 
         new_size = image.size
         left_diff = new_size[0] - target_size[0]
         if left_diff < 0: # can go off by 1 or 2 pixel
-            image = image.resize((target_size[0], new_size[1]), Image.LANCZOS)
+            image = image.resize((target_size[0], new_size[1]), Image.BICUBIC)
             new_size = image.size
             left_diff = new_size[0] - target_size[0]
 
         top_diff = (new_size[1] - target_size[1])
         if top_diff < 0: # can go off by 1 or 2 pixel
-            image = image.resize((new_size[0], target_size[1]), Image.LANCZOS)
+            image = image.resize((new_size[0], target_size[1]), Image.BICUBIC)
             new_size = image.size
             top_diff = (new_size[1] - target_size[1])
 
@@ -160,6 +160,45 @@ class ImageBackend():
 
         new_size = image.size
         if new_size[0] != target_size[0] or new_size[1] != target_size[1]: # sanity check
-            image = image.resize((target_size[0], target_size[1]), Image.LANCZOS)
+            image = image.resize((target_size[0], target_size[1]), Image.BICUBIC)
 
         return [image, image_path]
+
+class SaveImageBackend():
+    def __init__(self, save_queue_lenght=4096, max_save_workers=8, lossless=True, quality=100):
+        self.lossless = lossless
+        self.quality = quality
+        self.save_queue_lenght = 0
+        self.keep_saving = True
+        self.max_save_queue_lenght = save_queue_lenght
+        self.save_queue = Queue()
+        self.save_thread = ThreadPoolExecutor(max_workers=max_save_workers)
+        for _ in range(max_save_workers):
+            self.save_thread.submit(self.save_thread_func)
+
+
+    def save(self, data, path):
+        if self.save_queue_lenght > self.max_save_queue_lenght:
+            print(f"Hit the max image save queue lenght of {self.max_save_queue_lenght}. Sleeping for 10 seconds")
+            time.sleep(10)
+            gc.collect()
+        self.save_queue.put([data,path])
+        self.save_queue_lenght += 1
+
+
+    def save_thread_func(self):
+        while self.keep_saving:
+            if not self.save_queue.empty():
+                data = self.save_queue.get()
+                self.save_to_file(data[0], data[1])
+                self.save_queue_lenght -= 1
+            else:
+                time.sleep(0.25)
+        print("Stopping the save backend threads")
+        return
+
+
+    def save_to_file(self, image, path):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        image.save(path, lossless=self.lossless, quality=self.quality)
+        image.close()

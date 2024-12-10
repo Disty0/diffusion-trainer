@@ -27,7 +27,7 @@ def get_sd3_latent_encoder(path, device, dtype, dynamo_backend):
 
 
 def encode_sd3_latents(latent_encoder, images, device):
-    images = latent_encoder[1].preprocess(images).to(device, dtype=latent_encoder[0].dtype)
-    latents = latent_encoder[0].encode(images).latent_dist.sample().to(dtype=torch.float32)
+    tensor_images = latent_encoder[1].preprocess(images).to(device, dtype=latent_encoder[0].dtype)
+    latents = latent_encoder[0].encode(tensor_images).latent_dist.sample().to(dtype=torch.float32)
     latents = (latents - latent_encoder[0].config.shift_factor) * latent_encoder[0].config.scaling_factor
     return latents.to(dtype=latent_encoder[0].dtype)
