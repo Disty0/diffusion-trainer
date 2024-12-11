@@ -58,7 +58,7 @@ def get_batches(batch_size, model_type, dataset_path, out_path):
     return epoch_batch
 
 
-def write_latents(latent_encoder, device, args, cache_backend, image_backend, save_image_backend, batch):
+def write_latents(latent_model, image_processor, device, args, cache_backend, image_backend, save_image_backend, batch):
     images = []
     latent_paths = []
     save_image_paths = []
@@ -71,7 +71,8 @@ def write_latents(latent_encoder, device, args, cache_backend, image_backend, sa
             save_image_path = os.path.join(args.save_images_path, save_image_path)
             save_image_paths.append(save_image_path)
         images.append(item[0])
-    latents = latent_utils.encode_latents(latent_encoder, images, args.model_type, device)
+    with torch.no_grad():
+        latents = latent_utils.encode_latents(latent_model, image_processor, images, args.model_type, device)
     getattr(torch, device.type).synchronize(device)
     for i in range(len(latent_paths)):
         cache_backend.save(latents[i], latent_paths[i])
@@ -90,7 +91,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--device', default="cuda", type=str)
     parser.add_argument('--dtype', default="float16", type=str)
-    parser.add_argument('--batch_size', default=1, type=int)
+    parser.add_argument('--batch_size', default=4, type=int)
 
     parser.add_argument('--gc_steps', default=2048, type=int)
     parser.add_argument('--dynamo_backend', default="inductor", type=str)
@@ -144,7 +145,7 @@ if __name__ == '__main__':
     device = torch.device(args.device)
     print(f"Loading latent encoder models with dtype {dtype} to device {device}")
     print(print_filler)
-    latent_encoder = latent_utils.get_latent_encoder(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
+    latent_model, image_processor = latent_utils.get_latent_model(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
 
     epoch_batches = get_batches(args.batch_size, args.model_type, args.dataset_path, args.out_path)
     epoch_len = len(epoch_batches)
@@ -182,7 +183,7 @@ if __name__ == '__main__':
     for steps_done in tqdm(range(epoch_len)):
         try:
             batch = image_backend.get_images()
-            write_latents(latent_encoder, device, args, cache_backend, image_backend, save_image_backend, batch)
+            write_latents(latent_model, image_processor, device, args, cache_backend, image_backend, save_image_backend, batch)
             if steps_done % args.gc_steps == 0:
                 gc.collect()
                 getattr(torch, device.type).synchronize(device)

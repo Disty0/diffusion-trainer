@@ -1,0 +1,32 @@
+{
+    "model_type": "sd3",
+    "dynamo_backend": "no",
+    "tunableop": false,
+    "epochs": 10,
+    "optimizer": "adamw",
+    "optimizer_args": {},
+    "lr_scheduler": "CosineAnnealingLR",
+    "lr_scheduler_args": {"T_max": 102400, "eta_min": 4e-6},
+    "learning_rate": 1e-5,
+    "max_grad_norm": 0.0,
+    "batch_size": 1,
+    "gradient_accumulation_steps": 1,
+    "gradient_checkpointing": true,
+    "weights_dtype": "float32",
+    "mixed_precision": "fp16",
+    "load_queue_lenght": 64,
+    "max_load_workers": 8,
+    "gc_steps": 256,
+    "log_with": "wandb",
+    "project_name": "anime_decoder",
+    "resume_from": "none",
+    "checkpoint_save_steps": 256,
+    "checkpoints_limit": 20,
+    "project_dir": "/mnt/DataSSD/AI/SoteDiffusion/StableDiffusion3/train_decoder",
+    "dataset_index": "cache/decoder_dataset_index.json",
+    "model_path": "/mnt/DataSSD/AI/models/test/sd3/32_sb-3.6B_raifu_plus",
+    "image_ext": ".jxl",
+    "dataset_paths": [
+        ["/mnt/DataSSD/AI/anime_image_dataset/vae/danbooru-best-png-latent", "/mnt/DataSSD/AI/anime_image_dataset/vae/danbooru-best-png-cropped", 1]
+    ]
+}

@@ -9,10 +9,10 @@ To create a latent + embed dataset from images and text files:
 4) Run `create_embeds.py model_path dataset_path new_embed_dataset_path --model_type sd3 --text_ext .txt` to create embeds from the texts.  
    You can delete the original texts after this step if you want, we don't need them after creating embeds.
 5) Configure `config.json` with your desired configuration.  
-6) Run `train.py path_to_config` to start the training.  
+6) Run `train_model.py path_to_config` to start the training.  
 
-Running `train.py` will create a `dataset_index.json` file.  
-If you do any change to the dataset or the batch size, then remove this file before running `train.py`.  
+Running `train_model.py` will create a `dataset_index.json` file.  
+If you do any change to the dataset or the batch size, then remove this file before running `train_model.py`.  
 
 Example dataset_paths config:  
 `["path_to_the_latent_dataset", ["path_to_the_embed_dataset"], repeats]`  

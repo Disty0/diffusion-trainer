@@ -36,6 +36,22 @@ class LatentAndEmbedsDataset(Dataset):
         return [latents, embeds]
 
 
+class LatentAndImagesDataset(Dataset):
+    def __init__(self, batches, image_processor):
+        self.batches = batches
+        self.image_processor = image_processor
+    def __len__(self):
+        return len(self.batches)
+    def __getitem__(self, index):
+        latents = []
+        image_tensors = []
+        for batch in self.batches[index]:
+            latents.append(load_from_file(batch[0]))
+            with Image.open(batch[1]) as image:
+                image_tensors.append(self.image_processor.preprocess(image)[0])
+        return [latents, image_tensors]
+
+
 class SaveBackend():
     def __init__(self, model_type, save_queue_lenght=4096, max_save_workers=8):
         self.save_queue_lenght = 0
