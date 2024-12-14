@@ -101,6 +101,6 @@ def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=1.75):
     noisy_model_input = (1.0 - sigmas) * latents + sigmas * noise
     noisy_model_input = noisy_model_input.to(device)
     noise = noise.to(device)
-    target = (noisy_model_input - latents) / sigmas
+    target = noise - latents
 
     return noisy_model_input, timesteps, target
