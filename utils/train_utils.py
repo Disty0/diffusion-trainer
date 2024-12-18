@@ -6,8 +6,6 @@ import transformers
 
 
 def get_optimizer(optimizer, parameters, learning_rate, **kwargs):
-    if optimizer.lower() == "adamw":
-        return transformers.AdamW(parameters, lr=learning_rate, **kwargs)
     if optimizer.lower() == "adamw_bf16":
         from utils.optimizers.adamw_bf16 import AdamWBF16
         return AdamWBF16(parameters, lr=learning_rate, **kwargs)
@@ -23,6 +21,9 @@ def get_optimizer(optimizer, parameters, learning_rate, **kwargs):
     if optimizer.lower() == "came":
         from utils.optimizers.came import CAME
         return CAME(parameters, lr=learning_rate, **kwargs)
+    if "8bit" in optimizer.lower():
+        import bitsandbytes
+        return getattr(bitsandbytes.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
     return getattr(torch.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
 
 
