@@ -217,13 +217,13 @@ if __name__ == '__main__':
                         if hasattr(parameter, "grad"):
                             grad_max = max(grad_max, parameter.grad.abs().max().item())
                             grad_mean.append(parameter.grad.abs().mean().item())
-                    if config["max_grad_norm"] > 0:
-                        grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
                     if config["max_grad_clip"] > 0:
                         accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
                         for parameter in model.parameters():
                             if hasattr(parameter, "grad"):
                                 clipped_grad_mean.append(parameter.grad.abs().mean().item())
+                    if config["max_grad_norm"] > 0:
+                        grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
