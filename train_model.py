@@ -175,6 +175,11 @@ if __name__ == '__main__':
         for key, optimizer in optimizer_dict.items():
             optimizer_dict[key] = [optimizer, accelerator.prepare(train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))]
         def optimizer_hook(parameter):
+            global grad_max, grad_mean
+            grad_max = max(grad_max, parameter.grad.abs().max().item())
+            grad_mean.append(parameter.grad.abs().mean().item())
+            if accelerator.sync_gradients and config["max_grad_clip"] > 0:
+                accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
             if accelerator.sync_gradients and config["max_grad_norm"] > 0:
                 # this is **very** slow with fp16 and norming per parameter isn't ideal
                 global grad_norm
@@ -209,6 +214,8 @@ if __name__ == '__main__':
     empty_embeds_added_count = 0
     timesteps_list = []
     grad_norm = []
+    grad_mean = []
+    grad_max = 0
     model.train()
     getattr(torch, accelerator.device.type).empty_cache()
     for _ in range(first_epoch, config["epochs"]):
@@ -218,8 +225,15 @@ if __name__ == '__main__':
                 loss = torch.nn.functional.l1_loss(model_pred, target, reduction="mean")
                 accelerator.backward(loss)
                 if not config["fused_optimizer"]:
-                    if accelerator.sync_gradients and config["max_grad_norm"] > 0:
-                        grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
+                    if accelerator.sync_gradients:
+                        for parameter in model.parameters():
+                            if hasattr(parameter, "grad"):
+                                grad_max = max(grad_max, parameter.grad.abs().max().item())
+                                grad_mean.append(parameter.grad.abs().mean().item())
+                        if config["max_grad_norm"] > 0:
+                            grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
+                        if config["max_grad_clip"] > 0:
+                            accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
@@ -254,19 +268,18 @@ if __name__ == '__main__':
                             accelerator.save_state(save_path)
                             accelerator.print(f"Saved state to {save_path}")
 
-                    logs = {"loss": loss.detach().item(), "epoch": current_epoch}
+                    logs = {"loss": loss.detach().item(), "epoch": current_epoch, "grad_max": grad_max}
                     if not config["fused_optimizer"]:
                         logs["lr"] = lr_scheduler.get_last_lr()[0]
                     else:
                         logs["lr"] = optimizer_dict[list(optimizer_dict.keys())[0]][1].get_last_lr()[0]
-                    progress_bar.set_postfix(**logs)
-                    if timesteps_list:
-                        logs["timesteps"] = wandb.Histogram(timesteps_list)
-                        logs["timesteps_min"] = min(timesteps_list)
-                        logs["timesteps_max"] = max(timesteps_list)
-                        timesteps_list = []
-                    if config["dropout_rate"] > 0:
-                        logs["empty_embeds_added_count"] = empty_embeds_added_count
+                    if len(grad_mean) > 0:
+                        avg_grad_mean = 0
+                        for i in grad_mean:
+                            avg_grad_mean += i
+                        avg_grad_mean = avg_grad_mean / len(grad_mean)
+                        grad_mean = []
+                        logs["grad_mean"] = avg_grad_mean
                     if len(grad_norm) > 0:
                         avg_grad_norm = 0
                         for i in grad_norm:
@@ -274,7 +287,16 @@ if __name__ == '__main__':
                         avg_grad_norm = avg_grad_norm / len(grad_norm)
                         grad_norm = []
                         logs["grad_norm"] = avg_grad_norm
+                    progress_bar.set_postfix(**logs)
+                    if config["dropout_rate"] > 0:
+                        logs["empty_embeds_added_count"] = empty_embeds_added_count
+                    if timesteps_list:
+                        logs["timesteps"] = wandb.Histogram(timesteps_list)
+                        logs["timesteps_min"] = min(timesteps_list)
+                        logs["timesteps_max"] = max(timesteps_list)
+                        timesteps_list = []
                     accelerator.log(logs, step=current_step)
+                    grad_max = 0
                     if current_step == start_step + 1 or (config["gc_steps"] != 0 and current_step % config["gc_steps"] == 0):
                         gc.collect()
                         getattr(torch, accelerator.device.type).empty_cache()

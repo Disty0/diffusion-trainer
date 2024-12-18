@@ -183,6 +183,8 @@ if __name__ == '__main__':
     )
 
     grad_norm = []
+    grad_mean = []
+    grad_max = 0
     if hasattr(model, "decoder") and hasattr(model, "encoder"):
         model.eval()
         model.requires_grad_(False)
@@ -209,8 +211,15 @@ if __name__ == '__main__':
                 model_pred = latent_utils.decode_latents(model, image_processor, latents, config["model_type"], accelerator.device, return_image=False, mixed_precision=config["mixed_precision"])
                 loss = torch.nn.functional.l1_loss(model_pred, image_tensors, reduction="mean")
                 accelerator.backward(loss)
-                if accelerator.sync_gradients and config["max_grad_norm"] > 0:
-                    grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
+                if accelerator.sync_gradients:
+                    for parameter in model.parameters():
+                        if hasattr(parameter, "grad"):
+                            grad_max = max(grad_max, parameter.grad.abs().max().item())
+                            grad_mean.append(parameter.grad.abs().mean().item())
+                    if config["max_grad_norm"] > 0:
+                        grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
+                    if config["max_grad_clip"] > 0:
+                        accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
@@ -240,9 +249,15 @@ if __name__ == '__main__':
                             accelerator.save_state(save_path)
                             accelerator.print(f"Saved state to {save_path}")
 
-                    logs = {"loss": loss.detach().item(), "epoch": current_epoch}
+                    logs = {"loss": loss.detach().item(), "epoch": current_epoch, "grad_max": grad_max}
                     logs["lr"] = lr_scheduler.get_last_lr()[0]
-                    progress_bar.set_postfix(**logs)
+                    if len(grad_mean) > 0:
+                        avg_grad_mean = 0
+                        for i in grad_mean:
+                            avg_grad_mean += i
+                        avg_grad_mean = avg_grad_mean / len(grad_mean)
+                        grad_mean = []
+                        logs["grad_mean"] = avg_grad_mean
                     if len(grad_norm) > 0:
                         avg_grad_norm = 0
                         for i in grad_norm:
@@ -250,7 +265,9 @@ if __name__ == '__main__':
                         avg_grad_norm = avg_grad_norm / len(grad_norm)
                         grad_norm = []
                         logs["grad_norm"] = avg_grad_norm
+                    progress_bar.set_postfix(**logs)
                     accelerator.log(logs, step=current_step)
+                    grad_max = 0
                     if current_step == start_step + 1 or (config["gc_steps"] != 0 and current_step % config["gc_steps"] == 0):
                         gc.collect()
                         getattr(torch, accelerator.device.type).empty_cache()
