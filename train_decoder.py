@@ -184,6 +184,7 @@ if __name__ == '__main__':
 
     grad_norm = []
     grad_mean = []
+    clipped_grad_mean = []
     grad_max = 0
     if hasattr(model, "decoder") and hasattr(model, "encoder"):
         model.eval()
@@ -220,6 +221,9 @@ if __name__ == '__main__':
                         grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
                     if config["max_grad_clip"] > 0:
                         accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
+                        for parameter in model.parameters():
+                            if hasattr(parameter, "grad"):
+                                clipped_grad_mean.append(parameter.grad.abs().mean().item())
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
@@ -258,6 +262,13 @@ if __name__ == '__main__':
                         avg_grad_mean = avg_grad_mean / len(grad_mean)
                         grad_mean = []
                         logs["grad_mean"] = avg_grad_mean
+                    if len(clipped_grad_mean) > 0:
+                        avg_clipped_grad_mean = 0
+                        for i in clipped_grad_mean:
+                            avg_clipped_grad_mean += i
+                        avg_clipped_grad_mean = avg_clipped_grad_mean / len(clipped_grad_mean)
+                        clipped_grad_mean = []
+                        logs["clipped_grad_mean"] = avg_clipped_grad_mean
                     if len(grad_norm) > 0:
                         avg_grad_norm = 0
                         for i in grad_norm:
