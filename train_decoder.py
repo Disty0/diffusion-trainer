@@ -148,6 +148,7 @@ if __name__ == '__main__':
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
         get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
+    accelerator.wait_for_everyone()
     with open(config["dataset_index"], "r") as f:
         epoch_batch = json.load(f)
 
@@ -159,7 +160,7 @@ if __name__ == '__main__':
         model.enable_gradient_checkpointing()
 
     dataset = loader_utils.LatentAndImagesDataset(epoch_batch, image_processor)
-    train_dataloader = DataLoader(dataset=dataset, batch_size=1, shuffle=False, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
+    train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
 
     optimizer = train_utils.get_optimizer(config["optimizer"], model.parameters(), config["learning_rate"], **config["optimizer_args"])
     lr_scheduler = train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
@@ -194,10 +195,16 @@ if __name__ == '__main__':
     getattr(torch, accelerator.device.type).empty_cache()
 
     for _ in range(first_epoch, config["epochs"]):
-        for epoch_step, (latents, image_tensors) in enumerate(train_dataloader):
+        for epoch_step, (latents_list, image_tensors_list) in enumerate(train_dataloader):
             with torch.no_grad():
-                latents = torch.cat(latents, dim=0)
-                image_tensors = torch.cat(image_tensors, dim=0)
+                latents = []
+                for i in range(len(latents_list)):
+                    latents.append(latents_list[i].to(dtype=torch.float32))
+                latents = torch.stack(latents).to(accelerator.device, dtype=torch.float32)
+                image_tensors = []
+                for i in range(len(image_tensors_list)):
+                    image_tensors.append(image_tensors_list[i].to(dtype=torch.float32))
+                image_tensors = torch.stack(image_tensors).to(accelerator.device, dtype=torch.float32)
             with accelerator.accumulate(model):
                 model_pred = latent_utils.decode_latents(model, image_processor, latents, config["model_type"], accelerator.device, return_image=False, mixed_precision=config["mixed_precision"])
                 loss = torch.nn.functional.l1_loss(model_pred, image_tensors, reduction="mean")
@@ -252,6 +259,18 @@ if __name__ == '__main__':
         accelerator.print("\n" + print_filler)
         accelerator.print(f"Starting epoch {current_epoch}")
         accelerator.print(f"Current steps done: {current_step}")
+        if config["reshuffle"]:
+            train_dataloader = accelerator.unwrap_model(train_dataloader)
+            del dataset, train_dataloader
+            if accelerator.is_local_main_process:
+                os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
+            accelerator.wait_for_everyone()
+            with open(config["dataset_index"], "r") as f:
+                epoch_batch = json.load(f)
+            dataset = loader_utils.LatentAndImagesDataset(epoch_batch, image_processor)
+            train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
+            train_dataloader = accelerator.prepare(train_dataloader)
 
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:

@@ -155,10 +155,11 @@ if __name__ == '__main__':
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
         get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path)
+    accelerator.wait_for_everyone()
     with open(config["dataset_index"], "r") as f:
         epoch_batch = json.load(f)
     dataset = loader_utils.LatentAndEmbedsDataset(epoch_batch)
-    train_dataloader = DataLoader(dataset=dataset, batch_size=1, shuffle=False, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
+    train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
 
     dtype = getattr(torch, config["weights_dtype"])
     print(f"Loading diffusion models with dtype {dtype} to device {accelerator.device}")
@@ -211,9 +212,9 @@ if __name__ == '__main__':
     model.train()
     getattr(torch, accelerator.device.type).empty_cache()
     for _ in range(first_epoch, config["epochs"]):
-        for epoch_step, (latents, embeds) in enumerate(train_dataloader):
+        for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
-                model_pred, target, timesteps, empty_embeds_added = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed)
+                model_pred, target, timesteps, empty_embeds_added = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds_list, empty_embed)
                 loss = torch.nn.functional.l1_loss(model_pred, target, reduction="mean")
                 accelerator.backward(loss)
                 if not config["fused_optimizer"]:
@@ -282,6 +283,18 @@ if __name__ == '__main__':
         accelerator.print("\n" + print_filler)
         accelerator.print(f"Starting epoch {current_epoch}")
         accelerator.print(f"Current steps done: {current_step}")
+        if config["reshuffle"]:
+            train_dataloader = accelerator.unwrap_model(train_dataloader)
+            del dataset, train_dataloader
+            if accelerator.is_local_main_process:
+                os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path)
+            accelerator.wait_for_everyone()
+            with open(config["dataset_index"], "r") as f:
+                epoch_batch = json.load(f)
+            dataset = loader_utils.LatentAndEmbedsDataset(epoch_batch)
+            train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
+            train_dataloader = accelerator.prepare(train_dataloader)
 
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:

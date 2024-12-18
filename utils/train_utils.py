@@ -47,23 +47,27 @@ def get_model_class(model_type):
         raise NotImplementedError
 
 
-def run_model(model, scheduler, config, accelerator, dtype, latents, embeds, empty_embed):
+def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds_list, empty_embed):
     if config["model_type"] == "sd3":
         with torch.no_grad():
-            latents = torch.cat(latents, dim=0).to(accelerator.device, dtype=torch.float32)
+            latents = []
+            for i in range(len(latents_list)):
+                latents.append(latents_list[i].to(dtype=torch.float32))
+            latents = torch.stack(latents).to(accelerator.device, dtype=torch.float32)
+
             prompt_embeds = []
             pooled_embeds = []
             empty_embeds_added = 0
-            for i in range(len(embeds)):
+            for i in range(len(embeds_list)):
                 if random.randint(0,100) > config["dropout_rate"] * 100:
-                    prompt_embeds.append(embeds[i][0].to(dtype=torch.float32))
-                    pooled_embeds.append(embeds[i][1].to(dtype=torch.float32))
+                    prompt_embeds.append(embeds_list[i][0].to(dtype=torch.float32))
+                    pooled_embeds.append(embeds_list[i][1].to(dtype=torch.float32))
                 else:
-                    prompt_embeds.append(empty_embed[0].unsqueeze(0).to(dtype=torch.float32))
-                    pooled_embeds.append(empty_embed[1].unsqueeze(0).to(dtype=torch.float32))
+                    prompt_embeds.append(empty_embed[0].to(dtype=torch.float32))
+                    pooled_embeds.append(empty_embed[1].to(dtype=torch.float32))
                     empty_embeds_added += 1
-            prompt_embeds = torch.cat(prompt_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
-            pooled_embeds = torch.cat(pooled_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
+            prompt_embeds = torch.stack(prompt_embeds).to(accelerator.device, dtype=torch.float32)
+            pooled_embeds = torch.stack(pooled_embeds).to(accelerator.device, dtype=torch.float32)
 
             noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
 

@@ -22,8 +22,9 @@
     "resume_from": "none",
     "checkpoint_save_steps": 256,
     "checkpoints_limit": 20,
-    "project_dir": "/mnt/DataSSD/AI/SoteDiffusion/StableDiffusion3/train_decoder",
+    "reshuffle": true,
     "dataset_index": "cache/decoder_dataset_index.json",
+    "project_dir": "/mnt/DataSSD/AI/models/SoteDiffusion/StableDiffusion3/train_decoder",
     "model_path": "/mnt/DataSSD/AI/models/test/sd3/32_sb-3.6B_raifu_plus",
     "image_ext": ".jxl",
     "dataset_paths": [
