@@ -42,7 +42,7 @@ class Bitstream:
         self.index += 1
         self.file.seek(self.offsets[self.index][1])
         if self.shift + length > self.previous_data_len + self.offsets[self.index][2]:
-            self.partial_read(self, readed_length, length)
+            self.partial_read(readed_length, length)
 
 
 def decode_codestream(file, offset=0, offsets=[]):
