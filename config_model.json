@@ -11,6 +11,7 @@
     "learning_rate": 8e-6,
     "max_grad_norm": 0.0,
     "max_grad_clip": 0.0,
+    "log_grad_stats": true,
     "batch_size": 1,
     "gradient_accumulation_steps": 1,
     "gradient_checkpointing": true,

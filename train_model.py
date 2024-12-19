@@ -175,18 +175,24 @@ if __name__ == '__main__':
         for key, optimizer in optimizer_dict.items():
             optimizer_dict[key] = [optimizer, accelerator.prepare(train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))]
         def optimizer_hook(parameter):
-            global grad_max, grad_mean
-            grad_max = max(grad_max, parameter.grad.abs().max().item())
-            grad_mean.append(parameter.grad.abs().mean().item())
+            if config["log_grad_stats"]:
+                global grad_max, grad_mean, grad_mean_count
+                param_grad_abs = parameter.grad.abs()
+                grad_max = max(grad_max, param_grad_abs.max().item())
+                grad_mean += param_grad_abs.mean().item()
+                grad_mean_count += 1
             if accelerator.sync_gradients and config["max_grad_clip"] > 0:
                 # this is **very** slow with fp16
-                global clipped_grad_mean
                 accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
-                clipped_grad_mean.append(parameter.grad.abs().mean().item())
+                if config["log_grad_stats"]:
+                    global clipped_grad_mean, clipped_grad_mean_count
+                    clipped_grad_mean += parameter.grad.abs().mean().item()
+                    clipped_grad_mean_count += 1
             if accelerator.sync_gradients and config["max_grad_norm"] > 0:
                 # this is **very** slow with fp16 and norming per parameter isn't ideal
-                global grad_norm
-                grad_norm.append(accelerator.clip_grad_norm_(parameter, config["max_grad_norm"]))
+                global grad_norm, grad_norm_count
+                grad_norm += accelerator.clip_grad_norm_(parameter, config["max_grad_norm"])
+                grad_norm_count += 1
             optimizer_dict[parameter][0].step()
             optimizer_dict[parameter][1].step()
             optimizer_dict[parameter][0].zero_grad()
@@ -216,9 +222,12 @@ if __name__ == '__main__':
 
     empty_embeds_added_count = 0
     timesteps_list = []
-    grad_norm = []
-    grad_mean = []
-    clipped_grad_mean = []
+    grad_norm = 0
+    grad_mean = 0
+    clipped_grad_mean = 0
+    grad_norm_count = 0
+    grad_mean_count = 0
+    clipped_grad_mean_count = 0
     grad_max = 0
     model.train()
     getattr(torch, accelerator.device.type).empty_cache()
@@ -230,17 +239,23 @@ if __name__ == '__main__':
                 accelerator.backward(loss)
                 if not config["fused_optimizer"]:
                     if accelerator.sync_gradients:
-                        for parameter in model.parameters():
-                            if hasattr(parameter, "grad"):
-                                grad_max = max(grad_max, parameter.grad.abs().max().item())
-                                grad_mean.append(parameter.grad.abs().mean().item())
-                        if config["max_grad_clip"] > 0:
-                            accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
+                        if config["log_grad_stats"]:
                             for parameter in model.parameters():
                                 if hasattr(parameter, "grad"):
-                                    clipped_grad_mean.append(parameter.grad.abs().mean().item())
+                                    param_grad_abs = parameter.grad.abs()
+                                    grad_max = max(grad_max, param_grad_abs.max().item())
+                                    grad_mean += param_grad_abs.mean().item()
+                                    grad_mean_count += 1
+                        if config["max_grad_clip"] > 0:
+                            accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
+                            if config["log_grad_stats"]:
+                                for parameter in model.parameters():
+                                    if hasattr(parameter, "grad"):
+                                        clipped_grad_mean += parameter.grad.abs().mean().item()
+                                        clipped_grad_mean_count += 1
                         if config["max_grad_norm"] > 0:
-                            grad_norm.append(accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"]))
+                            grad_norm += accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"])
+                            grad_norm_count += 1
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
@@ -275,32 +290,27 @@ if __name__ == '__main__':
                             accelerator.save_state(save_path)
                             accelerator.print(f"Saved state to {save_path}")
 
-                    logs = {"loss": loss.detach().item(), "epoch": current_epoch, "grad_max": grad_max}
+                    logs = {"loss": loss.detach().item(), "epoch": current_epoch}
                     if not config["fused_optimizer"]:
                         logs["lr"] = lr_scheduler.get_last_lr()[0]
                     else:
                         logs["lr"] = optimizer_dict[list(optimizer_dict.keys())[0]][1].get_last_lr()[0]
-                    if len(grad_mean) > 0:
-                        avg_grad_mean = 0
-                        for i in grad_mean:
-                            avg_grad_mean += i
-                        avg_grad_mean = avg_grad_mean / len(grad_mean)
-                        grad_mean = []
-                        logs["grad_mean"] = avg_grad_mean
-                    if len(clipped_grad_mean) > 0:
-                        avg_clipped_grad_mean = 0
-                        for i in clipped_grad_mean:
-                            avg_clipped_grad_mean += i
-                        avg_clipped_grad_mean = avg_clipped_grad_mean / len(clipped_grad_mean)
-                        clipped_grad_mean = []
-                        logs["clipped_grad_mean"] = avg_clipped_grad_mean
-                    if len(grad_norm) > 0:
-                        avg_grad_norm = 0
-                        for i in grad_norm:
-                            avg_grad_norm += i
-                        avg_grad_norm = avg_grad_norm / len(grad_norm)
-                        grad_norm = []
-                        logs["grad_norm"] = avg_grad_norm
+                    if config["log_grad_stats"]:
+                        logs["grad_max"] = grad_max
+                        grad_max = 0
+                        if grad_mean_count > 0:
+                            logs["grad_mean"] = grad_mean / grad_mean_count
+                            grad_mean = 0
+                            grad_mean_count = 0
+                        if clipped_grad_mean_count > 0:
+                            logs["clipped_grad_mean"] = clipped_grad_mean / clipped_grad_mean_count
+                            clipped_grad_mean = 0
+                            clipped_grad_mean_count = 0
+                        if grad_norm_count > 0:
+                            logs["grad_norm"] = grad_norm / grad_norm_count
+                            grad_norm = 0
+                            grad_norm_count = 0
+
                     progress_bar.set_postfix(**logs)
                     if config["dropout_rate"] > 0:
                         logs["empty_embeds_added_count"] = empty_embeds_added_count
@@ -310,7 +320,7 @@ if __name__ == '__main__':
                         logs["timesteps_max"] = max(timesteps_list)
                         timesteps_list = []
                     accelerator.log(logs, step=current_step)
-                    grad_max = 0
+
                     if current_step == start_step + 1 or (config["gc_steps"] != 0 and current_step % config["gc_steps"] == 0):
                         gc.collect()
                         getattr(torch, accelerator.device.type).empty_cache()
