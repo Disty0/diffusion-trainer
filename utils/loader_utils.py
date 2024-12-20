@@ -12,6 +12,8 @@ from queue import Queue
 from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 
+Image.MAX_IMAGE_PIXELS = 999999999 # 178956970
+
 
 def load_from_file(path):
     with open(path, "rb") as file:

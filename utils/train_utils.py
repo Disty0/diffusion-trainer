@@ -99,8 +99,9 @@ def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=1.75):
     # clamp min is smaller than 0.001 to offset shift 1.75
     u = torch.empty((latents.shape[0],), device=device, dtype=torch.float32).uniform_(0.00056, 1.0056).clamp(0.0005717,1.0)
     u = (u * shift) / (1 + (shift - 1) * u)
-    timesteps = (u * num_train_timesteps).long().clamp(1,num_train_timesteps).to(dtype=torch.float32)
-    sigmas = (timesteps / num_train_timesteps).view(-1, 1, 1, 1)
+    u = u.clamp(1/num_train_timesteps,1.0)
+    timesteps = (u * num_train_timesteps)
+    sigmas = u.view(-1, 1, 1, 1)
 
     noise = torch.randn_like(latents, device=device)
     noisy_model_input = (1.0 - sigmas) * latents + sigmas * noise
