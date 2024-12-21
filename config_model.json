@@ -22,17 +22,18 @@
     "max_load_workers": 8,
     "gc_steps": 256,
     "log_with": "wandb",
-    "project_name": "anime_test_3.6b",
+    "project_name": "anime_test_3.6b_latent_scale",
     "resume_from": "none",
     "checkpoint_save_steps": 256,
-    "checkpoints_limit": 20,
+    "checkpoints_limit": 3,
     "reshuffle": true,
+    "correct_default_sd3_latents_for_danbooru": true,
     "dataset_index": "cache/dataset_index.json",
     "project_dir": "/mnt/DataSSD/AI/models/SoteDiffusion/StableDiffusion3/train_model",
     "model_path": "/mnt/DataSSD/AI/models/test/sd3/32_sb-3.6B_raifu_plus",
     "dataset_paths": [
-        ["/mnt/DataSSD/AI/anime_image_dataset/latents/raifu", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu-qwen2"], 5],
-        ["/mnt/DataSSD/AI/anime_image_dataset/latents/hand_picked", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/hand_picked-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/hand_picked-qwen2"], 5],
-        ["/mnt/DataSSD/AI/anime_image_dataset/latents/danbooru-best", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/danbooru-best-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/danbooru-best-qwen2"], 1]
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/raifu", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu/raifu-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu/raifu-qwen2"], 5],
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/hand_picked", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/best/hand_picked-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/best/hand_picked-qwen2"], 5],
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/danbooru-best", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/best/danbooru-best-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/best/danbooru-best-qwen2"], 1]
     ]
 }
