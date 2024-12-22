@@ -206,11 +206,11 @@ if __name__ == '__main__':
             with torch.no_grad():
                 latents = []
                 for i in range(len(latents_list)):
-                    latents.append(latents_list[i].to(dtype=torch.float32))
+                    latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
                 latents = torch.stack(latents).to(accelerator.device, dtype=torch.float32)
                 image_tensors = []
                 for i in range(len(image_tensors_list)):
-                    image_tensors.append(image_tensors_list[i].to(dtype=torch.float32))
+                    image_tensors.append(image_tensors_list[i].to(accelerator.device, dtype=torch.float32))
                 image_tensors = torch.stack(image_tensors).to(accelerator.device, dtype=torch.float32)
             with accelerator.accumulate(model):
                 model_pred = latent_utils.decode_latents(model, image_processor, latents, config["model_type"], accelerator.device, return_image=False, mixed_precision=config["mixed_precision"])

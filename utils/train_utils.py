@@ -53,7 +53,7 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
         with torch.no_grad():
             latents = []
             for i in range(len(latents_list)):
-                latents.append(latents_list[i].to(dtype=torch.float32))
+                latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
             latents = torch.stack(latents).to(accelerator.device, dtype=torch.float32)
 
             # post corrections averaged over 5m anime illustrations for already cached the latents with the default sd3 scaling / shifting
@@ -66,11 +66,11 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
             empty_embeds_added = 0
             for i in range(len(embeds_list)):
                 if random.randint(0,100) > config["dropout_rate"] * 100:
-                    prompt_embeds.append(embeds_list[i][0].to(dtype=torch.float32))
-                    pooled_embeds.append(embeds_list[i][1].to(dtype=torch.float32))
+                    prompt_embeds.append(embeds_list[i][0].to(accelerator.device, dtype=torch.float32))
+                    pooled_embeds.append(embeds_list[i][1].to(accelerator.device, dtype=torch.float32))
                 else:
-                    prompt_embeds.append(empty_embed[0].to(dtype=torch.float32))
-                    pooled_embeds.append(empty_embed[1].to(dtype=torch.float32))
+                    prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=torch.float32))
+                    pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=torch.float32))
                     empty_embeds_added += 1
             prompt_embeds = torch.stack(prompt_embeds).to(accelerator.device, dtype=torch.float32)
             pooled_embeds = torch.stack(pooled_embeds).to(accelerator.device, dtype=torch.float32)
