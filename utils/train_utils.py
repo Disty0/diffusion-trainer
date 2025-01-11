@@ -21,7 +21,7 @@ def get_optimizer(optimizer, parameters, learning_rate, **kwargs):
     if optimizer.lower() == "came":
         from utils.optimizers.came import CAME
         return CAME(parameters, lr=learning_rate, **kwargs)
-    if "8bit" in optimizer.lower():
+    if optimizer.endswith("8bit") or optimizer.startswith("Paged"):
         import bitsandbytes
         return getattr(bitsandbytes.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
     return getattr(torch.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
