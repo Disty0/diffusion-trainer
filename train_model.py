@@ -125,13 +125,10 @@ if __name__ == '__main__':
 
     def unwrap_model(model):
         model = accelerator.unwrap_model(model)
-        model = model._orig_mod if isinstance(model, torch._dynamo.eval_frame.OptimizedModule) else model
-        return model
+        return model._orig_mod if isinstance(model, torch._dynamo.eval_frame.OptimizedModule) else model
 
     def save_model_hook(models, weights, output_dir):
         if accelerator.is_main_process:
-            if config["use_ema"]:
-                ema_model.save_pretrained(os.path.join(output_dir, "diffusion_ema_model"))
             for i, model in enumerate(models):
                 if isinstance(unwrap_model(model), train_utils.get_model_class(config["model_type"])):
                     unwrap_model(model).save_pretrained(os.path.join(output_dir, "diffusion_model"))
@@ -140,13 +137,6 @@ if __name__ == '__main__':
                 weights.pop()
 
     def load_model_hook(models, input_dir):
-        if config["use_ema"] and accelerator.is_main_process:
-            load_model = EMAModel.from_pretrained(os.path.join(input_dir, "diffusion_ema_model"), train_utils.get_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
-            ema_model.load_state_dict(load_model.state_dict())
-            ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
-            if config["offload_ema_to_cpu"] and not config["update_ema_on_cpu"]:
-                ema_model.pin_memory()
-            del load_model
         for _ in range(len(models)):
             model = models.pop()
             if isinstance(unwrap_model(model), train_utils.get_model_class(config["model_type"])):
@@ -172,23 +162,11 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
 
     dtype = getattr(torch, config["weights_dtype"])
-    if config["use_ema"] and accelerator.is_main_process:
-        ema_dtype = getattr(torch, config["ema_weights_dtype"])
-
     print(f"Loading diffusion models with dtype {dtype} to device {accelerator.device}")
     accelerator.print(print_filler)
     model, scheduler = train_utils.get_diffusion_model(config["model_type"], config["model_path"], accelerator.device, dtype)
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()
-
-    if config["use_ema"] and accelerator.is_main_process:
-        accelerator.print("\n" + print_filler)
-        print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
-        accelerator.print(print_filler)
-        ema_model, _ = train_utils.get_diffusion_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype)
-        ema_model = EMAModel(ema_model.parameters(), model_cls=train_utils.get_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"])
-        if config["offload_ema_to_cpu"] and not config["update_ema_on_cpu"]:
-            ema_model.pin_memory()
 
     if config["fused_optimizer"]:
         optimizer_dict = {p: accelerator.prepare(
@@ -234,6 +212,20 @@ if __name__ == '__main__':
         first_epoch = current_step // math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"])
         current_epoch = first_epoch
         start_step = current_step
+
+    if config["ema_update_steps"] > 0 and accelerator.is_main_process:
+        ema_dtype = getattr(torch, config["ema_weights_dtype"])
+        accelerator.print("\n" + print_filler)
+        print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
+        accelerator.print(print_filler)
+        if config.get("resume_from", "") and config["resume_from"] != "none":
+            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), train_utils.get_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
+            ema_model = ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
+        else:
+            ema_model, _ = train_utils.get_diffusion_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype)
+            ema_model = EMAModel(ema_model.parameters(), model_cls=train_utils.get_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
+        if config["offload_ema_to_cpu"] and not config["update_ema_on_cpu"]:
+            ema_model.pin_memory()
 
     accelerator.init_trackers(project_name=config["project_name"], config=config)
 
@@ -289,16 +281,18 @@ if __name__ == '__main__':
                     empty_embeds_added_count += empty_embeds_added
 
                 if accelerator.sync_gradients:
-                    if config["use_ema"] and current_step % config["ema_update_steps"] == 0:
+                    if config["ema_update_steps"] > 0 and current_step % config["ema_update_steps"] == 0:
                         accelerator.wait_for_everyone()
                         if accelerator.is_main_process:
                             if config["update_ema_on_cpu"]:
+                                gc.collect()
                                 model.to(device="cpu", non_blocking=False)
                             elif config["offload_ema_to_cpu"]:
                                 ema_model.to(device=accelerator.device, non_blocking=config["offload_ema_non_blocking"])
                             ema_model.step(model.parameters())
                             if config["update_ema_on_cpu"]:
                                 model.to(device=accelerator.device, non_blocking=False)
+                                gc.collect()
                             elif config["offload_ema_to_cpu"]:
                                 ema_model.to(device="cpu", non_blocking=config["offload_ema_non_blocking"])
                         accelerator.wait_for_everyone()
@@ -324,6 +318,9 @@ if __name__ == '__main__':
 
                             save_path = os.path.join(config["project_dir"], f"checkpoint-{current_step}")
                             accelerator.save_state(save_path)
+                            if config["ema_update_steps"] > 0:
+                                ema_model.save_pretrained(os.path.join(save_path, "diffusion_ema_model"))
+                            gc.collect()
                             accelerator.print(f"Saved state to {save_path}")
 
                     logs = {"loss": loss.detach().item(), "epoch": current_epoch}
@@ -346,6 +343,9 @@ if __name__ == '__main__':
                             logs["grad_norm"] = grad_norm / grad_norm_count
                             grad_norm = 0
                             grad_norm_count = 0
+                    if accelerator.is_main_process:
+                        if config["ema_update_steps"] > 0:
+                            logs["ema_decay"] = ema_model.get_decay(ema_model.optimization_step)
 
                     progress_bar.set_postfix(**logs)
                     if config["dropout_rate"] > 0:
