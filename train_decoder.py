@@ -11,6 +11,7 @@ from utils import loader_utils, train_utils, latent_utils
 
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
+from diffusers.training_utils import EMAModel
 
 print_filler = "--------------------------------------------------"
 
@@ -122,18 +123,27 @@ if __name__ == '__main__':
 
     def save_model_hook(models, weights, output_dir):
         if accelerator.is_main_process:
+            if config["use_ema"]:
+                ema_model.save_pretrained(os.path.join(output_dir, "decoder_ema_model"))
             for i, model in enumerate(models):
                 if isinstance(unwrap_model(model), latent_utils.get_latent_model_class(config["model_type"])):
-                    unwrap_model(model).save_pretrained(os.path.join(output_dir, "decoder"))
+                    unwrap_model(model).save_pretrained(os.path.join(output_dir, "decoder_model"))
                 else:
                     raise ValueError(f"Wrong model supplied: {type(model)=}.")
                 weights.pop()
 
     def load_model_hook(models, input_dir):
+        if config["use_ema"] and accelerator.is_main_process:
+            load_model = EMAModel.from_pretrained(os.path.join(input_dir, "decoder_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
+            ema_model.load_state_dict(load_model.state_dict())
+            ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
+            if config["offload_ema_to_cpu"] and not config["update_ema_on_cpu"]:
+                ema_model.pin_memory()
+            del load_model
         for _ in range(len(models)):
             model = models.pop()
             if isinstance(unwrap_model(model), latent_utils.get_latent_model_class(config["model_type"])):
-                load_model = latent_utils.get_latent_model_class(config["model_type"]).from_pretrained(input_dir, subfolder="decoder")
+                load_model = latent_utils.get_latent_model_class(config["model_type"]).from_pretrained(input_dir, subfolder="decoder_model")
                 model.register_to_config(**load_model.config)
                 model.load_state_dict(load_model.state_dict())
             else:
@@ -153,11 +163,23 @@ if __name__ == '__main__':
         epoch_batch = json.load(f)
 
     dtype = getattr(torch, config["weights_dtype"])
+    if config["use_ema"] and accelerator.is_main_process:
+        ema_dtype = getattr(torch, config["ema_weights_dtype"])
+
     print(f"Loading latent models with dtype {dtype} to device {accelerator.device}")
     accelerator.print(print_filler)
     model, image_processor = latent_utils.get_latent_model(config["model_type"], config["model_path"], accelerator.device, dtype, "no")
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()
+
+    if config["use_ema"] and accelerator.is_main_process:
+        accelerator.print("\n" + print_filler)
+        print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
+        accelerator.print(print_filler)
+        ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, "no")
+        ema_model = EMAModel(ema_model.parameters(), model_cls=latent_utils.get_latent_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"])
+        if config["offload_ema_to_cpu"] and not config["update_ema_on_cpu"]:
+            ema_model.pin_memory()
 
     dataset = loader_utils.LatentAndImagesDataset(epoch_batch, image_processor)
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
@@ -239,6 +261,19 @@ if __name__ == '__main__':
                 optimizer.zero_grad()
 
                 if accelerator.sync_gradients:
+                    if config["use_ema"] and current_step % config["ema_update_steps"] == 0:
+                        accelerator.wait_for_everyone()
+                        if accelerator.is_main_process:
+                            if config["update_ema_on_cpu"]:
+                                model.to(device="cpu", non_blocking=False)
+                            elif config["offload_ema_to_cpu"]:
+                                ema_model.to(device=accelerator.device, non_blocking=config["offload_ema_non_blocking"])
+                            ema_model.step(model.parameters())
+                            if config["update_ema_on_cpu"]:
+                                model.to(device=accelerator.device, non_blocking=False)
+                            elif config["offload_ema_to_cpu"]:
+                                ema_model.to(device="cpu", non_blocking=config["offload_ema_non_blocking"])
+                        accelerator.wait_for_everyone()
                     progress_bar.update(1)
                     current_step = current_step + 1
 
