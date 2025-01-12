@@ -180,12 +180,12 @@ if __name__ == '__main__':
         print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
         accelerator.print(print_filler)
         if config.get("resume_from", "") and config["resume_from"] != "none":
-            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "decoder_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
+            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
             ema_model = ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
         else:
-            ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype)
+            ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, "no")
             ema_model = EMAModel(ema_model.parameters(), model_cls=latent_utils.get_latent_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
-        if config["offload_ema_to_cpu"] and not config["update_ema_on_cpu"]:
+        if config["offload_ema_pin_memory"]:
             ema_model.pin_memory()
 
     accelerator.init_trackers(project_name=config["project_name"], config=config)
@@ -271,8 +271,10 @@ if __name__ == '__main__':
                     progress_bar.update(1)
                     current_step = current_step + 1
 
-                    if accelerator.is_main_process:
-                        if current_step % config["checkpoint_save_steps"] == 0:
+                    if current_step % config["checkpoint_save_steps"] == 0:
+                        accelerator.wait_for_everyone()
+                        if accelerator.is_main_process:
+                            accelerator.print("\n" + print_filler)
                             os.makedirs(config["project_dir"], exist_ok=True)
                             if config["checkpoints_limit"] != 0:
                                 checkpoints = os.listdir(config["project_dir"])
@@ -289,11 +291,22 @@ if __name__ == '__main__':
                                         shutil.rmtree(removing_checkpoint)
 
                             save_path = os.path.join(config["project_dir"], f"checkpoint-{current_step}")
+                            accelerator.print(f"Saving state to {save_path}")
                             accelerator.save_state(save_path)
                             if config["ema_update_steps"] > 0:
-                                ema_model.save_pretrained(os.path.join(save_path, "decoder_ema_model"))
+                                gc.collect()
+                                accelerator.print(f"Saving EMA state to {save_path}")
+                                save_ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu", ema_dtype, "no")
+                                save_ema_model_state_dict = ema_model.state_dict()
+                                save_ema_model_state_dict.pop("shadow_params", None)
+                                save_ema_model.register_to_config(**save_ema_model_state_dict)
+                                ema_model.copy_to(save_ema_model.parameters())
+                                save_ema_model.save_pretrained(os.path.join(save_path, "diffusion_ema_model"))
+                                del save_ema_model
                             gc.collect()
-                            accelerator.print(f"Saved state to {save_path}")
+                            accelerator.print(f"Saved states to {save_path}")
+                            accelerator.print(print_filler)
+                        accelerator.wait_for_everyone()
 
                     logs = {"loss": loss.detach().item(), "epoch": current_epoch}
                     logs["lr"] = lr_scheduler.get_last_lr()[0]
@@ -344,6 +357,19 @@ if __name__ == '__main__':
     if accelerator.is_main_process:
         model = unwrap_model(model)
         save_path = os.path.join(config["project_dir"], "checkpoint-final")
+        accelerator.print("\n" + print_filler)
+        accelerator.print(f"Saving state to {save_path}")
         accelerator.save_state(save_path)
-        accelerator.print(f"Saved state to {save_path}")
+        if config["ema_update_steps"] > 0:
+            gc.collect()
+            accelerator.print(f"Saving EMA state to {save_path}")
+            save_ema_model, _ = train_utils.get_diffusion_model(config["model_type"], config["model_path"], "cpu", ema_dtype)
+            save_ema_model_state_dict = ema_model.state_dict()
+            save_ema_model_state_dict.pop("shadow_params", None)
+            save_ema_model.register_to_config(**save_ema_model_state_dict)
+            ema_model.copy_to(save_ema_model.parameters())
+            save_ema_model.save_pretrained(os.path.join(save_path, "diffusion_ema_model"))
+            del save_ema_model
+        gc.collect()
+        accelerator.print(f"Saved states to {save_path}")
     accelerator.end_training()
