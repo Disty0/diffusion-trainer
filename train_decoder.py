@@ -181,7 +181,7 @@ if __name__ == '__main__':
         accelerator.print(print_filler)
         if config.get("resume_from", "") and config["resume_from"] != "none":
             ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
-            ema_model = ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
+            ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
         else:
             ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, "no")
             ema_model = EMAModel(ema_model.parameters(), model_cls=latent_utils.get_latent_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
@@ -304,7 +304,7 @@ if __name__ == '__main__':
                                 save_ema_model.save_pretrained(os.path.join(save_path, "diffusion_ema_model"))
                                 del save_ema_model
                             gc.collect()
-                            accelerator.print(f"Saved states to {save_path}")
+                            accelerator.print(f"\nSaved states to {save_path}")
                             accelerator.print(print_filler)
                         accelerator.wait_for_everyone()
 
@@ -371,5 +371,5 @@ if __name__ == '__main__':
             save_ema_model.save_pretrained(os.path.join(save_path, "diffusion_ema_model"))
             del save_ema_model
         gc.collect()
-        accelerator.print(f"Saved states to {save_path}")
+        accelerator.print(f"\nSaved states to {save_path}")
     accelerator.end_training()

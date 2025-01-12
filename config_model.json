@@ -24,7 +24,7 @@
     "update_ema_on_cpu": false,
     "offload_ema_to_cpu": true,
     "offload_ema_non_blocking": true,
-    "offload_ema_pin_memory": false,
+    "offload_ema_pin_memory": true,
     "ema_weights_dtype": "bfloat16",
     "load_queue_lenght": 64,
     "max_load_workers": 8,
