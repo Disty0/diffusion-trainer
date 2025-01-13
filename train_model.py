@@ -312,7 +312,7 @@ if __name__ == '__main__':
                                     num_to_remove = len(checkpoints) - config["checkpoints_limit"] + 1
                                     removing_checkpoints = checkpoints[0:num_to_remove]
                                     accelerator.print(f"{len(checkpoints)} checkpoints already exist, removing {len(removing_checkpoints)} checkpoints")
-                                    accelerator.print(f"removing checkpoints: {', '.join(removing_checkpoints)}")
+                                    accelerator.print(f"Removing checkpoints: {', '.join(removing_checkpoints)}")
 
                                     for removing_checkpoint in removing_checkpoints:
                                         removing_checkpoint = os.path.join(config["project_dir"], removing_checkpoint)
