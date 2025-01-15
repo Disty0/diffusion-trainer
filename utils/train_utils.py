@@ -59,7 +59,7 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
             # post corrections averaged over 5m anime illustrations for already cached the latents with the default sd3 scaling / shifting
             if config["correct_default_sd3_latents_for_danbooru"]:
                 latents = (latents / 1.5305) + 0.0609
-                latents = (latents - 0.0730) * 1.2598
+                latents = (latents - 0.0730) * 1.2528
 
             prompt_embeds = []
             pooled_embeds = []
