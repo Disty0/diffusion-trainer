@@ -7,11 +7,13 @@
     "optimizer_args": {"scale_parameter": false, "relative_step": false, "warmup_init": false},
     "fused_optimizer": false,
     "lr_scheduler": "CosineAnnealingLR",
-    "lr_scheduler_args": {"T_max": 32768, "eta_min": 2e-6},
+    "lr_scheduler_args": {"T_max": 32768, "eta_min": 4e-6},
     "learning_rate": 2e-5,
     "max_grad_norm": 0.0,
     "max_grad_clip": 1.0,
     "log_grad_stats": false,
+    "loss_type": "mse",
+    "loss_reduction": "mean",
     "batch_size": 8,
     "gradient_accumulation_steps": 1,
     "gradient_checkpointing": true,
@@ -40,7 +42,6 @@
     "project_dir": "/mnt/DataSSD/AI/models/SoteDiffusion/StableDiffusion3/train_model",
     "model_path": "/mnt/DataSSD/AI/models/SoteDiffusion/StableDiffusion3/32_sb-3.6B_raifu_plus",
     "dataset_paths": [
-        ["/mnt/DataSSD/AI/anime_image_dataset/latents/raifu", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu/raifu-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/raifu/raifu-qwen2"], 1],
         ["/mnt/DataSSD/AI/anime_image_dataset/latents/hand_picked", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/best/hand_picked-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/best/hand_picked-qwen2"], 5],
         ["/mnt/DataSSD/AI/anime_image_dataset/latents/danbooru-best", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/best/danbooru-best-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/best/danbooru-best-qwen2"], 1]
     ]

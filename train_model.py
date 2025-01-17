@@ -250,7 +250,12 @@ if __name__ == '__main__':
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
                 model_pred, target, timesteps, empty_embeds_added = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds_list, empty_embed)
-                loss = torch.nn.functional.l1_loss(model_pred, target, reduction="mean")
+                if config["loss_type"] == "mae":
+                    loss = torch.nn.functional.l1_loss(model_pred, target, reduction=config["loss_reduction"])
+                elif config["loss_type"] == "mse":
+                    loss = torch.nn.functional.mse_loss(model_pred, target, reduction=config["loss_reduction"])
+                else:
+                    loss = getattr(torch.nn.functional, config["loss_type"])(model_pred, target, reduction=config["loss_reduction"])
                 accelerator.backward(loss)
                 if not config["fused_optimizer"]:
                     if accelerator.sync_gradients:
