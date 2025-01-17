@@ -37,7 +37,7 @@
     "checkpoint_save_steps": 128,
     "checkpoints_limit": 20,
     "reshuffle": true,
-    "correct_default_sd3_latents_for_danbooru": true,
+    "latent_corrections": "unscale",
     "dataset_index": "cache/dataset_index.json",
     "project_dir": "/mnt/DataSSD/AI/models/SoteDiffusion/StableDiffusion3/train_model",
     "model_path": "/mnt/DataSSD/AI/models/SoteDiffusion/StableDiffusion3/32_sb-3.6B_raifu_plus",
