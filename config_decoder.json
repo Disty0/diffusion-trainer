@@ -11,6 +11,8 @@
     "max_grad_norm": 0.0,
     "max_grad_clip": 0.0,
     "log_grad_stats": true,
+    "loss_type": "mse",
+    "loss_reduction": "mean",
     "batch_size": 1,
     "gradient_accumulation_steps": 16,
     "gradient_checkpointing": true,

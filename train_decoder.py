@@ -228,7 +228,12 @@ if __name__ == '__main__':
                 image_tensors = torch.stack(image_tensors).to(accelerator.device, dtype=torch.float32)
             with accelerator.accumulate(model):
                 model_pred = latent_utils.decode_latents(model, image_processor, latents, config["model_type"], accelerator.device, return_image=False, mixed_precision=config["mixed_precision"])
-                loss = torch.nn.functional.l1_loss(model_pred, image_tensors, reduction="mean")
+                if config["loss_type"] == "mae":
+                    loss = torch.nn.functional.l1_loss(model_pred, image_tensors, reduction=config["loss_reduction"])
+                elif config["loss_type"] == "mse":
+                    loss = torch.nn.functional.mse_loss(model_pred, image_tensors, reduction=config["loss_reduction"])
+                else:
+                    loss = getattr(torch.nn.functional, config["loss_type"])(model_pred, image_tensors, reduction=config["loss_reduction"])
                 accelerator.backward(loss)
                 if accelerator.sync_gradients:
                     if config["log_grad_stats"]:
