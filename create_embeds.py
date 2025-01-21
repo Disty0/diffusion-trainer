@@ -18,7 +18,7 @@ def get_paths(dataset_path, out_path, model_type, text_ext):
     print(f"Found {len(file_list)} {text_ext} files")
     paths = []
     texts = []
-    for text_file in file_list:
+    for text_file in tqdm(file_list):
         embed_path = os.path.splitext(text_file[len(dataset_path)+1:])[0] + "_" + model_type + "_embed.pt"
         embed_path = os.path.join(out_path, embed_path)
         if not os.path.exists(embed_path) or os.path.getsize(embed_path) == 0:
