@@ -11,7 +11,7 @@ if not torch.version.cuda:
 import atexit
 import argparse
 from tqdm import tqdm
-from utils import loader_utils, latent_utils
+from utils import loader_utils, embed_utils
 
 print_filler = "--------------------------------------------------"
 
@@ -29,12 +29,12 @@ def get_bucket_list(model_type, dataset_path, out_path):
             bucket_list[key] = []
             new_bucket_list[key] = []
         for i in range(len(bucket[key])):
-            latent_path = os.path.splitext(bucket[key][i])[0] + "_" + model_type + "_latent.pt"
-            latent_path_full = os.path.join(out_path, latent_path)
-            if not os.path.exists(latent_path_full) or os.path.getsize(latent_path_full) == 0:
+            embed_path = os.path.splitext(bucket[key][i])[0] + "_" + model_type + "_embed.pt"
+            embed_path_full = os.path.join(out_path, embed_path)
+            if not os.path.exists(embed_path_full) or os.path.getsize(embed_path_full) == 0:
                 bucket_list[key].append(os.path.join(dataset_path, bucket[key][i]))
                 images_to_encode = images_to_encode + 1
-            new_bucket_list[key].append(latent_path)
+            new_bucket_list[key].append(embed_path)
             total_image_count = total_image_count + 1
     os.makedirs(out_path, exist_ok=True)
     with open(os.path.join(out_path, "bucket_list.json"), "w") as f:
@@ -62,45 +62,46 @@ def get_batches(batch_size, model_type, dataset_path, out_path):
         print(f"Images to encode in the bucket {key}: {bucket_len}")
     return epoch_batch
 
-
-def write_latents(latent_model, image_processor, device, args, cache_backend, save_image_backend, batch):
+def write_embeds(embed_encoder, device, args, cache_backend, save_image_backend, batch):
     images = []
-    latent_paths = []
+    embed_paths = []
     save_image_paths = []
     for item in batch:
-        latent_path = os.path.splitext(item[1][len(args.dataset_path)+1:])[0] + "_" + args.model_type + "_latent.pt"
-        latent_path = os.path.join(args.out_path, latent_path)
-        latent_paths.append(latent_path)
+        embed_path = os.path.splitext(item[1][len(args.dataset_path)+1:])[0] + "_" + args.model_type + "_embed.pt"
+        embed_path = os.path.join(args.out_path, embed_path)
+        embed_paths.append(embed_path)
         if args.save_images:
             save_image_path = os.path.splitext(item[1][len(args.dataset_path)+1:])[0] + "_" + args.model_type + "_image" + args.save_images_ext
             save_image_path = os.path.join(args.save_images_path, save_image_path)
             save_image_paths.append(save_image_path)
         images.append(item[0])
     with torch.no_grad():
-        latents = latent_utils.encode_latents(latent_model, image_processor, images, args.model_type, device)
+        text_batch = [args.text_prompt] * len(images)
+        embeds = embed_utils.encode_embeds(embed_encoder, device, args.model_type, text_batch, prompt_images=images)
     getattr(torch, device.type).synchronize(device)
-    for i in range(len(latent_paths)):
-        cache_backend.save(latents[i], latent_paths[i])
+    for i in range(len(embed_paths)):
+        cache_backend.save(embeds[i], embed_paths[i])
         if args.save_images:
             save_image_backend.save(images[i], save_image_paths[i])
 
 
 if __name__ == '__main__':
     print("\n" + print_filler)
-    parser = argparse.ArgumentParser(description='Create latent cache')
+    parser = argparse.ArgumentParser(description='Create embed cache')
 
     parser.add_argument('model_path', type=str)
     parser.add_argument('dataset_path', type=str)
     parser.add_argument('out_path', type=str)
-    parser.add_argument('--model_type', default="sd3", type=str)
+    parser.add_argument('--model_type', default="sotev3", type=str)
+    parser.add_argument('--text_prompt', default="<|vision_start|><|image_pad|><|vision_end|>", type=str)
 
     parser.add_argument('--device', default="cuda", type=str)
-    parser.add_argument('--dtype', default="float16", type=str)
-    parser.add_argument('--batch_size', default=4, type=int)
+    parser.add_argument('--dtype', default="bfloat16", type=str)
+    parser.add_argument('--batch_size', default=1, type=int)
 
     parser.add_argument('--gc_steps', default=2048, type=int)
     parser.add_argument('--dynamo_backend', default="inductor", type=str)
-    parser.add_argument('--disable_tunableop', default=False, action='store_true')
+    parser.add_argument('--enable_tunableop', default=False, action='store_true')
 
     parser.add_argument('--save_images', default=False, action='store_true')
     parser.add_argument('--save_images_path', default="cropped_images", type=str)
@@ -139,7 +140,7 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"Failed to enable Flash Atten for ROCm: {e}")
 
-    if not args.disable_tunableop:
+    if args.enable_tunableop:
         torch.cuda.tunable.enable(val=True)
     try:
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
@@ -148,9 +149,9 @@ if __name__ == '__main__':
 
     dtype = getattr(torch, args.dtype)
     device = torch.device(args.device)
-    print(f"Loading latent encoder models with dtype {dtype} to device {device}")
+    print(f"Loading embed encoder models with dtype {dtype} to device {device}")
     print(print_filler)
-    latent_model, image_processor = latent_utils.get_latent_model(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
+    embed_encoder = embed_utils.get_embed_encoder(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
 
     epoch_batches = get_batches(args.batch_size, args.model_type, args.dataset_path, args.out_path)
     epoch_len = len(epoch_batches)
@@ -188,7 +189,8 @@ if __name__ == '__main__':
     for steps_done in tqdm(range(epoch_len)):
         try:
             batch = image_backend.get_images()
-            write_latents(latent_model, image_processor, device, args, cache_backend, save_image_backend, batch)
+            write_embeds(embed_encoder, device, args, cache_backend, save_image_backend, batch)
+            
             if steps_done % args.gc_steps == 0:
                 gc.collect()
                 getattr(torch, device.type).synchronize(device)

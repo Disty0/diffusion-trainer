@@ -3,6 +3,11 @@ import gc
 import math
 import json
 import torch
+
+if not torch.version.cuda:
+    import transformers
+    transformers.utils.is_flash_attn_2_available = lambda: False
+
 import wandb
 import random
 import shutil
@@ -359,6 +364,8 @@ if __name__ == '__main__':
                             clipped_grad_mean_count = 0
                         if grad_norm_count > 0:
                             logs["grad_norm"] = grad_norm / grad_norm_count
+                            if isinstance(logs["grad_norm"], torch.Tensor):
+                                logs["grad_norm"] = logs["grad_norm"].item()
                             grad_norm = 0
                             grad_norm_count = 0
                     if accelerator.is_main_process:

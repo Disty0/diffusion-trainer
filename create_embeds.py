@@ -3,6 +3,11 @@ import gc
 import glob
 import time
 import torch
+
+if not torch.version.cuda:
+    import transformers
+    transformers.utils.is_flash_attn_2_available = lambda: False
+
 import atexit
 import argparse
 from tqdm import tqdm
@@ -52,8 +57,8 @@ def get_batches(batch_size, dataset_path, out_path, model_type, text_ext):
     return text_batches, embed_pathes
 
 
-def write_embeds(embed_encoder, device, model_type, cache_backend, text_batch, embed_path):
-    embeds = embed_utils.encode_embeds(embed_encoder, device, model_type, text_batch)
+def write_embeds(embed_encoder, device, args, cache_backend, text_batch, embed_path):
+    embeds = embed_utils.encode_embeds(embed_encoder, device, args.model_type, text_batch)
     getattr(torch, device.type).synchronize(device)
     for i in range(len(text_batch)):
         cache_backend.save(embeds[i], embed_path[i])
@@ -126,7 +131,7 @@ if __name__ == '__main__':
     print(f"Starting to encode {epoch_len} batches with batch size {args.batch_size}")
     for steps_done in tqdm(range(epoch_len)):
         try:
-            write_embeds(embed_encoder, device, args.model_type, cache_backend, text_batches.pop(0), embed_pathes.pop(0))
+            write_embeds(embed_encoder, device, args, cache_backend, text_batches.pop(0), embed_pathes.pop(0))
             if steps_done % args.gc_steps == 0:
                 gc.collect()
                 getattr(torch, device.type).synchronize(device)

@@ -3,6 +3,11 @@ import gc
 import math
 import json
 import torch
+
+if not torch.version.cuda:
+    import transformers
+    transformers.utils.is_flash_attn_2_available = lambda: False
+
 import random
 import shutil
 import argparse
