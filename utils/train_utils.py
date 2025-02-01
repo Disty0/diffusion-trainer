@@ -137,7 +137,7 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
         with accelerator.autocast():
             model_pred = model(
                 hidden_states=noisy_model_input,
-                timestep=timesteps/1000,
+                timestep=timesteps,
                 encoder_hidden_states=prompt_embeds,
                 return_dict=False,
             )[0]
