@@ -108,6 +108,8 @@ if __name__ == '__main__':
 
     if config["tunableop"]:
         torch.cuda.tunable.enable(val=True)
+    if config["dynamo_backend"] != "no":
+        torch._dynamo.config.cache_size_limit = 64
     try:
         torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
     except Exception:
