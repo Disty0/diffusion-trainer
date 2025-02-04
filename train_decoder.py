@@ -331,10 +331,10 @@ if __name__ == '__main__':
                             logs["clipped_grad_mean"] = clipped_grad_mean / clipped_grad_mean_count
                             clipped_grad_mean = 0
                             clipped_grad_mean_count = 0
-                        if grad_norm_count > 0:
-                            logs["grad_norm"] = grad_norm / grad_norm_count
-                            grad_norm = 0
-                            grad_norm_count = 0
+                    if grad_norm_count > 0:
+                        logs["grad_norm"] = grad_norm / grad_norm_count
+                        grad_norm = 0
+                        grad_norm_count = 0
                     if accelerator.is_main_process:
                         if config["ema_update_steps"] > 0:
                             logs["ema_decay"] = ema_model.get_decay(ema_model.optimization_step)
