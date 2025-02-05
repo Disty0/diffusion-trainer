@@ -248,14 +248,17 @@ if __name__ == '__main__':
     grad_mean = 0
     clipped_grad_mean = 0
     grad_norm_count = 0
+    skip_grad_norm_count = 0
     grad_mean_count = 0
     clipped_grad_mean_count = 0
     grad_max = 0
+    loss = torch.tensor(1)
     model.train()
     getattr(torch, accelerator.device.type).empty_cache()
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
+                last_loss = loss
                 model_pred, target, timesteps, empty_embeds_added = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds_list, empty_embed)
                 if config["loss_type"] == "mae":
                     loss = torch.nn.functional.l1_loss(model_pred, target, reduction=config["loss_reduction"])
@@ -283,7 +286,11 @@ if __name__ == '__main__':
                         if config["max_grad_norm"] > 0:
                             grad_norm += accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"])
                             grad_norm_count += 1
-                    optimizer.step()
+                    if grad_norm_count > 0 and config["skip_grad_norm"] > 0 and current_step > config["skip_grad_norm_steps"] and (grad_norm / grad_norm_count) > config["skip_grad_norm"]:
+                        loss = last_loss
+                        skip_grad_norm_count += 1
+                    else:
+                        optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
 
@@ -370,6 +377,8 @@ if __name__ == '__main__':
                             logs["grad_norm"] = logs["grad_norm"].item()
                         grad_norm = 0
                         grad_norm_count = 0
+                    if config["skip_grad_norm"] > 0:
+                        logs["skip_grad_norm_count"] = skip_grad_norm_count
                     if accelerator.is_main_process:
                         if config["ema_update_steps"] > 0:
                             logs["ema_decay"] = ema_model.get_decay(ema_model.optimization_step)
