@@ -43,10 +43,12 @@ def get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type="la
                             embed_path = os.path.join(embed_dataset, bucket[key][i][:-9]+"embed.pt")
                         else:
                             embed_path = os.path.join(embed_dataset, os.path.splitext(bucket[key][i])[0] + embed_suffix)
-                        if os.path.exists(latent_path) and os.path.exists(embed_path):
-                            bucket_list[key].append([latent_path, embed_path])
+                        if not os.path.exists(latent_path):
+                            print(f"Latent file not found: {bucket[key][i]}")
+                        elif not os.path.exists(embed_path):
+                            print(f"Embed file not found: {embed_path}")
                         else:
-                            print(f"File not found: {bucket[key][i]}")
+                            bucket_list[key].append([latent_path, embed_path])
 
     keys_to_remove = []
     total_image_count = 0
