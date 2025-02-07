@@ -164,7 +164,7 @@ if __name__ == '__main__':
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()
 
-    dataset = loader_utils.LatentAndImagesDataset(epoch_batch, image_processor)
+    dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
 
     optimizer = train_utils.get_optimizer(config["optimizer"], model.parameters(), config["learning_rate"], **config["optimizer_args"])
@@ -359,7 +359,7 @@ if __name__ == '__main__':
             accelerator.wait_for_everyone()
             with open(config["dataset_index"], "r") as f:
                 epoch_batch = json.load(f)
-            dataset = loader_utils.LatentAndImagesDataset(epoch_batch, image_processor)
+            dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
             train_dataloader = accelerator.prepare(train_dataloader)
 

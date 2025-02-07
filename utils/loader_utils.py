@@ -5,6 +5,8 @@ import brotli
 import random
 import time
 import torch
+import numpy as np
+
 import pillow_jxl # noqa: F401
 from PIL import Image
 from io import BytesIO
@@ -24,7 +26,48 @@ def load_from_file(path):
     return torch.load(stored_tensor, map_location="cpu", weights_only=True)
 
 
-class LatentAndEmbedsDataset(Dataset):
+def load_image_from_file(image_path, target_size):
+        if isinstance(target_size, str):
+            target_size = target_size.split("x")
+            target_size[0] = int(target_size[0])
+            target_size[1] = int(target_size[1])
+
+        image = Image.open(image_path)
+        background = Image.new('RGBA', image.size, (255, 255, 255))
+        image = Image.alpha_composite(background, image.convert("RGBA")).convert("RGB")
+
+        orig_size = image.size
+        new_size = [math.ceil(target_size[1] * orig_size[0] / orig_size[1]), math.ceil(target_size[0] * orig_size[1] / orig_size[0])]
+        if new_size[0] > target_size[0]:
+            image = image.resize((new_size[0], target_size[1]), Image.BICUBIC)
+        else:
+            image = image.resize((target_size[0], new_size[1]), Image.BICUBIC)
+
+        new_size = image.size
+        left_diff = new_size[0] - target_size[0]
+        if left_diff < 0: # can go off by 1 or 2 pixel
+            image = image.resize((target_size[0], new_size[1]), Image.BICUBIC)
+            new_size = image.size
+            left_diff = new_size[0] - target_size[0]
+
+        top_diff = (new_size[1] - target_size[1])
+        if top_diff < 0: # can go off by 1 or 2 pixel
+            image = image.resize((new_size[0], target_size[1]), Image.BICUBIC)
+            new_size = image.size
+            top_diff = (new_size[1] - target_size[1])
+
+        left_shift = random.randint(0, left_diff)
+        top_shift = random.randint(0, top_diff)
+        image = image.crop((left_shift, top_shift, (left_shift + target_size[0]), (top_shift + target_size[1])))
+
+        new_size = image.size
+        if new_size[0] != target_size[0] or new_size[1] != target_size[1]: # sanity check
+            image = image.resize((target_size[0], target_size[1]), Image.BICUBIC)
+
+        return [image, image_path]
+
+
+class LatentsAndEmbedsDataset(Dataset):
     def __init__(self, batches):
         self.batches = batches
     def __len__(self):
@@ -38,7 +81,7 @@ class LatentAndEmbedsDataset(Dataset):
         return [latents, embeds]
 
 
-class LatentAndImagesDataset(Dataset):
+class LatentsAndImagesDataset(Dataset):
     def __init__(self, batches, image_processor):
         self.batches = batches
         self.image_processor = image_processor
@@ -52,6 +95,23 @@ class LatentAndImagesDataset(Dataset):
             with Image.open(batch[1]) as image:
                 image_tensors.append(self.image_processor.preprocess(image)[0])
         return [latents, image_tensors]
+
+
+class ImagesAndEmbedsDataset(Dataset):
+    def __init__(self, batches):
+        self.batches = batches
+    def __len__(self):
+        return len(self.batches)
+    def __getitem__(self, index):
+        images = []
+        embeds = []
+        resoluion = self.batches[index][0]
+        for batch in self.batches[index][1]:
+            image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resoluion)[0]).copy()).transpose(2,0).transpose(1,2)
+            image_tensor = ((image_tensor.float() / 255) - 0.5) * 2 # -1 to 1 range
+            images.append(image_tensor)
+            embeds.append(load_from_file(batch[1]))
+        return [images, embeds]
 
 
 class SaveBackend():
@@ -132,53 +192,13 @@ class ImageBackend():
                 batches = self.batches.get()
                 curren_batch = []
                 for batch in batches[0]:
-                    curren_batch.append(self.load_from_file(batch, batches[1]))
+                    curren_batch.append(load_image_from_file(batch, batches[1]))
                 self.load_queue.put(curren_batch)
                 self.load_queue_lenght += 1
             else:
                 time.sleep(5)
         print("Stopping the image loader threads")
 
-
-    def load_from_file(self, image_path, target_size):
-        if isinstance(target_size, str):
-            target_size = target_size.split("x")
-            target_size[0] = int(target_size[0])
-            target_size[1] = int(target_size[1])
-
-        image = Image.open(image_path)
-        background = Image.new('RGBA', image.size, (255, 255, 255))
-        image = Image.alpha_composite(background, image.convert("RGBA")).convert("RGB")
-
-        orig_size = image.size
-        new_size = [math.ceil(target_size[1] * orig_size[0] / orig_size[1]), math.ceil(target_size[0] * orig_size[1] / orig_size[0])]
-        if new_size[0] > target_size[0]:
-            image = image.resize((new_size[0], target_size[1]), Image.BICUBIC)
-        else:
-            image = image.resize((target_size[0], new_size[1]), Image.BICUBIC)
-
-        new_size = image.size
-        left_diff = new_size[0] - target_size[0]
-        if left_diff < 0: # can go off by 1 or 2 pixel
-            image = image.resize((target_size[0], new_size[1]), Image.BICUBIC)
-            new_size = image.size
-            left_diff = new_size[0] - target_size[0]
-
-        top_diff = (new_size[1] - target_size[1])
-        if top_diff < 0: # can go off by 1 or 2 pixel
-            image = image.resize((new_size[0], target_size[1]), Image.BICUBIC)
-            new_size = image.size
-            top_diff = (new_size[1] - target_size[1])
-
-        left_shift = random.randint(0, left_diff)
-        top_shift = random.randint(0, top_diff)
-        image = image.crop((left_shift, top_shift, (left_shift + target_size[0]), (top_shift + target_size[1])))
-
-        new_size = image.size
-        if new_size[0] != target_size[0] or new_size[1] != target_size[1]: # sanity check
-            image = image.resize((target_size[0], target_size[1]), Image.BICUBIC)
-
-        return [image, image_path]
 
 class SaveImageBackend():
     def __init__(self, save_queue_lenght=4096, max_save_workers=8, lossless=True, quality=100):

@@ -22,7 +22,8 @@ from diffusers.training_utils import EMAModel
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size, dataset_paths, empty_embed_path):
+def get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type="latent"):
+    embed_suffix = "_" + empty_embed_path.rsplit("empty_", maxsplit=1)[-1]
     print("Creating bucket list")
     bucket_list = {}
 
@@ -38,8 +39,10 @@ def get_bucket_list(batch_size, dataset_paths, empty_embed_path):
                         latent_path = os.path.join(latent_dataset, bucket[key][i])
                         if embed_dataset == "empty_embed":
                             embed_path = empty_embed_path
-                        else:
+                        elif latent_type == "latent":
                             embed_path = os.path.join(embed_dataset, bucket[key][i][:-9]+"embed.pt")
+                        else:
+                            embed_path = os.path.join(embed_dataset, os.path.splitext(bucket[key][i])[0] + embed_suffix)
                         if os.path.exists(latent_path) and os.path.exists(embed_path):
                             bucket_list[key].append([latent_path, embed_path])
                         else:
@@ -69,8 +72,8 @@ def get_bucket_list(batch_size, dataset_paths, empty_embed_path):
     return bucket_list
 
 
-def get_batches(batch_size, dataset_paths, dataset_index, empty_embed_path):
-    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path)
+def get_batches(batch_size, dataset_paths, dataset_index, empty_embed_path, latent_type="latent"):
+    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type=latent_type)
     print("Creating epoch batches")
     epoch_batch = []
     images_left_out_count = 0
@@ -80,8 +83,12 @@ def get_batches(batch_size, dataset_paths, dataset_index, empty_embed_path):
         bucket_len = len(bucket)
         images_left_out = bucket_len % batch_size
         images_left_out_count= images_left_out_count + images_left_out
-        for i in range(int((bucket_len - images_left_out) / batch_size)):
-            epoch_batch.append(bucket[i*batch_size:(i+1)*batch_size])
+        if latent_type == "latent":
+            for i in range(int((bucket_len - images_left_out) / batch_size)):
+                epoch_batch.append(bucket[i*batch_size:(i+1)*batch_size])
+        elif latent_type == "image":
+            for i in range(int((bucket_len - images_left_out) / batch_size)):
+                epoch_batch.append([key, bucket[i*batch_size:(i+1)*batch_size]])
         print(print_filler)
         print(f"Images left out from bucket {key}: {images_left_out}")
         print(f"Images left in the bucket {key}: {bucket_len - images_left_out}")
@@ -161,11 +168,14 @@ if __name__ == '__main__':
 
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path)
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, latent_type=config["latent_type"])
     accelerator.wait_for_everyone()
     with open(config["dataset_index"], "r") as f:
         epoch_batch = json.load(f)
-    dataset = loader_utils.LatentAndEmbedsDataset(epoch_batch)
+    if config["latent_type"] == "latent":
+        dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
+    elif config["latent_type"] == "image":
+        dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
 
     dtype = getattr(torch, config["weights_dtype"])
@@ -406,11 +416,11 @@ if __name__ == '__main__':
             del dataset, train_dataloader
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
-                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path)
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, latent_type=config["latent_type"])
             accelerator.wait_for_everyone()
             with open(config["dataset_index"], "r") as f:
                 epoch_batch = json.load(f)
-            dataset = loader_utils.LatentAndEmbedsDataset(epoch_batch)
+            dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
             train_dataloader = accelerator.prepare(train_dataloader)
 
