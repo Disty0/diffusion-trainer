@@ -256,7 +256,7 @@ if __name__ == '__main__':
 
     empty_embeds_added_count = 0
     timesteps_list = []
-    grad_norm = 0
+    grad_norm = torch.tensor(0.0, dtype=dtype, device=accelerator.device)
     grad_mean = 0
     clipped_grad_mean = 0
     grad_norm_count = 0
@@ -264,7 +264,7 @@ if __name__ == '__main__':
     grad_mean_count = 0
     clipped_grad_mean_count = 0
     grad_max = 0
-    loss = torch.tensor(1)
+    loss = torch.tensor(1.0, dtype=dtype, device=accelerator.device)
     model.train()
     getattr(torch, accelerator.device.type).empty_cache()
     for _ in range(first_epoch, config["epochs"]):
@@ -298,7 +298,7 @@ if __name__ == '__main__':
                         if config["max_grad_norm"] > 0:
                             grad_norm += accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"])
                             grad_norm_count += 1
-                    if grad_norm_count > 0 and config["skip_grad_norm"] > 0 and current_step > config["skip_grad_norm_steps"] and (grad_norm / grad_norm_count) > config["skip_grad_norm"]:
+                    if grad_norm_count > 0 and (grad_norm.isnan() or (config["skip_grad_norm"] > 0 and current_step > config["skip_grad_norm_steps"] and (grad_norm / grad_norm_count) > config["skip_grad_norm"])):
                         loss = last_loss
                         skip_grad_norm_count += 1
                     else:
@@ -384,10 +384,8 @@ if __name__ == '__main__':
                             clipped_grad_mean = 0
                             clipped_grad_mean_count = 0
                     if grad_norm_count > 0:
-                        logs["grad_norm"] = grad_norm / grad_norm_count
-                        if isinstance(logs["grad_norm"], torch.Tensor):
-                            logs["grad_norm"] = logs["grad_norm"].item()
-                        grad_norm = 0
+                        logs["grad_norm"] = (grad_norm / grad_norm_count).item()
+                        grad_norm = grad_norm * 0
                         grad_norm_count = 0
                     if config["skip_grad_norm"] > 0:
                         logs["skip_grad_norm_count"] = skip_grad_norm_count
