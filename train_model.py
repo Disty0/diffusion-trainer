@@ -385,7 +385,7 @@ if __name__ == '__main__':
                             clipped_grad_mean_count = 0
                     if grad_norm_count > 0:
                         logs["grad_norm"] = (grad_norm / grad_norm_count).item()
-                        grad_norm = grad_norm * 0
+                        grad_norm = torch.tensor(0.0, dtype=dtype, device=accelerator.device)
                         grad_norm_count = 0
                     if config["skip_grad_norm"] > 0:
                         logs["skip_grad_norm_count"] = skip_grad_norm_count
