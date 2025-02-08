@@ -128,7 +128,7 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
                     empty_embeds_added += 1
             prompt_embeds = torch.stack(prompt_embeds).to(accelerator.device, dtype=torch.float32)
 
-            noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps, clamp=config["latent_type"] == "image")
+            noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
 
             if config["mixed_precision"] == "no":
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
@@ -148,7 +148,7 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
         raise NotImplementedError
 
 
-def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=1.75, clamp=False):
+def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=1.75):
     # use timestep 1000 as well for zero snr
     # torch.randn is not random so we use uniform instead
     # uniform range is larger than 1.0 to hit the timestep 1000 more
@@ -160,8 +160,6 @@ def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=1.75, 
     sigmas = u.view(-1, 1, 1, 1)
 
     noise = torch.randn_like(latents, device=device)
-    if clamp:
-        noise = noise.clamp(-1,1)
     noisy_model_input = ((1.0 - sigmas) * latents) + (sigmas * noise)
     noisy_model_input = noisy_model_input.to(device)
     noise = noise.to(device)
