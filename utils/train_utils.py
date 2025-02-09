@@ -117,6 +117,10 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
                 latents_mean = torch.tensor([0.2539, 0.1431, 0.1484, -0.3048, -0.0985, -0.162, 0.1403, 0.2034, -0.1419, 0.2646, 0.0655, 0.0061, 0.1555, 0.0506, 0.0129, -0.1948]).view(1,-1,1,1).to(accelerator.device, dtype=torch.float32)
                 latents_std = torch.tensor([0.8123, 0.7376, 0.7354, 1.1827, 0.8387, 0.8735, 0.8705, 0.8142, 0.8076, 0.7409, 0.7655, 0.8731, 0.8087, 0.7058, 0.8087, 0.7615]).view(1,-1,1,1).to(accelerator.device, dtype=torch.float32)
                 latents = (latents - latents_mean) * (latents_std.mean() / latents_std)
+            elif config["latent_type"] == "image":
+                latents_mean = torch.tensor([0.3695, 0.2542, 0.2452]).view(1,-1,1,1).to(accelerator.device, dtype=torch.float32)
+                latents_std = torch.tensor([0.5337, 0.5356, 0.5164]).view(1,-1,1,1).to(accelerator.device, dtype=torch.float32)
+                latents = (latents - latents_mean) / latents_std
 
             prompt_embeds = []
             empty_embeds_added = 0

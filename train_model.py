@@ -301,8 +301,8 @@ if __name__ == '__main__':
                     if grad_norm_count > 0 and (grad_norm.isnan() or (config["skip_grad_norm"] > 0 and current_step > config["skip_grad_norm_steps"] and (grad_norm / grad_norm_count) > config["skip_grad_norm"])):
                         loss = last_loss
                         skip_grad_norm_count += 1
-                    else:
-                        optimizer.step()
+                        optimizer.zero_grad(set_to_none=True)
+                    optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
 
