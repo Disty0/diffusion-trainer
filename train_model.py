@@ -88,7 +88,7 @@ def get_batches(batch_size, dataset_paths, dataset_index, empty_embed_path, late
         if latent_type == "latent":
             for i in range(int((bucket_len - images_left_out) / batch_size)):
                 epoch_batch.append(bucket[i*batch_size:(i+1)*batch_size])
-        elif latent_type == "image":
+        elif latent_type in {"image", "jpeg"}:
             for i in range(int((bucket_len - images_left_out) / batch_size)):
                 epoch_batch.append([key, bucket[i*batch_size:(i+1)*batch_size]])
         print(print_filler)
@@ -178,6 +178,9 @@ if __name__ == '__main__':
         dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
     elif config["latent_type"] == "image":
         dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
+    elif config["latent_type"] == "jpeg":
+        from sotev3 import SoteV3ImageEncoder
+        dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=SoteV3ImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
 
     dtype = getattr(torch, config["weights_dtype"])

@@ -114,6 +114,22 @@ class ImagesAndEmbedsDataset(Dataset):
         return [images, embeds]
 
 
+class DCTsAndEmbedsDataset(Dataset):
+    def __init__(self, batches, image_encoder):
+        self.batches = batches
+        self.image_encoder = image_encoder
+    def __len__(self):
+        return len(self.batches)
+    def __getitem__(self, index):
+        images = []
+        embeds = []
+        resoluion = self.batches[index][0]
+        for batch in self.batches[index][1]:
+            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resoluion)[0])[0])
+            embeds.append(load_from_file(batch[1]))
+        return [images, embeds]
+
+
 class SaveBackend():
     def __init__(self, model_type, save_queue_lenght=4096, max_save_workers=8):
         self.save_queue_lenght = 0
