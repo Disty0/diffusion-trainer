@@ -132,7 +132,8 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
                     empty_embeds_added += 1
             prompt_embeds = torch.stack(prompt_embeds).to(accelerator.device, dtype=torch.float32)
 
-            noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
+            noisy_model_input, timesteps, _ = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
+            target = latents
 
             if config["mixed_precision"] == "no":
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
@@ -145,6 +146,7 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
                 timestep=timesteps,
                 encoder_hidden_states=prompt_embeds,
                 return_dict=False,
+                return_noise_pred=False,
             )[0]
 
         return model_pred.float(), target.float(), timesteps, empty_embeds_added
