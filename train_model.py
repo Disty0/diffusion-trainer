@@ -186,7 +186,7 @@ if __name__ == '__main__':
     dtype = getattr(torch, config["weights_dtype"])
     print(f"Loading diffusion models with dtype {dtype} to device {accelerator.device}")
     accelerator.print(print_filler)
-    model, scheduler = train_utils.get_diffusion_model(config["model_type"], config["model_path"], accelerator.device, dtype)
+    model, model_processor = train_utils.get_diffusion_model(config["model_type"], config["model_path"], accelerator.device, dtype)
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()
 
@@ -274,7 +274,7 @@ if __name__ == '__main__':
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
                 last_loss = loss
-                model_pred, target, timesteps, empty_embeds_added = train_utils.run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds_list, empty_embed)
+                model_pred, target, timesteps, empty_embeds_added, seq_len = train_utils.run_model(model, model_processor, config, accelerator, dtype, latents_list, embeds_list, empty_embed)
                 if config["loss_type"] == "mae":
                     loss = torch.nn.functional.l1_loss(model_pred, target, reduction=config["loss_reduction"])
                 elif config["loss_type"] == "mse":
@@ -301,10 +301,10 @@ if __name__ == '__main__':
                         if config["max_grad_norm"] > 0:
                             grad_norm += accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"])
                             grad_norm_count += 1
-                    if grad_norm_count > 0 and (grad_norm.isnan() or (config["skip_grad_norm"] > 0 and current_step > config["skip_grad_norm_steps"] and (grad_norm / grad_norm_count) > config["skip_grad_norm"])):
-                        loss = last_loss
-                        skip_grad_norm_count += 1
-                        optimizer.zero_grad(set_to_none=True)
+                            if grad_norm.isnan() or (config["skip_grad_norm"] > 0 and current_step > config["skip_grad_norm_steps"] and (grad_norm / grad_norm_count) > config["skip_grad_norm"]):
+                                loss = last_loss
+                                skip_grad_norm_count += 1
+                                optimizer.zero_grad(set_to_none=True)
                     optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
@@ -370,7 +370,7 @@ if __name__ == '__main__':
                             accelerator.print(print_filler)
                         accelerator.wait_for_everyone()
 
-                    logs = {"loss": loss.detach().item(), "epoch": current_epoch}
+                    logs = {"loss": loss.detach().item(), "epoch": current_epoch, "seq_len": seq_len}
                     if not config["fused_optimizer"]:
                         logs["lr"] = lr_scheduler.get_last_lr()[0]
                     else:

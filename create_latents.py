@@ -111,9 +111,9 @@ if __name__ == '__main__':
     parser.add_argument('--load_queue_lenght', default=32, type=int)
     parser.add_argument('--save_queue_lenght', default=4096, type=int)
     parser.add_argument('--save_image_queue_lenght', default=4096, type=int)
-    parser.add_argument('--max_load_workers', default=8, type=int)
+    parser.add_argument('--max_load_workers', default=4, type=int)
     parser.add_argument('--max_save_workers', default=8, type=int)
-    parser.add_argument('--max_save_image_workers', default=8, type=int)
+    parser.add_argument('--max_save_image_workers', default=4, type=int)
 
     args = parser.parse_args()
 

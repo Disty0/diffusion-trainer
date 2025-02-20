@@ -39,10 +39,10 @@ def get_diffusion_model(model_type, path, device, dtype):
         return diffusion_model, copy.deepcopy(pipe.scheduler)
     elif model_type == "sotev3":
         from sotev3 import SoteDiffusionV3Pipeline
-        pipe = SoteDiffusionV3Pipeline.from_pretrained(path, vae=None, text_encoder=None, torch_dtype=dtype)
+        pipe = SoteDiffusionV3Pipeline.from_pretrained(path, text_encoder=None, torch_dtype=dtype)
         diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
         diffusion_model.requires_grad_(True)
-        return diffusion_model, copy.deepcopy(pipe.scheduler)
+        return diffusion_model, copy.deepcopy(pipe.image_encoder)
     else:
         raise NotImplementedError
 
@@ -51,13 +51,13 @@ def get_model_class(model_type):
     if model_type == "sd3":
         return diffusers.SD3Transformer2DModel
     elif model_type == "sotev3":
-        from sotev3_transformer import SoteDiffusionV3Transformer2DModel
+        from sotev3 import SoteDiffusionV3Transformer2DModel
         return SoteDiffusionV3Transformer2DModel
     else:
         raise NotImplementedError
 
 
-def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds_list, empty_embed):
+def run_model(model, model_processor, config, accelerator, dtype, latents_list, embeds_list, empty_embed):
     if config["model_type"] == "sd3":
         with torch.no_grad():
             latents = []
@@ -87,8 +87,9 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
                     empty_embeds_added += 1
             prompt_embeds = torch.stack(prompt_embeds).to(accelerator.device, dtype=torch.float32)
             pooled_embeds = torch.stack(pooled_embeds).to(accelerator.device, dtype=torch.float32)
+            seq_len = prompt_embeds.shape[1]
 
-            noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
+            noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=model_processor.config.num_train_timesteps)
 
             if config["mixed_precision"] == "no":
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
@@ -105,34 +106,53 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
                 return_dict=False,
             )[0]
 
-        return model_pred.float(), target.float(), timesteps, empty_embeds_added
+        return model_pred.float(), target.float(), timesteps, empty_embeds_added, seq_len
     elif config["model_type"] == "sotev3":
         with torch.no_grad():
             latents = []
             for i in range(len(latents_list)):
                 latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
-            latents = torch.stack(latents).to(accelerator.device, dtype=torch.float32)
+            latents = torch.stack(latents, dim=0).to(accelerator.device, dtype=torch.float32)
 
-            if config["latent_type"] == "latent":
-                latents_mean = torch.tensor([0.2539, 0.1431, 0.1484, -0.3048, -0.0985, -0.162, 0.1403, 0.2034, -0.1419, 0.2646, 0.0655, 0.0061, 0.1555, 0.0506, 0.0129, -0.1948]).view(1,-1,1,1).to(accelerator.device, dtype=torch.float32)
-                latents_std = torch.tensor([0.8123, 0.7376, 0.7354, 1.1827, 0.8387, 0.8735, 0.8705, 0.8142, 0.8076, 0.7409, 0.7655, 0.8731, 0.8087, 0.7058, 0.8087, 0.7615]).view(1,-1,1,1).to(accelerator.device, dtype=torch.float32)
-                latents = (latents - latents_mean) * (latents_std.mean() / latents_std)
-            elif config["latent_type"] == "image":
-                latents_mean = torch.tensor([0.3695, 0.2542, 0.2452]).view(1,-1,1,1).to(accelerator.device, dtype=torch.float32)
-                latents_std = torch.tensor([0.5337, 0.5356, 0.5164]).view(1,-1,1,1).to(accelerator.device, dtype=torch.float32)
-                latents = (latents - latents_mean) / latents_std
+            batch_size, _, h, w = latents.shape
+            h = h * model_processor.config.block_size
+            w = w * model_processor.config.block_size
+            noise = torch.empty((batch_size, h, w, 3), device=accelerator.device, dtype=torch.float32).uniform_(0,(255+1e-4)).clamp(0,255)
+            noise = model_processor.encode(noise, device=accelerator.device)
 
+            embed_dim = embeds_list[0].shape[-1]
             prompt_embeds = []
             empty_embeds_added = 0
             for i in range(len(embeds_list)):
                 if random.randint(0,100) > config["dropout_rate"] * 100:
                     prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=torch.float32))
                 else:
-                    prompt_embeds.append(empty_embed.to(accelerator.device, dtype=torch.float32))
+                    # encoding the empty embed via the text encoder is the same as using zeros
+                    prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=torch.float32))
                     empty_embeds_added += 1
-            prompt_embeds = torch.stack(prompt_embeds).to(accelerator.device, dtype=torch.float32)
 
-            noisy_model_input, timesteps, _ = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=scheduler.config.num_train_timesteps)
+            max_len = 0
+            for embed in prompt_embeds:
+                max_len = max(max_len, embed.shape[0])
+            max_len = max(max_len, 256) # min seq len is 256
+            if max_len % 256 != 0: # make it a multiple of 256
+                max_len +=  256 - (max_len % 256)
+
+            for i in range(len(prompt_embeds)): # pad with ones
+                seq_len = prompt_embeds[i].shape[0]
+                if seq_len != max_len:
+                    prompt_embeds[i] = torch.cat(
+                        [
+                            prompt_embeds[i],
+                            torch.ones((max_len-seq_len, embed_dim), device=prompt_embeds[i].device, dtype=prompt_embeds[i].dtype)
+                        ],
+                        dim=0,
+                    )
+
+            prompt_embeds = torch.stack(prompt_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
+            seq_len = prompt_embeds.shape[1]
+
+            noisy_model_input, timesteps, _ = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=model.config.num_train_timesteps, noise=noise)
             target = latents
 
             if config["mixed_precision"] == "no":
@@ -149,26 +169,24 @@ def run_model(model, scheduler, config, accelerator, dtype, latents_list, embeds
                 return_noise_pred=False,
             )[0]
 
-        return model_pred.float(), target.float(), timesteps, empty_embeds_added
+        return model_pred.float(), target.float(), timesteps, empty_embeds_added, seq_len
     else:
         raise NotImplementedError
 
 
-def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=1.75):
+def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=2.0, noise=None):
     # use timestep 1000 as well for zero snr
     # torch.randn is not random so we use uniform instead
     # uniform range is larger than 1.0 to hit the timestep 1000 more
-    # clamp min is smaller than 0.001 to offset shift 1.75
-    u = torch.empty((latents.shape[0],), device=device, dtype=torch.float32).uniform_(0.00056, 1.0056).clamp(0.0005717,1.0)
+    u = torch.empty((latents.shape[0],), device=device, dtype=torch.float32).uniform_(0.0, 1.0056)
     u = (u * shift) / (1 + (shift - 1) * u)
     u = u.clamp(1/num_train_timesteps,1.0)
     timesteps = (u * num_train_timesteps)
     sigmas = u.view(-1, 1, 1, 1)
 
-    noise = torch.randn_like(latents, device=device)
+    if noise is None:
+        noise = torch.randn_like(latents, device=device)
     noisy_model_input = ((1.0 - sigmas) * latents) + (sigmas * noise)
-    noisy_model_input = noisy_model_input.to(device)
-    noise = noise.to(device)
     target = noise - latents
 
     return noisy_model_input, timesteps, target
