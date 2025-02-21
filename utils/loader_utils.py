@@ -125,7 +125,16 @@ class DCTsAndEmbedsDataset(Dataset):
         embeds = []
         resoluion = self.batches[index][0]
         for batch in self.batches[index][1]:
-            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resoluion)[0])[0])
+            latent = self.image_encoder.encode(load_image_from_file(batch[0], resoluion)[0], device="cpu")
+
+            batch_size, _, h, w = latent.shape
+            h = h * self.image_encoder.config.block_size
+            w = w * self.image_encoder.config.block_size
+
+            noise = torch.empty((batch_size, h, w, 3), device="cpu", dtype=torch.float32).uniform_(0,(255+1e-4)).clamp(0,255)
+            noise = self.image_encoder.encode(noise, device="cpu")
+
+            images.append([latent[0], noise[0]])
             embeds.append(load_from_file(batch[1]))
         return [images, embeds]
 

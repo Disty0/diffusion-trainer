@@ -110,15 +110,12 @@ def run_model(model, model_processor, config, accelerator, dtype, latents_list, 
     elif config["model_type"] == "sotev3":
         with torch.no_grad():
             latents = []
+            noises = []
             for i in range(len(latents_list)):
-                latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
+                latents.append(latents_list[i][0].to(accelerator.device, dtype=torch.float32))
+                noises.append(latents_list[i][1].to(accelerator.device, dtype=torch.float32))
             latents = torch.stack(latents, dim=0).to(accelerator.device, dtype=torch.float32)
-
-            batch_size, _, h, w = latents.shape
-            h = h * model_processor.config.block_size
-            w = w * model_processor.config.block_size
-            noise = torch.empty((batch_size, h, w, 3), device=accelerator.device, dtype=torch.float32).uniform_(0,(255+1e-4)).clamp(0,255)
-            noise = model_processor.encode(noise, device=accelerator.device)
+            noises = torch.stack(noises, dim=0).to(accelerator.device, dtype=torch.float32)
 
             embed_dim = embeds_list[0].shape[-1]
             prompt_embeds = []
@@ -135,7 +132,7 @@ def run_model(model, model_processor, config, accelerator, dtype, latents_list, 
             for embed in prompt_embeds:
                 max_len = max(max_len, embed.shape[0])
             max_len = max(max_len, 256) # min seq len is 256
-            if max_len % 256 != 0: # make it a multiple of 256
+            if max_len % 256 != 0: # make the seq len a multiple of 256
                 max_len +=  256 - (max_len % 256)
 
             for i in range(len(prompt_embeds)): # pad with ones
@@ -152,7 +149,7 @@ def run_model(model, model_processor, config, accelerator, dtype, latents_list, 
             prompt_embeds = torch.stack(prompt_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
             seq_len = prompt_embeds.shape[1]
 
-            noisy_model_input, timesteps, _ = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=model.config.num_train_timesteps, noise=noise)
+            noisy_model_input, timesteps, _ = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=model.config.num_train_timesteps, noise=noises)
             target = latents
 
             if config["mixed_precision"] == "no":
@@ -185,7 +182,7 @@ def get_flowmatch_inputs(device, latents, num_train_timesteps=1000, shift=2.0, n
     sigmas = u.view(-1, 1, 1, 1)
 
     if noise is None:
-        noise = torch.randn_like(latents, device=device)
+        noise = torch.randn_like(latents, device=device, dtype=torch.float32)
     noisy_model_input = ((1.0 - sigmas) * latents) + (sigmas * noise)
     target = noise - latents
 
