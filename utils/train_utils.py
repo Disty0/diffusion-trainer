@@ -110,12 +110,9 @@ def run_model(model, model_processor, config, accelerator, dtype, latents_list, 
     elif config["model_type"] == "sotev3":
         with torch.no_grad():
             latents = []
-            noises = []
             for i in range(len(latents_list)):
-                latents.append(latents_list[i][0].to(accelerator.device, dtype=torch.float32))
-                noises.append(latents_list[i][1].to(accelerator.device, dtype=torch.float32))
+                latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
             latents = torch.stack(latents, dim=0).to(accelerator.device, dtype=torch.float32)
-            noises = torch.stack(noises, dim=0).to(accelerator.device, dtype=torch.float32)
 
             embed_dim = embeds_list[0].shape[-1]
             prompt_embeds = []
@@ -149,8 +146,7 @@ def run_model(model, model_processor, config, accelerator, dtype, latents_list, 
             prompt_embeds = torch.stack(prompt_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
             seq_len = prompt_embeds.shape[1]
 
-            noisy_model_input, timesteps, _ = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=model.config.num_train_timesteps, noise=noises)
-            target = latents
+            noisy_model_input, timesteps, target = get_flowmatch_inputs(accelerator.device, latents, num_train_timesteps=model.config.num_train_timesteps)
 
             if config["mixed_precision"] == "no":
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
@@ -163,7 +159,6 @@ def run_model(model, model_processor, config, accelerator, dtype, latents_list, 
                 timestep=timesteps,
                 encoder_hidden_states=prompt_embeds,
                 return_dict=False,
-                return_noise_pred=False,
             )[0]
 
         return model_pred.float(), target.float(), timesteps, empty_embeds_added, seq_len
