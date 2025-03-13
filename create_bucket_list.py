@@ -5,8 +5,9 @@ import json
 import argparse
 from tqdm import tqdm
 
+from typing import Callable, Tuple
 
-def calc_crop_res(orig_res, target_size, res_steps):
+def calc_crop_res(orig_res: Tuple[int, int], target_size: int, res_steps: int) -> Tuple[int, int]:
     orig_size = orig_res[0] * orig_res[1]
     if orig_size > target_size:
         scale = math.sqrt(orig_size / target_size)
@@ -28,10 +29,10 @@ def calc_crop_res(orig_res, target_size, res_steps):
 
     new_res[0] = int(new_res[0])
     new_res[1] = int(new_res[1])
-    return new_res
+    return new_res[0], new_res[1]
 
 
-def write_bucket_list(dataset_path, target_size, res_steps, image_ext, size_function):
+def write_bucket_list(dataset_path: str, target_size: int, res_steps: int, image_ext: str, size_function: Callable) -> None:
     res_map = {}
     file_list = glob.glob(f"{dataset_path}/**/*{image_ext}", recursive=True)
     for image in tqdm(file_list):

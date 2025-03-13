@@ -1,7 +1,15 @@
 import torch
 
+from typing import List, Optional, Tuple, Union
+from transformers import PreTrainedModel, PreTrainedTokenizer
 
-def _encode_sd3_prompt_with_t5(text_encoder, tokenizer, prompt=None, device=None):
+
+def _encode_sd3_prompt_with_t5(
+    text_encoder: PreTrainedModel,
+    tokenizer: PreTrainedTokenizer,
+    prompt: Union[str, List[str]],
+    device: Optional[torch.device] = None,
+) -> torch.FloatTensor:
     prompt = [prompt] if isinstance(prompt, str) else prompt
 
     text_inputs = tokenizer(
@@ -20,7 +28,12 @@ def _encode_sd3_prompt_with_t5(text_encoder, tokenizer, prompt=None, device=None
     return prompt_embeds * attention_mask.unsqueeze(-1).expand(prompt_embeds.shape)
 
 
-def _encode_sd3_prompt_with_clip(text_encoder, tokenizer, prompt=None, device=None):
+def _encode_sd3_prompt_with_clip(
+    text_encoder: PreTrainedModel,
+    tokenizer: PreTrainedTokenizer,
+    prompt: Union[str, List[str]],
+    device: Optional[torch.device] = None,
+) -> torch.FloatTensor:
     prompt = [prompt] if isinstance(prompt, str) else prompt
 
     text_inputs = tokenizer(
@@ -40,7 +53,13 @@ def _encode_sd3_prompt_with_clip(text_encoder, tokenizer, prompt=None, device=No
     return prompt_embeds, pooled_prompt_embeds
 
 
-def encode_sd3_prompt(text_encoders, tokenizers, prompt=None, device=None, no_clip=True):
+def encode_sd3_prompt(
+    text_encoders: Tuple[PreTrainedModel],
+    tokenizers: Tuple[PreTrainedTokenizer],
+    prompt: Union[str, List[str]],
+    device: Optional[torch.device] = None,
+    no_clip: bool = True,
+) -> torch.FloatTensor:
         prompt = [prompt] if isinstance(prompt, str) else prompt
 
         clip_tokenizers = tokenizers[:2]

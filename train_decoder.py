@@ -18,10 +18,12 @@ from accelerate import Accelerator
 from torch.utils.data import DataLoader
 from diffusers.training_utils import EMAModel
 
+from typing import Dict, List, Tuple
+
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size, dataset_paths, image_ext):
+def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, str, int]], image_ext: str) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
 
@@ -36,7 +38,7 @@ def get_bucket_list(batch_size, dataset_paths, image_ext):
                     latent_path = os.path.join(latent_dataset, bucket[key][i])
                     image_path = os.path.join(image_dataset, bucket[key][i][:-9]+"image"+image_ext)
                     if os.path.exists(latent_path) and os.path.exists(image_path):
-                        bucket_list[key].append([latent_path, image_path])
+                        bucket_list[key].append((latent_path, image_path))
                     else:
                         print(f"File not found: {bucket[key][i]}")
 
@@ -64,7 +66,7 @@ def get_bucket_list(batch_size, dataset_paths, image_ext):
     return bucket_list
 
 
-def get_batches(batch_size, dataset_paths, dataset_index, image_ext):
+def get_batches(batch_size: int, dataset_paths: List[Tuple[str, str, int]], dataset_index: str, image_ext: str) -> None:
     bucket_list = get_bucket_list(batch_size, dataset_paths, image_ext)
     print("Creating epoch batches")
     epoch_batch = []

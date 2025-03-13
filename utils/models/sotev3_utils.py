@@ -1,12 +1,19 @@
+import torch
+
+from typing import List, Optional, Union
+from transformers import PreTrainedModel, PreTrainedTokenizer
+from diffusers.image_processor import PipelineImageInput
+
+
 def encode_sotev3_prompt(
-    text_encoder, tokenizer,
-    prompt, prompt_images=None,
-    max_sequence_length=1024,
-    device=None,
-    dtype=None,
-):
+    text_encoder: PreTrainedModel,
+    tokenizer: PreTrainedTokenizer,
+    prompt: Union[str, List[str]],
+    prompt_images: Optional[PipelineImageInput] = None,
+    device: Optional[torch.device] = None,
+    max_sequence_length: int = 1024,
+) -> List[torch.FloatTensor]:
     device = device or text_encoder.device
-    dtype = dtype or text_encoder.dtype
 
     prompt = [prompt] if isinstance(prompt, str) else prompt
 
@@ -25,9 +32,9 @@ def encode_sotev3_prompt(
 
     inputs = {k: v.to(device) for k, v in inputs.items()}
     prompt_embeds = text_encoder(**inputs, output_hidden_states=True).hidden_states[-2]
-    prompt_embeds = prompt_embeds.to(device, dtype=dtype)
+    prompt_embeds = prompt_embeds.to(device, dtype=text_encoder.dtype)
 
-    attention_mask = inputs["attention_mask"].to(device, dtype=dtype)
+    attention_mask = inputs["attention_mask"].to(device, dtype=text_encoder.dtype)
     prompt_embeds = prompt_embeds * attention_mask.unsqueeze(-1).expand(prompt_embeds.shape)
     prompt_embeds_list = []
     for i in range(prompt_embeds.size(0)):

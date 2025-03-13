@@ -1,7 +1,12 @@
 import torch
 import diffusers
+from PIL import Image
 
-def get_latent_model(model_type, path, device, dtype, dynamo_backend):
+from typing import List, Tuple, Union
+from transformers import ImageProcessingMixin
+from diffusers.models.modeling_utils import ModelMixin
+
+def get_latent_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
     if model_type == "sd3":
         return get_sd3_vae(path, device, dtype, dynamo_backend)
     elif model_type == "sotev3":
@@ -10,14 +15,14 @@ def get_latent_model(model_type, path, device, dtype, dynamo_backend):
         raise NotImplementedError
 
 
-def get_latent_model_class(model_type):
+def get_latent_model_class(model_type: str) -> type:
     if model_type in {"sd3", "sotev3"}:
         return diffusers.AutoencoderKL
     else:
         raise NotImplementedError
 
 
-def encode_latents(latent_model, image_processor, images, model_type, device):
+def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], model_type: str, device: torch.device) -> torch.FloatTensor:
     #return torch.zeros((len(images), 16, 128, 128))
     if model_type in {"sd3", "sotev3"}:
         return encode_vae_latents(latent_model, image_processor, images, device)
@@ -25,14 +30,22 @@ def encode_latents(latent_model, image_processor, images, model_type, device):
         raise NotImplementedError
 
 
-def decode_latents(latent_model, image_processor, latents, model_type, device, return_image=True, mixed_precision="no"):
+def decode_latents(
+    latent_model: ModelMixin,
+    image_processor: ImageProcessingMixin,
+    latents: torch.FloatTensor,
+    model_type: str,
+    device: torch.device,
+    return_image: bool = True,
+    mixed_precision: str = "no"
+) -> Union[Image.Image, torch.FloatTensor]:
     if model_type in {"sd3", "sotev3"}:
         return decode_vae_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
     else:
         raise NotImplementedError
 
 
-def encode_vae_latents(latent_model, image_processor, images, device):
+def encode_vae_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], device: torch.device) -> torch.FloatTensor:
     with torch.no_grad():
         tensor_images = image_processor.preprocess(images).to(device, dtype=latent_model.dtype)
     latents = latent_model.encode(tensor_images).latent_dist.sample().to(dtype=torch.float32)
@@ -44,7 +57,14 @@ def encode_vae_latents(latent_model, image_processor, images, device):
     return latents.to(dtype=latent_model.dtype)
 
 
-def decode_vae_latents(latent_model, image_processor, latents, device, return_image=True, mixed_precision="no"):
+def decode_vae_latents(
+    latent_model: ModelMixin,
+    image_processor: ImageProcessingMixin,
+    latents: torch.FloatTensor,
+    device: torch.device,
+    return_image: bool = True,
+    mixed_precision: str = "no"
+) -> Union[Image.Image, torch.FloatTensor]:
     with torch.no_grad():
         latents = latents.to(device, dtype=torch.float32)
         if latent_model.config.scaling_factor and latent_model.config.scaling_factor != 1:
@@ -60,7 +80,7 @@ def decode_vae_latents(latent_model, image_processor, latents, device, return_im
         return image_tensor.to(dtype=latent_model.dtype)
 
 
-def get_sd3_vae(path, device, dtype, dynamo_backend):
+def get_sd3_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
     pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
     latent_model = pipe.vae.to(device, dtype=dtype).eval()
     latent_model.requires_grad_(False)
@@ -70,7 +90,7 @@ def get_sd3_vae(path, device, dtype, dynamo_backend):
     return latent_model, image_processor
 
 
-def get_sotev3_vae(path, device, dtype, dynamo_backend):
+def get_sotev3_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
     from sotev3 import SoteDiffusionV3Pipeline
     pipe = SoteDiffusionV3Pipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
     latent_model = pipe.vae.to(device, dtype=dtype).eval()

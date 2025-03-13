@@ -11,11 +11,16 @@ if not torch.version.cuda:
 import atexit
 import argparse
 from tqdm import tqdm
+
+from typing import Dict, List, Tuple
+from transformers import ImageProcessingMixin
+from diffusers.models.modeling_utils import ModelMixin
+
 from utils import loader_utils, latent_utils
 
 print_filler = "--------------------------------------------------"
 
-def get_bucket_list(model_type, dataset_path, out_path):
+def get_bucket_list(model_type: str, dataset_path: str, out_path: str) -> Dict[str, List[str]]:
     print(print_filler)
     print("Creating bucket list")
     total_image_count = 0
@@ -45,7 +50,7 @@ def get_bucket_list(model_type, dataset_path, out_path):
     return bucket_list
 
 
-def get_batches(batch_size, model_type, dataset_path, out_path):
+def get_batches(batch_size: int, model_type: str, dataset_path: str, out_path: str) -> List[Tuple[List[str], str]]:
     bucket_list = get_bucket_list(model_type, dataset_path, out_path)
     epoch_batch = []
     for key, bucket in bucket_list.items():
@@ -54,16 +59,24 @@ def get_batches(batch_size, model_type, dataset_path, out_path):
             if bucket_len > batch_size:
                 images_left_out = bucket_len % batch_size
                 for i in range(int((bucket_len - images_left_out) / batch_size)):
-                    epoch_batch.append([bucket[i*batch_size:(i+1)*batch_size], key])
+                    epoch_batch.append((bucket[i*batch_size:(i+1)*batch_size], key))
                 if images_left_out != 0:
-                    epoch_batch.append([bucket[-images_left_out:], key])
+                    epoch_batch.append((bucket[-images_left_out:], key))
             else:
-                epoch_batch.append([bucket, key])
+                epoch_batch.append((bucket, key))
         print(f"Images to encode in the bucket {key}: {bucket_len}")
     return epoch_batch
 
 
-def write_latents(latent_model, image_processor, device, args, cache_backend, save_image_backend, batch):
+def write_latents(
+    latent_model: ModelMixin,
+    image_processor: ImageProcessingMixin,
+    device: torch.device,
+    args: argparse.Namespace,
+    cache_backend: loader_utils.SaveBackend,
+    save_image_backend: loader_utils.SaveImageBackend,
+    batch: List[Tuple[List[str], str]],
+) -> None:
     images = []
     latent_paths = []
     save_image_paths = []

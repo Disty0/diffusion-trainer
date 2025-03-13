@@ -13,10 +13,13 @@ import argparse
 from tqdm import tqdm
 from utils import loader_utils, embed_utils
 
+from typing import List, Tuple
+from transformers import PreTrainedModel
+
 print_filler = "--------------------------------------------------"
 
 
-def get_paths(dataset_path, out_path, model_type, text_ext):
+def get_paths(dataset_path: str, out_path: str, model_type: str, text_ext: str) -> Tuple[List[str], List[str]]:
     print(print_filler)
     print(f"Discovering {text_ext} files")
     file_list = glob.glob(f"{dataset_path}/**/*{text_ext}", recursive=True)
@@ -37,27 +40,36 @@ def get_paths(dataset_path, out_path, model_type, text_ext):
     return texts, paths
 
 
-def get_batches(batch_size, dataset_path, out_path, model_type, text_ext):
+def get_batches(batch_size: str, dataset_path: str, out_path: str, model_type: str, text_ext: str) -> Tuple[List[List[str]], List[List[str]]]:
     texts, paths = get_paths(dataset_path, out_path, model_type, text_ext)
-    embed_pathes = []
-    embed_path = []
+
     text_batches = []
-    text_batch = []
-    for i in range(len(paths)):
-        embed_path.append(paths[i])
-        text_batch.append(texts[i])
-        if len(embed_path) >= batch_size:
-            embed_pathes.append(embed_path)
-            text_batches.append(text_batch)
-            embed_path = []
-            text_batch = []
-    if len(embed_path) != 0:
-        embed_pathes.append(embed_path)
-        text_batches.append(text_batch)
+    embed_pathes = []
+    total_len = len(paths)
+    paths_left_out = total_len % batch_size
+
+    if total_len > batch_size:
+        for i in range(int(total_len-paths_left_out)):
+            text_batches.append(texts[i*batch_size:(i+1)*batch_size])
+            embed_pathes.append(paths[i*batch_size:(i+1)*batch_size])
+        if paths_left_out != 0:
+            text_batches.append(texts[-paths_left_out:])
+            embed_pathes.append(paths[-paths_left_out:])
+    else:
+        text_batches.append(texts)
+        embed_pathes.append(paths)
+
     return text_batches, embed_pathes
 
 
-def write_embeds(embed_encoder, device, args, cache_backend, text_batch, embed_path):
+def write_embeds(
+    embed_encoder: PreTrainedModel,
+    device: torch.device,
+    args: argparse.Namespace,
+    cache_backend: loader_utils.SaveBackend,
+    text_batch: List[str],
+    embed_path: List[str]
+) -> None:
     embeds = embed_utils.encode_embeds(embed_encoder, device, args.model_type, text_batch)
     getattr(torch, device.type).synchronize(device)
     for i in range(len(text_batch)):

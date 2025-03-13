@@ -19,10 +19,12 @@ from accelerate import Accelerator
 from torch.utils.data import DataLoader
 from diffusers.training_utils import EMAModel
 
+from typing import Dict, List, Tuple
+
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type="latent"):
+def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], empty_embed_path: str, latent_type: str = "latent") -> Dict[str, List[str]]:
     embed_suffix = "_" + empty_embed_path.rsplit("empty_", maxsplit=1)[-1]
     print("Creating bucket list")
     bucket_list = {}
@@ -48,7 +50,7 @@ def get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type="la
                         elif not os.path.exists(embed_path):
                             print(f"Embed file not found: {embed_path}")
                         else:
-                            bucket_list[key].append([latent_path, embed_path])
+                            bucket_list[key].append((latent_path, embed_path))
 
     keys_to_remove = []
     total_image_count = 0
@@ -74,7 +76,7 @@ def get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type="la
     return bucket_list
 
 
-def get_batches(batch_size, dataset_paths, dataset_index, empty_embed_path, latent_type="latent"):
+def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str = "latent") -> None:
     bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type=latent_type)
     print("Creating epoch batches")
     epoch_batch = []
@@ -90,7 +92,7 @@ def get_batches(batch_size, dataset_paths, dataset_index, empty_embed_path, late
                 epoch_batch.append(bucket[i*batch_size:(i+1)*batch_size])
         elif latent_type in {"image", "jpeg"}:
             for i in range(int((bucket_len - images_left_out) / batch_size)):
-                epoch_batch.append([key, bucket[i*batch_size:(i+1)*batch_size]])
+                epoch_batch.append((key, bucket[i*batch_size:(i+1)*batch_size]))
         print(print_filler)
         print(f"Images left out from bucket {key}: {images_left_out}")
         print(f"Images left in the bucket {key}: {bucket_len - images_left_out}")
@@ -257,7 +259,8 @@ if __name__ == '__main__':
         disable=not accelerator.is_local_main_process,
     )
 
-    empty_embeds_added_count = 0
+    total_empty_embeds_count = 0
+    total_masked_count = 0
     timesteps_list = []
     grad_norm = torch.tensor(0.0, dtype=dtype, device=accelerator.device)
     grad_mean = 0
@@ -268,19 +271,16 @@ if __name__ == '__main__':
     clipped_grad_mean_count = 0
     grad_max = 0
     loss = torch.tensor(1.0, dtype=dtype, device=accelerator.device)
+    loss_func = train_utils.get_loss_func(config)
     model.train()
     getattr(torch, accelerator.device.type).empty_cache()
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
                 last_loss = loss
-                model_pred, target, timesteps, empty_embeds_added, seq_len = train_utils.run_model(model, model_processor, config, accelerator, dtype, latents_list, embeds_list, empty_embed)
-                if config["loss_type"] == "mae":
-                    loss = torch.nn.functional.l1_loss(model_pred, target, reduction=config["loss_reduction"])
-                elif config["loss_type"] == "mse":
-                    loss = torch.nn.functional.mse_loss(model_pred, target, reduction=config["loss_reduction"])
-                else:
-                    loss = getattr(torch.nn.functional, config["loss_type"])(model_pred, target, reduction=config["loss_reduction"])
+                loss, model_pred, target, timesteps, empty_embeds_count, masked_count, seq_len = train_utils.run_model(model, model_processor, config, accelerator, dtype, latents_list, embeds_list, empty_embed)
+                if loss is None:
+                    loss = loss_func(model_pred, target, reduction=config["loss_reduction"])
                 accelerator.backward(loss)
                 if not config["fused_optimizer"]:
                     if accelerator.sync_gradients:
@@ -311,8 +311,10 @@ if __name__ == '__main__':
 
                 if timesteps is not None:
                     timesteps_list.extend(timesteps.to("cpu", dtype=torch.float32).detach().tolist())
-                if empty_embeds_added is not None:
-                    empty_embeds_added_count += empty_embeds_added
+                if empty_embeds_count is not None:
+                    total_empty_embeds_count += empty_embeds_count
+                if masked_count is not None:
+                    total_masked_count += masked_count
 
                 if accelerator.sync_gradients:
                     if config["ema_update_steps"] > 0 and current_step % config["ema_update_steps"] == 0:
@@ -398,7 +400,9 @@ if __name__ == '__main__':
 
                     progress_bar.set_postfix(**logs)
                     if config["dropout_rate"] > 0:
-                        logs["empty_embeds_added_count"] = empty_embeds_added_count
+                        logs["total_empty_embeds_count"] = total_empty_embeds_count
+                    if config["mask_rate"] > 0:
+                        logs["total_masked_count"] = total_masked_count
                     if timesteps_list:
                         logs["timesteps"] = wandb.Histogram(timesteps_list)
                         logs["timesteps_min"] = min(timesteps_list)

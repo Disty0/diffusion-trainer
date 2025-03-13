@@ -14,10 +14,12 @@ from queue import Queue
 from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 
+from typing import Tuple
+
 Image.MAX_IMAGE_PIXELS = 999999999 # 178956970
 
 
-def load_from_file(path):
+def load_from_file(path: str) -> torch.FloatTensor:
     with open(path, "rb") as file:
         data = file.read()
     decompressed_data = brotli.decompress(data)
@@ -26,7 +28,7 @@ def load_from_file(path):
     return torch.load(stored_tensor, map_location="cpu", weights_only=True)
 
 
-def load_image_from_file(image_path, target_size):
+def load_image_from_file(image_path: str, target_size: str) -> Tuple[Image.Image, str]:
         if isinstance(target_size, str):
             target_size = target_size.split("x")
             target_size[0] = int(target_size[0])
@@ -64,7 +66,7 @@ def load_image_from_file(image_path, target_size):
         if new_size[0] != target_size[0] or new_size[1] != target_size[1]: # sanity check
             image = image.resize((target_size[0], target_size[1]), Image.BICUBIC)
 
-        return [image, image_path]
+        return (image, image_path)
 
 
 class LatentsAndEmbedsDataset(Dataset):
@@ -206,10 +208,10 @@ class ImageBackend():
                 time.sleep(0.25)
             elif not self.batches.empty():
                 batches = self.batches.get()
-                curren_batch = []
+                current_batch = []
                 for batch in batches[0]:
-                    curren_batch.append(load_image_from_file(batch, batches[1]))
-                self.load_queue.put(curren_batch)
+                    current_batch.append(load_image_from_file(batch, batches[1]))
+                self.load_queue.put(current_batch)
                 self.load_queue_lenght += 1
             else:
                 time.sleep(5)
