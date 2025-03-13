@@ -7,29 +7,29 @@ from tqdm import tqdm
 
 from typing import Callable, Tuple
 
-def calc_crop_res(orig_res: Tuple[int, int], target_size: int, res_steps: int) -> Tuple[int, int]:
-    orig_size = orig_res[0] * orig_res[1]
+def calc_crop_res(width: int, height: int, target_size: int, res_steps: int) -> Tuple[int, int]:
+    orig_size = width * height
     if orig_size > target_size:
         scale = math.sqrt(orig_size / target_size)
-        new_res = [orig_res[0]/scale, orig_res[1]/scale]
+        new_width = width/scale
+        new_height = height/scale
     else:
-        new_res = orig_res
+        new_width = width
+        new_height = height
 
-    diff = new_res[0] % res_steps
+    diff = new_width % res_steps
     if diff != 0:
-        new_res[0] = new_res[0] - diff
-        if diff > res_steps / 2 and orig_res[0] >= new_res[0] + res_steps:
-            new_res[0] = new_res[0] + res_steps
+        new_width = new_width - diff
+        if diff > res_steps / 2 and width >= new_width + res_steps:
+            new_width = new_width + res_steps
 
-    diff = new_res[1] % res_steps
+    diff = new_height % res_steps
     if diff != 0:
-        new_res[1] = new_res[1] - diff
-        if diff > res_steps / 2 and orig_res[1] >= new_res[1] + res_steps:
-            new_res[1] = new_res[1] + res_steps
+        new_height = new_height - diff
+        if diff > res_steps / 2 and height >= new_height + res_steps:
+            new_height = new_height + res_steps
 
-    new_res[0] = int(new_res[0])
-    new_res[1] = int(new_res[1])
-    return new_res[0], new_res[1]
+    return int(new_width), int(new_height)
 
 
 def write_bucket_list(dataset_path: str, target_size: int, res_steps: int, image_ext: str, size_function: Callable) -> None:
@@ -37,8 +37,8 @@ def write_bucket_list(dataset_path: str, target_size: int, res_steps: int, image
     file_list = glob.glob(f"{dataset_path}/**/*{image_ext}", recursive=True)
     for image in tqdm(file_list):
         width, height = size_function(image)
-        new_res = calc_crop_res([width, height], target_size, res_steps)
-        bucket_name = f"{new_res[0]}x{new_res[1]}"
+        new_width, new_height = calc_crop_res(width, height, target_size, res_steps)
+        bucket_name = f"{new_width}x{new_height}"
         if bucket_name not in res_map.keys():
             res_map[bucket_name] = []
         res_map[bucket_name].append(image[len(dataset_path)+1:])
