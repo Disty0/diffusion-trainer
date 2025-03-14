@@ -108,9 +108,9 @@ class ImagesAndEmbedsDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         images = []
         embeds = []
-        resoluion = self.batches[index][1]
+        resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resoluion)).copy()).transpose(2,0).transpose(1,2)
+            image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resolution)).copy()).transpose(2,0).transpose(1,2)
             image_tensor = ((image_tensor.float() / 255) - 0.5) * 2 # -1 to 1 range
             images.append(image_tensor)
             embeds.append(load_from_file(batch[1]))
@@ -126,9 +126,9 @@ class DCTsAndEmbedsDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         images = []
         embeds = []
-        resoluion = self.batches[index][1]
+        resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resoluion), device="cpu")[0])
+            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resolution), device="cpu")[0])
             embeds.append(load_from_file(batch[1]))
         return (images, embeds)
 

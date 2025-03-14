@@ -80,7 +80,7 @@ def run_model(
     latents_list: Union[List, torch.FloatTensor],
     embeds_list: Union[List, torch.FloatTensor],
     empty_embed: Union[List, torch.FloatTensor],
-) -> Tuple[torch.FloatTensor, int]:
+) -> Tuple[torch.FloatTensor, dict]:
     if config["model_type"] == "sd3":
         with torch.no_grad():
             latents = []
@@ -135,8 +135,6 @@ def run_model(
             )[0]
 
         loss = None
-        masked_count = None
-
         model_pred = model_pred.float()
         target = target.float()
 
@@ -145,7 +143,12 @@ def run_model(
             model_pred = model_pred * sigma_sqrt
             target = target * sigma_sqrt
 
-        return loss, model_pred, target, timesteps, empty_embeds_count, masked_count, seq_len
+        log_dict = {
+            "timesteps": timesteps,
+            "empty_embeds_count": empty_embeds_count,
+        }
+
+        return loss, model_pred, target, log_dict
     elif config["model_type"] == "sotev3":
         with torch.no_grad():
             latents = []
@@ -185,7 +188,7 @@ def run_model(
             prompt_embeds = torch.stack(prompt_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
             seq_len = prompt_embeds.shape[1]
 
-            noisy_model_input, timesteps, target, sigmas, _ = get_flowmatch_inputs(
+            noisy_model_input, timesteps, target, sigmas, noise = get_flowmatch_inputs(
                 latents=latents,
                 device=accelerator.device,
                 num_train_timesteps=model.config.num_train_timesteps,
@@ -221,7 +224,14 @@ def run_model(
             model_pred = model_pred * sigma_sqrt
             target = target * sigma_sqrt
 
-        return loss, model_pred, target, timesteps, empty_embeds_count, masked_count, seq_len
+        log_dict = {
+            "timesteps": timesteps,
+            "empty_embeds_count": empty_embeds_count,
+            "masked_count": masked_count,
+            "seq_len": seq_len,
+        }
+
+        return loss, model_pred, target, log_dict
     else:
         raise NotImplementedError
 

@@ -278,7 +278,7 @@ if __name__ == '__main__':
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
                 last_loss = loss
-                loss, model_pred, target, timesteps, empty_embeds_count, masked_count, seq_len = train_utils.run_model(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed)
+                loss, model_pred, target, log_dict = train_utils.run_model(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed)
                 if loss is None:
                     loss = loss_func(model_pred, target, reduction=config["loss_reduction"])
                 accelerator.backward(loss)
@@ -309,12 +309,12 @@ if __name__ == '__main__':
                     lr_scheduler.step()
                     optimizer.zero_grad()
 
-                if timesteps is not None:
-                    timesteps_list.extend(timesteps.to("cpu", dtype=torch.float32).detach().tolist())
-                if empty_embeds_count is not None:
-                    total_empty_embeds_count += empty_embeds_count
-                if masked_count is not None:
-                    total_masked_count += masked_count
+                if log_dict.get("timesteps", None) is not None:
+                    timesteps_list.extend(log_dict["timesteps"].to("cpu", dtype=torch.float32).detach().tolist())
+                if log_dict.get("empty_embeds_count", None) is not None:
+                    total_empty_embeds_count += log_dict["empty_embeds_count"]
+                if log_dict.get("masked_count", None) is not None:
+                    total_masked_count += log_dict["masked_count"]
 
                 if accelerator.sync_gradients:
                     if config["ema_update_steps"] > 0 and current_step % config["ema_update_steps"] == 0:
@@ -372,7 +372,7 @@ if __name__ == '__main__':
                             accelerator.print(print_filler)
                         accelerator.wait_for_everyone()
 
-                    logs = {"loss": loss.detach().item(), "epoch": current_epoch, "seq_len": seq_len}
+                    logs = {"loss": loss.detach().item(), "epoch": current_epoch}
                     if not config["fused_optimizer"]:
                         logs["lr"] = lr_scheduler.get_last_lr()[0]
                     else:
@@ -397,6 +397,8 @@ if __name__ == '__main__':
                     if accelerator.is_main_process:
                         if config["ema_update_steps"] > 0:
                             logs["ema_decay"] = ema_model.get_decay(ema_model.optimization_step)
+                    if log_dict.get("seq_len", None) is not None:
+                        logs["seq_len"] = log_dict["seq_len"]
 
                     progress_bar.set_postfix(**logs)
                     if config["dropout_rate"] > 0:
