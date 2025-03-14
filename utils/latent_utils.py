@@ -23,7 +23,6 @@ def get_latent_model_class(model_type: str) -> type:
 
 
 def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], model_type: str, device: torch.device) -> torch.FloatTensor:
-    #return torch.zeros((len(images), 16, 128, 128))
     if model_type in {"sd3", "sotev3"}:
         return encode_vae_latents(latent_model, image_processor, images, device)
     else:

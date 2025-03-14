@@ -9,7 +9,7 @@ class JXLBitstream:
     A stream of bits with methods for easy handling.
     """
 
-    def __init__(self, file, offset: int = 0, offsets: List[List[int]] = []) -> None:
+    def __init__(self, file, offset: int = 0, offsets: List[List[int]] = None):
         self.shift = 0
         self.bitstream = bytearray()
         self.file = file

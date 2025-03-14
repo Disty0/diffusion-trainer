@@ -278,7 +278,7 @@ if __name__ == '__main__':
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
                 last_loss = loss
-                loss, model_pred, target, timesteps, empty_embeds_count, masked_count, seq_len = train_utils.run_model(model, model_processor, config, accelerator, dtype, latents_list, embeds_list, empty_embed)
+                loss, model_pred, target, timesteps, empty_embeds_count, masked_count, seq_len = train_utils.run_model(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed)
                 if loss is None:
                     loss = loss_func(model_pred, target, reduction=config["loss_reduction"])
                 accelerator.backward(loss)

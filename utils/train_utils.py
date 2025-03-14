@@ -77,7 +77,6 @@ def run_model(
     model_processor: ModelMixin,
     config: dict,
     accelerator: Accelerator,
-    dtype: torch.dtype,
     latents_list: Union[List, torch.FloatTensor],
     embeds_list: Union[List, torch.FloatTensor],
     empty_embed: Union[List, torch.FloatTensor],
@@ -261,7 +260,7 @@ def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, d
     unmask = torch.ones((height, width), device=device, dtype=torch.float32)
 
     mask = []
-    for i in range(batch_size):
+    for _ in range(batch_size):
         if random.randint(0,100) > config["mask_rate"] * 100:
             mask.append(unmask)
         else:

@@ -18,7 +18,6 @@ def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: t
 
 def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, model_type: str, texts: List[str], prompt_images=List[Image.Image]) -> torch.FloatTensor:
     with torch.no_grad():
-        #return [torch.zeros((len(texts), 333, 4096)), torch.zeros((len(texts), 2048))]
         if model_type == "sd3":
             return encode_sd3_embeds(embed_encoder, device, texts)
         elif model_type == "sotev3":
