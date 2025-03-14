@@ -92,7 +92,7 @@ def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]]
                 epoch_batch.append(bucket[i*batch_size:(i+1)*batch_size])
         elif latent_type in {"image", "jpeg"}:
             for i in range(int((bucket_len - images_left_out) / batch_size)):
-                epoch_batch.append((key, bucket[i*batch_size:(i+1)*batch_size]))
+                epoch_batch.append((bucket[i*batch_size:(i+1)*batch_size], key))
         print(print_filler)
         print(f"Images left out from bucket {key}: {images_left_out}")
         print(f"Images left in the bucket {key}: {bucket_len - images_left_out}")

@@ -14,7 +14,8 @@ from queue import Queue
 from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 
-from typing import Tuple
+from typing import List, Tuple, Union
+from transformers import ImageProcessingMixin
 
 Image.MAX_IMAGE_PIXELS = 999999999 # 178956970
 
@@ -28,7 +29,7 @@ def load_from_file(path: str) -> torch.FloatTensor:
     return torch.load(stored_tensor, map_location="cpu", weights_only=True)
 
 
-def load_image_from_file(image_path: str, target_size: str) -> Tuple[Image.Image, str]:
+def load_image_from_file(image_path: str, target_size: str) -> Image.Image:
         if isinstance(target_size, str):
             target_size = target_size.split("x")
             target_size[0] = int(target_size[0])
@@ -66,74 +67,74 @@ def load_image_from_file(image_path: str, target_size: str) -> Tuple[Image.Image
         if new_size[0] != target_size[0] or new_size[1] != target_size[1]: # sanity check
             image = image.resize((target_size[0], target_size[1]), Image.BICUBIC)
 
-        return (image, image_path)
+        return image
 
 
 class LatentsAndEmbedsDataset(Dataset):
-    def __init__(self, batches):
+    def __init__(self, batches: List[Tuple[str, str]]):
         self.batches = batches
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.batches)
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         latents = []
         embeds = []
         for batch in self.batches[index]:
             latents.append(load_from_file(batch[0]))
             embeds.append(load_from_file(batch[1]))
-        return [latents, embeds]
+        return (latents, embeds)
 
 
 class LatentsAndImagesDataset(Dataset):
-    def __init__(self, batches, image_processor):
+    def __init__(self, batches: List[Tuple[str, str]], image_processor: ImageProcessingMixin):
         self.batches = batches
         self.image_processor = image_processor
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.batches)
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         latents = []
         image_tensors = []
         for batch in self.batches[index]:
             latents.append(load_from_file(batch[0]))
             with Image.open(batch[1]) as image:
                 image_tensors.append(self.image_processor.preprocess(image)[0])
-        return [latents, image_tensors]
+        return (latents, image_tensors)
 
 
 class ImagesAndEmbedsDataset(Dataset):
-    def __init__(self, batches):
+    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]]):
         self.batches = batches
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.batches)
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         images = []
         embeds = []
-        resoluion = self.batches[index][0]
-        for batch in self.batches[index][1]:
-            image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resoluion)[0]).copy()).transpose(2,0).transpose(1,2)
+        resoluion = self.batches[index][1]
+        for batch in self.batches[index][0]:
+            image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resoluion)).copy()).transpose(2,0).transpose(1,2)
             image_tensor = ((image_tensor.float() / 255) - 0.5) * 2 # -1 to 1 range
             images.append(image_tensor)
             embeds.append(load_from_file(batch[1]))
-        return [images, embeds]
+        return (images, embeds)
 
 
 class DCTsAndEmbedsDataset(Dataset):
-    def __init__(self, batches, image_encoder):
+    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], image_encoder: ImageProcessingMixin):
         self.batches = batches
         self.image_encoder = image_encoder
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.batches)
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         images = []
         embeds = []
-        resoluion = self.batches[index][0]
-        for batch in self.batches[index][1]:
-            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resoluion)[0], device="cpu")[0])
+        resoluion = self.batches[index][1]
+        for batch in self.batches[index][0]:
+            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resoluion), device="cpu")[0])
             embeds.append(load_from_file(batch[1]))
-        return [images, embeds]
+        return (images, embeds)
 
 
 class SaveBackend():
-    def __init__(self, model_type, save_queue_lenght=4096, max_save_workers=8):
+    def __init__(self, model_type: str, save_queue_lenght: int = 4096, max_save_workers: int = 8):
         self.save_queue_lenght = 0
         self.model_type = model_type
         self.keep_saving = True
@@ -144,7 +145,7 @@ class SaveBackend():
             self.save_thread.submit(self.save_thread_func)
 
 
-    def save(self, data, path):
+    def save(self, data: Union[List[torch.FloatTensor], torch.FloatTensor], path: str) -> None:
         if isinstance(data, torch.Tensor):
             data = data.to("cpu", dtype=torch.float16).clone()
         elif isinstance(data, list):
@@ -156,11 +157,11 @@ class SaveBackend():
             print(f"Hit the max save queue lenght of {self.max_save_queue_lenght}. Sleeping for 10 seconds")
             time.sleep(10)
             gc.collect()
-        self.save_queue.put([data,path])
+        self.save_queue.put((data,path))
         self.save_queue_lenght += 1
 
 
-    def save_thread_func(self):
+    def save_thread_func(self) -> None:
         while self.keep_saving:
             if not self.save_queue.empty():
                 data = self.save_queue.get()
@@ -171,7 +172,7 @@ class SaveBackend():
         print("Stopping the save backend threads")
 
 
-    def save_to_file(self, data, path):
+    def save_to_file(self, data: torch.FloatTensor, path: str) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.cpu.synchronize()
         output_data_container = BytesIO()
@@ -183,7 +184,7 @@ class SaveBackend():
 
 
 class ImageBackend():
-    def __init__(self, batches, load_queue_lenght=32, max_load_workers=8):
+    def __init__(self, batches: List[Tuple[List[str], str]], load_queue_lenght: int = 32, max_load_workers: int = 8):
         self.load_queue_lenght = 0
         self.keep_loading = True
         self.batches = Queue()
@@ -196,13 +197,13 @@ class ImageBackend():
             self.load_thread.submit(self.load_thread_func)
 
 
-    def get_images(self):
+    def get_images(self) -> List[Tuple[Image.Image, str]]:
         result = self.load_queue.get()
         self.load_queue_lenght -= 1
         return result
 
 
-    def load_thread_func(self):
+    def load_thread_func(self) -> None:
         while self.keep_loading:
             if self.load_queue_lenght >= self.max_load_queue_lenght:
                 time.sleep(0.25)
@@ -210,7 +211,7 @@ class ImageBackend():
                 batches = self.batches.get()
                 current_batch = []
                 for batch in batches[0]:
-                    current_batch.append(load_image_from_file(batch, batches[1]))
+                    current_batch.append((load_image_from_file(batch, batches[1]), batch))
                 self.load_queue.put(current_batch)
                 self.load_queue_lenght += 1
             else:
@@ -219,7 +220,7 @@ class ImageBackend():
 
 
 class SaveImageBackend():
-    def __init__(self, save_queue_lenght=4096, max_save_workers=8, lossless=True, quality=100):
+    def __init__(self, save_queue_lenght: int = 4096, max_save_workers: int = 8, lossless: bool = True, quality: int = 100):
         self.lossless = lossless
         self.quality = quality
         self.save_queue_lenght = 0
@@ -231,16 +232,16 @@ class SaveImageBackend():
             self.save_thread.submit(self.save_thread_func)
 
 
-    def save(self, data, path):
+    def save(self, data: Image.Image, path: str) -> None:
         if self.save_queue_lenght > self.max_save_queue_lenght:
             print(f"Hit the max image save queue lenght of {self.max_save_queue_lenght}. Sleeping for 10 seconds")
             time.sleep(10)
             gc.collect()
-        self.save_queue.put([data,path])
+        self.save_queue.put((data,path))
         self.save_queue_lenght += 1
 
 
-    def save_thread_func(self):
+    def save_thread_func(self) -> None:
         while self.keep_saving:
             if not self.save_queue.empty():
                 data = self.save_queue.get()
@@ -251,7 +252,7 @@ class SaveImageBackend():
         print("Stopping the save backend threads")
 
 
-    def save_to_file(self, image, path):
+    def save_to_file(self, image: Image.Image, path: str) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         image.save(path, lossless=self.lossless, quality=self.quality)
         image.close()

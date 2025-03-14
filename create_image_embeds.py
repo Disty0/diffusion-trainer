@@ -11,6 +11,7 @@ if not torch.version.cuda:
 import atexit
 import argparse
 from tqdm import tqdm
+from PIL import Image
 
 from typing import Dict, List, Tuple
 from transformers import PreTrainedModel
@@ -72,7 +73,7 @@ def write_embeds(
     args: argparse.Namespace,
     cache_backend: loader_utils.SaveBackend,
     save_image_backend: loader_utils.SaveImageBackend,
-    batch: List[Tuple[List[str], str]],
+    batch: List[Tuple[Image.Image, str]],
 ) -> None:
     images = []
     embed_paths = []
