@@ -13,7 +13,7 @@ def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: t
     elif model_type == "sotev3":
         return get_sotev3_embed_encoder(path, device, dtype, dynamo_backend)
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, model_type: str, texts: List[str], prompt_images=List[Image.Image]) -> torch.FloatTensor:
@@ -23,7 +23,7 @@ def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], de
         elif model_type == "sotev3":
             return encode_sotev3_embeds(embed_encoder, device, texts, prompt_images=prompt_images)
         else:
-            raise NotImplementedError
+            raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def encode_sd3_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], device: torch.device, texts: List[str]) -> List[List[torch.FloatTensor]]:

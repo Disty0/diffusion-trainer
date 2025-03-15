@@ -12,21 +12,21 @@ def get_latent_model(model_type: str, path: str, device: torch.device, dtype: to
     elif model_type == "sotev3":
         return get_sotev3_vae(path, device, dtype, dynamo_backend)
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def get_latent_model_class(model_type: str) -> type:
     if model_type in {"sd3", "sotev3"}:
         return diffusers.AutoencoderKL
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], model_type: str, device: torch.device) -> torch.FloatTensor:
     if model_type in {"sd3", "sotev3"}:
         return encode_vae_latents(latent_model, image_processor, images, device)
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def decode_latents(
@@ -41,7 +41,7 @@ def decode_latents(
     if model_type in {"sd3", "sotev3"}:
         return decode_vae_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def encode_vae_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], device: torch.device) -> torch.FloatTensor:

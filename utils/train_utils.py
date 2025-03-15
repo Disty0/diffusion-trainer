@@ -59,7 +59,7 @@ def get_diffusion_model(model_type: str, path: str, device: torch.device, dtype:
         diffusion_model.requires_grad_(True)
         return diffusion_model, copy.deepcopy(pipe.image_encoder)
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def get_model_class(model_type: str) -> ModelMixin:
@@ -69,7 +69,7 @@ def get_model_class(model_type: str) -> ModelMixin:
         from sotev3 import SoteDiffusionV3Transformer2DModel
         return SoteDiffusionV3Transformer2DModel
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def run_model(
@@ -96,6 +96,8 @@ def run_model(
                 # post corrections averaged over 5m anime illustrations for already cached the latents with the default sd3 scaling / shifting
                 latents = (latents / 1.5305) + 0.0609
                 latents = (latents - 0.0730) * 1.2528
+            elif config["latent_corrections"] != "none":
+                raise NotImplementedError(f"Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]}")
 
             prompt_embeds = []
             pooled_embeds = []
@@ -112,12 +114,17 @@ def run_model(
             pooled_embeds = torch.stack(pooled_embeds).to(accelerator.device, dtype=torch.float32)
             seq_len = prompt_embeds.shape[1]
 
-            noisy_model_input, timesteps, target, sigmas, _ = get_flowmatch_inputs(
+            noisy_model_input, timesteps, target, sigmas, noise = get_flowmatch_inputs(
                 latents=latents,
                 device=accelerator.device,
                 num_train_timesteps=model_processor.config.num_train_timesteps,
                 shift=config["timestep_shift"]
             )
+
+            if config["mask_rate"] > 0: # mask with ones
+                noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
+            else:
+                masked_count = None
 
             if config["mixed_precision"] == "no":
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
@@ -146,6 +153,8 @@ def run_model(
         log_dict = {
             "timesteps": timesteps,
             "empty_embeds_count": empty_embeds_count,
+            "masked_count": masked_count,
+            "seq_len": seq_len,
         }
 
         return loss, model_pred, target, log_dict
@@ -155,6 +164,9 @@ def run_model(
             for i in range(len(latents_list)):
                 latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
             latents = torch.stack(latents, dim=0).to(accelerator.device, dtype=torch.float32)
+
+            if config["latent_corrections"] != "none":
+                raise NotImplementedError(f"Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]}")
 
             embed_dim = embeds_list[0].shape[-1]
             prompt_embeds = []
@@ -233,7 +245,7 @@ def run_model(
 
         return loss, model_pred, target, log_dict
     else:
-        raise NotImplementedError
+        raise NotImplementedError(f"Model type {config["model_type"]} is not implemented")
 
 
 def get_flowmatch_inputs(
