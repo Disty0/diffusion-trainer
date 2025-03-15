@@ -260,6 +260,7 @@ if __name__ == '__main__':
     )
 
     total_empty_embeds_count = 0
+    total_self_correct_count = 0
     total_masked_count = 0
     timesteps_list = []
     grad_norm = torch.tensor(0.0, dtype=dtype, device=accelerator.device)
@@ -313,6 +314,8 @@ if __name__ == '__main__':
                     timesteps_list.extend(log_dict["timesteps"].to("cpu", dtype=torch.float32).detach().tolist())
                 if log_dict.get("empty_embeds_count", None) is not None:
                     total_empty_embeds_count += log_dict["empty_embeds_count"]
+                if log_dict.get("self_correct_count", None) is not None:
+                    total_self_correct_count += log_dict["self_correct_count"]
                 if log_dict.get("masked_count", None) is not None:
                     total_masked_count += log_dict["masked_count"]
 
@@ -403,6 +406,8 @@ if __name__ == '__main__':
                     progress_bar.set_postfix(**logs)
                     if config["dropout_rate"] > 0:
                         logs["total_empty_embeds_count"] = total_empty_embeds_count
+                    if config["self_correct_rate"] > 0:
+                        logs["total_self_correct_count"] = total_self_correct_count
                     if config["mask_rate"] > 0:
                         logs["total_masked_count"] = total_masked_count
                     if timesteps_list:

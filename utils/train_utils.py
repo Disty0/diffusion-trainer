@@ -80,7 +80,7 @@ def run_model(
     latents_list: Union[List, torch.FloatTensor],
     embeds_list: Union[List, torch.FloatTensor],
     empty_embed: Union[List, torch.FloatTensor],
-) -> Tuple[torch.FloatTensor, dict]:
+) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
     if config["model_type"] == "sd3":
         with torch.no_grad():
             latents = []
@@ -118,13 +118,39 @@ def run_model(
                 latents=latents,
                 device=accelerator.device,
                 num_train_timesteps=model_processor.config.num_train_timesteps,
-                shift=config["timestep_shift"]
+                shift=config["timestep_shift"],
+                flip_target=False,
             )
 
             if config["mask_rate"] > 0: # mask with ones
                 noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
             else:
                 masked_count = None
+
+            if config["self_correct_rate"] > 0 and random.randint(0,100) < config["self_correct_rate"] * 100:
+                with accelerator.autocast():
+                    model_pred = model(
+                        hidden_states=noisy_model_input,
+                        timestep=timesteps,
+                        encoder_hidden_states=prompt_embeds,
+                        pooled_projections=pooled_embeds,
+                        return_dict=False,
+                    )[0].float()
+
+                noisy_model_input = noisy_model_input.float()
+                noisy_model_input, target, self_correct_count = get_self_corrected_targets(
+                    noisy_model_input=noisy_model_input,
+                    target=target,
+                    sigmas=sigmas,
+                    noise=noise,
+                    model_pred=model_pred,
+                    flip_target=False,
+                )
+
+                if config["mixed_precision"] == "no":
+                    noisy_model_input = noisy_model_input.to(dtype=model.dtype)
+            else:
+                self_correct_count = None
 
             if config["mixed_precision"] == "no":
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
@@ -153,6 +179,7 @@ def run_model(
         log_dict = {
             "timesteps": timesteps,
             "empty_embeds_count": empty_embeds_count,
+            "self_correct_count": self_correct_count,
             "masked_count": masked_count,
             "seq_len": seq_len,
         }
@@ -218,6 +245,31 @@ def run_model(
                 timesteps = timesteps.to(dtype=model.dtype)
                 prompt_embeds = prompt_embeds.to(dtype=model.dtype)
 
+            if config["self_correct_rate"] > 0 and random.randint(0,100) < config["self_correct_rate"] * 100:
+                with accelerator.autocast():
+                    model_pred = model(
+                        hidden_states=noisy_model_input,
+                        timestep=timesteps,
+                        encoder_hidden_states=prompt_embeds,
+                        return_dict=False,
+                        flip_outputs=False,
+                    )[0].float()
+
+                noisy_model_input = noisy_model_input.float()
+                noisy_model_input, target, self_correct_count = get_self_corrected_targets(
+                    noisy_model_input=noisy_model_input,
+                    target=target,
+                    sigmas=sigmas,
+                    noise=noise,
+                    model_pred=model_pred,
+                    flip_target=True,
+                )
+
+                if config["mixed_precision"] == "no":
+                    noisy_model_input = noisy_model_input.to(dtype=model.dtype)
+            else:
+                self_correct_count = None
+
         with accelerator.autocast():
             model_pred = model(
                 hidden_states=noisy_model_input,
@@ -239,6 +291,7 @@ def run_model(
         log_dict = {
             "timesteps": timesteps,
             "empty_embeds_count": empty_embeds_count,
+            "self_correct_count": self_correct_count,
             "masked_count": masked_count,
             "seq_len": seq_len,
         }
@@ -294,3 +347,23 @@ def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, d
     noisy_model_input = ((noisy_model_input - 1) * mask) + 1
 
     return noisy_model_input, masked_count
+
+
+def get_self_corrected_targets(
+    noisy_model_input: torch.FloatTensor,
+    target: torch.FloatTensor,
+    sigmas: torch.FloatTensor,
+    noise: torch.FloatTensor,
+    model_pred: torch.FloatTensor,
+    flip_target: bool = False,
+) -> Tuple[torch.FloatTensor, torch.FloatTensor, int]:
+    if flip_target:
+        model_x0_pred = noisy_model_input.float() + (model_pred * sigmas)
+    else:
+        model_x0_pred = noisy_model_input.float() - (model_pred * sigmas)
+
+    new_target = (target * 2) - model_pred
+    new_noisy_model_input = ((1.0 - sigmas) * model_x0_pred) + (sigmas * noise)
+
+    self_correct_count = new_noisy_model_input.shape[0]
+    return new_noisy_model_input, new_target, self_correct_count
