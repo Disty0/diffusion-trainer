@@ -127,7 +127,7 @@ def run_model(
             else:
                 masked_count = None
 
-            if config["self_correct_rate"] > 0 and random.randint(0,100) < config["self_correct_rate"] * 100:
+            if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
                 with accelerator.autocast():
                     model_pred = model(
                         hidden_states=noisy_model_input,
@@ -245,7 +245,7 @@ def run_model(
                 timesteps = timesteps.to(dtype=model.dtype)
                 prompt_embeds = prompt_embeds.to(dtype=model.dtype)
 
-            if config["self_correct_rate"] > 0 and random.randint(0,100) < config["self_correct_rate"] * 100:
+            if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
                 with accelerator.autocast():
                     model_pred = model(
                         hidden_states=noisy_model_input,
