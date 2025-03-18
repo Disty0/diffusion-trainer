@@ -96,7 +96,7 @@ def run_model(
                 latents = (latents / 1.5305) + 0.0609
                 latents = (latents - 0.0730) * 1.2528
             elif config["latent_corrections"] != "none":
-                raise NotImplementedError(f"Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]}")
+                raise NotImplementedError(f'Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]}')
 
             prompt_embeds = []
             pooled_embeds = []
@@ -191,8 +191,13 @@ def run_model(
                 latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
             latents = torch.stack(latents, dim=0).to(accelerator.device, dtype=torch.float32)
 
-            if config["latent_corrections"] != "none":
-                raise NotImplementedError(f"Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]}")
+            if config["latent_type"] == "latent":
+                if config["latent_corrections"] == "unscale":
+                    latents = (latents / 0.3611) + 0.1159
+                elif config["latent_corrections"] != "none":
+                    raise NotImplementedError(f'Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]}')
+            elif config["latent_corrections"] != "none":
+                raise NotImplementedError(f'Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]} when using latent type {config["latent_type"]}')
 
             embed_dim = embeds_list[0].shape[-1]
             prompt_embeds = []
@@ -297,7 +302,7 @@ def run_model(
 
         return loss, model_pred, target, log_dict
     else:
-        raise NotImplementedError(f"Model type {config["model_type"]} is not implemented")
+        raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
 
 
 def get_flowmatch_inputs(
