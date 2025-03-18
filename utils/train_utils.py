@@ -90,7 +90,6 @@ def run_model(
 
             if config["latent_corrections"] == "unscale":
                 # SD 3.5 VAE doesn't need scaling, it is already normally distributed and scaling them makes the avg std range become 1.25-2.0
-                # and the diffusion model is unable to generate contrast without burning the image because of this
                 latents = (latents / 1.5305) + 0.0609
             elif config["latent_corrections"] == "danbooru":
                 # post corrections averaged over 5m anime illustrations for already cached the latents with the default sd3 scaling / shifting
@@ -122,7 +121,7 @@ def run_model(
                 flip_target=False,
             )
 
-            if config["mask_rate"] > 0: # mask with ones
+            if config["mask_rate"] > 0:
                 noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
             else:
                 masked_count = None
@@ -235,7 +234,7 @@ def run_model(
                 flip_target=True,
             )
 
-            if config["mask_rate"] > 0: # mask with ones
+            if config["mask_rate"] > 0:
                 noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
             else:
                 masked_count = None
@@ -344,7 +343,7 @@ def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, d
 
     mask = torch.stack(mask, dim=0).unsqueeze(1).to(device, dtype=torch.float32)
     mask = mask.repeat(1,channels,1,1)
-    noisy_model_input = ((noisy_model_input - 1) * mask) + 1
+    noisy_model_input = ((noisy_model_input - 1) * mask) + 1 # mask with ones
 
     return noisy_model_input, masked_count
 
