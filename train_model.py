@@ -93,6 +93,8 @@ def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]]
         elif latent_type in {"image", "jpeg"}:
             for i in range(int((bucket_len - images_left_out) / batch_size)):
                 epoch_batch.append((bucket[i*batch_size:(i+1)*batch_size], key))
+        else:
+            raise NotImplementedError(F"Latent type {latent_type} is not implemented")
         print(print_filler)
         print(f"Images left out from bucket {key}: {images_left_out}")
         print(f"Images left in the bucket {key}: {bucket_len - images_left_out}")
@@ -183,6 +185,8 @@ if __name__ == '__main__':
     elif config["latent_type"] == "jpeg":
         from sotev3 import SoteV3ImageEncoder
         dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=SoteV3ImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
+    else:
+        raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
 
     dtype = getattr(torch, config["weights_dtype"])
@@ -441,6 +445,8 @@ if __name__ == '__main__':
             elif config["latent_type"] == "jpeg":
                 from sotev3 import SoteV3ImageEncoder
                 dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=SoteV3ImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
+            else:
+                raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
             train_dataloader = accelerator.prepare(train_dataloader)
 
