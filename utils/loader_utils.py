@@ -134,9 +134,10 @@ class DCTsAndEmbedsDataset(Dataset):
 
 
 class SaveBackend():
-    def __init__(self, model_type: str, save_queue_lenght: int = 4096, max_save_workers: int = 8):
+    def __init__(self, model_type: str, save_dtype: torch.dtype, save_queue_lenght: int = 4096, max_save_workers: int = 8):
         self.save_queue_lenght = 0
         self.model_type = model_type
+        self.save_dtype = save_dtype
         self.keep_saving = True
         self.max_save_queue_lenght = save_queue_lenght
         self.save_queue = Queue()
@@ -147,11 +148,11 @@ class SaveBackend():
 
     def save(self, data: Union[List[torch.FloatTensor], torch.FloatTensor], path: str) -> None:
         if isinstance(data, torch.Tensor):
-            data = data.to("cpu", dtype=torch.float16).clone()
+            data = data.to("cpu", dtype=self.save_dtype).clone()
         elif isinstance(data, list):
             for i in range(len(data)):
                 if isinstance(data[i], torch.Tensor):
-                    data[i] = data[i].to("cpu", dtype=torch.float16).clone()
+                    data[i] = data[i].to("cpu", dtype=self.save_dtype).clone()
         torch.cpu.synchronize()
         if self.save_queue_lenght > self.max_save_queue_lenght:
             print(f"Hit the max save queue lenght of {self.max_save_queue_lenght}. Sleeping for 10 seconds")

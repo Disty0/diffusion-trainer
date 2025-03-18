@@ -109,6 +109,7 @@ if __name__ == '__main__':
 
     parser.add_argument('--device', default="cuda", type=str)
     parser.add_argument('--dtype', default="bfloat16", type=str)
+    parser.add_argument('--save_dtype', default="bfloat16", type=str)
     parser.add_argument('--batch_size', default=4, type=int)
 
     parser.add_argument('--gc_steps', default=2048, type=int)
@@ -160,6 +161,7 @@ if __name__ == '__main__':
         pass
 
     dtype = getattr(torch, args.dtype)
+    save_dtype = getattr(torch, args.save_dtype)
     device = torch.device(args.device)
     print(f"Loading embed encoder models with dtype {dtype} to device {device}")
     print(print_filler)
@@ -167,7 +169,7 @@ if __name__ == '__main__':
 
     epoch_batches = get_batches(args.batch_size, args.model_type, args.dataset_path, args.out_path)
     epoch_len = len(epoch_batches)
-    cache_backend = loader_utils.SaveBackend(args.model_type, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
+    cache_backend = loader_utils.SaveBackend(model_type=args.model_type, save_dtype=save_dtype, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     image_backend = loader_utils.ImageBackend(epoch_batches, load_queue_lenght=args.load_queue_lenght, max_load_workers=args.max_load_workers)
     if args.save_images:
         save_image_backend = loader_utils.SaveImageBackend(save_queue_lenght=args.save_image_queue_lenght, max_save_workers=args.max_save_image_workers, lossless=args.save_images_lossless, quality=args.save_images_quality)

@@ -85,6 +85,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_type', default="sd3", type=str)
     parser.add_argument('--device', default="cuda", type=str)
     parser.add_argument('--dtype', default="bfloat16", type=str)
+    parser.add_argument('--save_dtype', default="bfloat16", type=str)
     parser.add_argument('--dynamo_backend', default="inductor", type=str)
     parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--save_queue_lenght', default=4096, type=int)
@@ -122,12 +123,13 @@ if __name__ == '__main__':
         pass
 
     dtype = getattr(torch, args.dtype)
+    save_dtype = getattr(torch, args.save_dtype)
     device = torch.device(args.device)
     print(f"Loading embed encoder models with dtype {dtype} to device {device}")
     print(print_filler)
     embed_encoder = embed_utils.get_embed_encoder(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
 
-    cache_backend = loader_utils.SaveBackend(args.model_type, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
+    cache_backend = loader_utils.SaveBackend(model_type=args.model_type, save_dtype=save_dtype, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     text_batches, embed_pathes = get_batches(args.batch_size, args.dataset_path, args.out_path, args.model_type, args.text_ext)
     epoch_len = len(text_batches)
 
