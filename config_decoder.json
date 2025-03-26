@@ -2,6 +2,7 @@
     "model_type": "sd3",
     "dynamo_backend": "inductor",
     "tunableop": false,
+    "math_sdp_reduction": true,
     "epochs": 10,
     "optimizer": "AdamW",
     "optimizer_args": {"weight_decay": 0.01, "eps": 1e-8, "betas": [0.9, 0.999], "fused": true},

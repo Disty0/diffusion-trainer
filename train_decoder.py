@@ -105,10 +105,9 @@ if __name__ == '__main__':
 
     if config["tunableop"]:
         torch.cuda.tunable.enable(val=True)
-    try:
-        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
-    except Exception:
-        pass
+    if config["dynamo_backend"] != "no":
+        torch._dynamo.config.cache_size_limit = 64
+    torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(config["math_sdp_reduction"])
 
     first_epoch = 0
     current_epoch = 0
@@ -375,7 +374,7 @@ if __name__ == '__main__':
         if config["ema_update_steps"] > 0:
             gc.collect()
             accelerator.print(f"Saving EMA state to {save_path}")
-            save_ema_model, _ = train_utils.get_diffusion_model(config["model_type"], config["model_path"], "cpu", ema_dtype)
+            save_ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu", ema_dtype, "no")
             save_ema_model_state_dict = ema_model.state_dict()
             save_ema_model_state_dict.pop("shadow_params", None)
             save_ema_model.register_to_config(**save_ema_model_state_dict)

@@ -57,7 +57,7 @@ def get_diffusion_model(model_type: str, path: str, device: torch.device, dtype:
         pipe = SoteDiffusionV3Pipeline.from_pretrained(path, text_encoder=None, torch_dtype=dtype)
         diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
         diffusion_model.requires_grad_(True)
-        return diffusion_model, copy.deepcopy(pipe.image_encoder)
+        return diffusion_model, copy.deepcopy(getattr(pipe, "image_encoder", pipe.scheduler))
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 

@@ -1,10 +1,11 @@
 {
     "model_type": "sotev3",
-    "latent_type": "jpeg",
-    "timestep_shift": 5.0,
+    "latent_type": "latent",
+    "timestep_shift": 3.0,
     "loss_weighting": "none",
     "dynamo_backend": "no",
     "tunableop": true,
+    "math_sdp_reduction": true,
     "epochs": 100,
     "optimizer": "AdamW",
     "optimizer_args": {"weight_decay": 0.01, "eps": 1e-8, "betas": [0.9, 0.999], "fused": true},
@@ -44,15 +45,15 @@
     "project_name": "sotev3-mini",
     "resume_from": "none",
     "checkpoint_save_steps": 1024,
-    "checkpoints_limit": 50,
+    "checkpoints_limit": 20,
     "reshuffle": true,
     "latent_corrections": "none",
     "dataset_index": "cache/dataset_index.json",
     "project_dir": "/mnt/DataSSD/AI/models/SoteDiffusion/SoteV3/train_model",
     "model_path": "/mnt/DataSSD/AI/models/SoteDiffusion/SoteV3/SoteDiffusionV3",
     "dataset_paths": [
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/danbooru-newest", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/danbooru/danbooru-newest-wd"], 1],
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/best/danbooru-best", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/danbooru-best-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/danbooru-best-image"], 5],
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/best/hand_picked", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/hand_picked-image", "/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/hand_picked-wd"], 20]
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/sotev3/danbooru-newest", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/danbooru/danbooru-newest-wd"], 1],
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/sotev3/best/danbooru-best", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/danbooru-best-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/danbooru-best-image"], 5],
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/sotev3/best/hand_picked", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/hand_picked-image", "/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/hand_picked-wd"], 20]
     ]
 }

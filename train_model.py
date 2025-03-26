@@ -123,10 +123,7 @@ if __name__ == '__main__':
         torch.cuda.tunable.enable(val=True)
     if config["dynamo_backend"] != "no":
         torch._dynamo.config.cache_size_limit = 64
-    try:
-        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
-    except Exception:
-        pass
+    torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(config["math_sdp_reduction"])
 
     empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
     empty_embed = loader_utils.load_from_file(empty_embed_path)
