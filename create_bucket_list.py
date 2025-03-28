@@ -62,4 +62,5 @@ if __name__ == '__main__':
     else:
         from imagesize import get as size_function
 
+    print(f"Searching for {args.image_ext} files...")
     write_bucket_list(args.dataset_path, args.pixel_count, args.res_steps, args.image_ext, size_function)
