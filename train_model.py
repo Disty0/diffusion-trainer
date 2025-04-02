@@ -123,6 +123,20 @@ if __name__ == '__main__':
         torch.cuda.tunable.enable(val=True)
     if config["dynamo_backend"] != "no":
         torch._dynamo.config.cache_size_limit = 64
+
+    if config["allow_tf32"]:
+        torch.set_float32_matmul_precision('high')
+    else:
+        torch.set_float32_matmul_precision('highest')
+    torch.backends.cuda.matmul.allow_tf32 = config["allow_tf32"]
+    torch.backends.cudnn.allow_tf32 = config["allow_tf32"]
+
+    torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = config["allow_reduced_precision"]
+    torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction = config["allow_reduced_precision"]
+
+    torch.backends.cuda.enable_flash_sdp(config["flash_sdp"])
+    torch.backends.cuda.enable_mem_efficient_sdp(config["mem_efficient_sdp"])
+    torch.backends.cuda.enable_math_sdp(config["math_sdp"])
     torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(config["math_sdp_reduction"])
 
     empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
