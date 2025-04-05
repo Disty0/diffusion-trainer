@@ -194,8 +194,8 @@ if __name__ == '__main__':
     elif config["latent_type"] == "image":
         dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
     elif config["latent_type"] == "jpeg":
-        from sotev3 import SoteV3ImageEncoder
-        dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=SoteV3ImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
+        from raiflow import RaiFlowImageEncoder
+        dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
     else:
         raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
@@ -454,8 +454,8 @@ if __name__ == '__main__':
             elif config["latent_type"] == "image":
                 dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
             elif config["latent_type"] == "jpeg":
-                from sotev3 import SoteV3ImageEncoder
-                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=SoteV3ImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
+                from raiflow import RaiFlowImageEncoder
+                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
             else:
                 raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))

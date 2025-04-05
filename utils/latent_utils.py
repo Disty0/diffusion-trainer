@@ -9,21 +9,21 @@ from diffusers.models.modeling_utils import ModelMixin
 def get_latent_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
     if model_type == "sd3":
         return get_sd3_vae(path, device, dtype, dynamo_backend)
-    elif model_type == "sotev3":
-        return get_sotev3_vae(path, device, dtype, dynamo_backend)
+    elif model_type == "raiflow":
+        return get_raiflow_vae(path, device, dtype, dynamo_backend)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def get_latent_model_class(model_type: str) -> type:
-    if model_type in {"sd3", "sotev3"}:
+    if model_type in {"sd3", "raiflow"}:
         return diffusers.AutoencoderKL
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], model_type: str, device: torch.device) -> torch.FloatTensor:
-    if model_type in {"sd3", "sotev3"}:
+    if model_type in {"sd3", "raiflow"}:
         return encode_vae_latents(latent_model, image_processor, images, device)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -38,7 +38,7 @@ def decode_latents(
     return_image: bool = True,
     mixed_precision: str = "no"
 ) -> Union[Image.Image, torch.FloatTensor]:
-    if model_type in {"sd3", "sotev3"}:
+    if model_type in {"sd3", "raiflow"}:
         return decode_vae_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -89,9 +89,9 @@ def get_sd3_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_back
     return latent_model, image_processor
 
 
-def get_sotev3_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    from sotev3 import SoteDiffusionV3Pipeline
-    pipe = SoteDiffusionV3Pipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
+def get_raiflow_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
+    from raiflow import RaiFlowPipeline
+    pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
     latent_model = pipe.vae.to(device, dtype=dtype).eval()
     latent_model.requires_grad_(False)
     if dynamo_backend != "no":

@@ -5,7 +5,7 @@ from transformers import PreTrainedModel, PreTrainedTokenizer
 from diffusers.image_processor import PipelineImageInput
 
 
-def encode_sotev3_prompt(
+def encode_raiflow_prompt(
     text_encoder: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,
     prompt: Union[str, List[str]],

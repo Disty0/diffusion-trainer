@@ -1,5 +1,5 @@
 {
-    "model_type": "sotev3",
+    "model_type": "raiflow",
     "latent_type": "latent",
     "timestep_shift": 3.0,
     "loss_weighting": "none",
@@ -36,7 +36,7 @@
     "weights_dtype": "float32",
     "mixed_precision": "bf16",
     "ema_decay": 0.995,
-    "ema_update_steps": 1,
+    "ema_update_steps": 4,
     "use_foreach_ema": false,
     "update_ema_on_cpu": false,
     "offload_ema_to_cpu": true,
@@ -47,18 +47,18 @@
     "max_load_workers": 4,
     "gc_steps": 32,
     "log_with": "wandb",
-    "project_name": "sotev3-mini",
+    "project_name": "raiflow-mini",
     "resume_from": "none",
     "checkpoint_save_steps": 1024,
     "checkpoints_limit": 20,
     "reshuffle": true,
     "latent_corrections": "none",
     "dataset_index": "cache/dataset_index.json",
-    "project_dir": "/mnt/DataSSD/AI/models/SoteDiffusion/SoteV3/train_model",
-    "model_path": "/mnt/DataSSD/AI/models/SoteDiffusion/SoteV3/SoteDiffusionV3",
+    "project_dir": "/mnt/DataSSD/AI/models/RaiFlow/train_model",
+    "model_path": "/mnt/DataSSD/AI/models/RaiFlow/RaiFlow",
     "dataset_paths": [
-        ["/mnt/DataSSD/AI/anime_image_dataset/latents/sotev3/danbooru-newest", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/danbooru/danbooru-newest-wd"], 1],
-        ["/mnt/DataSSD/AI/anime_image_dataset/latents/sotev3/best/danbooru-best", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/danbooru-best-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/danbooru-best-image"], 5],
-        ["/mnt/DataSSD/AI/anime_image_dataset/latents/sotev3/best/hand_picked", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/hand_picked-image", "/mnt/DataSSD/AI/anime_image_dataset/embeds/sotev3/best/hand_picked-wd"], 20]
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/raiflow/danbooru-newest", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/danbooru/danbooru-newest-wd"], 1],
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/raiflow/best/danbooru-best", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/best/danbooru-best-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/best/danbooru-best-image"], 5],
+        ["/mnt/DataSSD/AI/anime_image_dataset/latents/raiflow/best/hand_picked", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/best/hand_picked-image", "/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/best/hand_picked-wd"], 20]
     ]
 }

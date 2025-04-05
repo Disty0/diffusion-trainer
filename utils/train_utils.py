@@ -52,9 +52,9 @@ def get_diffusion_model(model_type: str, path: str, device: torch.device, dtype:
         diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
         diffusion_model.requires_grad_(True)
         return diffusion_model, copy.deepcopy(pipe.scheduler)
-    elif model_type == "sotev3":
-        from sotev3 import SoteDiffusionV3Pipeline
-        pipe = SoteDiffusionV3Pipeline.from_pretrained(path, text_encoder=None, torch_dtype=dtype)
+    elif model_type == "raiflow":
+        from raiflow import RaiFlowPipeline
+        pipe = RaiFlowPipeline.from_pretrained(path, text_encoder=None, torch_dtype=dtype)
         diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
         diffusion_model.requires_grad_(True)
         return diffusion_model, copy.deepcopy(getattr(pipe, "image_encoder", pipe.scheduler))
@@ -65,9 +65,9 @@ def get_diffusion_model(model_type: str, path: str, device: torch.device, dtype:
 def get_model_class(model_type: str) -> ModelMixin:
     if model_type == "sd3":
         return diffusers.SD3Transformer2DModel
-    elif model_type == "sotev3":
-        from sotev3 import SoteDiffusionV3Transformer2DModel
-        return SoteDiffusionV3Transformer2DModel
+    elif model_type == "raiflow":
+        from raiflow import RaiFlowTransformer2DModel
+        return RaiFlowTransformer2DModel
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -144,6 +144,7 @@ def run_model(
                     noise=noise,
                     model_pred=model_pred,
                     flip_target=False,
+                    x0_pred=False,
                 )
 
                 if config["mixed_precision"] == "no":
@@ -184,7 +185,7 @@ def run_model(
         }
 
         return loss, model_pred, target, log_dict
-    elif config["model_type"] == "sotev3":
+    elif config["model_type"] == "raiflow":
         with torch.no_grad():
             latents = []
             for i in range(len(latents_list)):
@@ -236,7 +237,7 @@ def run_model(
                 device=accelerator.device,
                 num_train_timesteps=model.config.num_train_timesteps,
                 shift=config["timestep_shift"],
-                flip_target=True,
+                flip_target=False,
             )
 
             if config["mask_rate"] > 0:
@@ -256,7 +257,7 @@ def run_model(
                         timestep=timesteps,
                         encoder_hidden_states=prompt_embeds,
                         return_dict=False,
-                        flip_outputs=False,
+                        return_flow_pred=False,
                     )[0].float()
 
                 noisy_model_input = noisy_model_input.float()
@@ -266,7 +267,8 @@ def run_model(
                     sigmas=sigmas,
                     noise=noise,
                     model_pred=model_pred,
-                    flip_target=True,
+                    flip_target=False,
+                    x0_pred=True,
                 )
 
                 if config["mixed_precision"] == "no":
@@ -280,12 +282,12 @@ def run_model(
                 timestep=timesteps,
                 encoder_hidden_states=prompt_embeds,
                 return_dict=False,
-                flip_outputs=False,
+                return_flow_pred=False,
             )[0]
 
         loss = None
         model_pred = model_pred.float()
-        target = target.float()
+        target = latents.float()
 
         if config["loss_weighting"] == "sigma_sqrt":
             sigma_sqrt = sigmas.sqrt().clamp(min=0.1, max=None)
@@ -360,8 +362,11 @@ def get_self_corrected_targets(
     noise: torch.FloatTensor,
     model_pred: torch.FloatTensor,
     flip_target: bool = False,
+    x0_pred: bool = False,
 ) -> Tuple[torch.FloatTensor, torch.FloatTensor, int]:
-    if flip_target:
+    if x0_pred:
+        model_x0_pred = model_pred
+    elif flip_target:
         model_x0_pred = noisy_model_input.float() + (model_pred * sigmas)
     else:
         model_x0_pred = noisy_model_input.float() - (model_pred * sigmas)

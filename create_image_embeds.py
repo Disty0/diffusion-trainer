@@ -104,7 +104,7 @@ if __name__ == '__main__':
     parser.add_argument('model_path', type=str)
     parser.add_argument('dataset_path', type=str)
     parser.add_argument('out_path', type=str)
-    parser.add_argument('--model_type', default="sotev3", type=str)
+    parser.add_argument('--model_type', default="raiflow", type=str)
     parser.add_argument('--text_prompt', default="<|vision_start|><|image_pad|><|vision_end|>", type=str)
 
     parser.add_argument('--device', default="cuda", type=str)

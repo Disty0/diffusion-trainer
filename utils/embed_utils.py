@@ -1,7 +1,7 @@
 import torch
 import diffusers
 from PIL import Image
-from utils.models import sd3_utils, sotev3_utils
+from utils.models import sd3_utils, raiflow_utils
 
 from typing import List, Tuple
 from transformers import PreTrainedModel, PreTrainedTokenizer
@@ -10,8 +10,8 @@ from transformers import PreTrainedModel, PreTrainedTokenizer
 def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
     if model_type == "sd3":
         return get_sd3_embed_encoder(path, device, dtype, dynamo_backend)
-    elif model_type == "sotev3":
-        return get_sotev3_embed_encoder(path, device, dtype, dynamo_backend)
+    elif model_type == "raiflow":
+        return get_raiflow_embed_encoder(path, device, dtype, dynamo_backend)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -20,8 +20,8 @@ def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], de
     with torch.no_grad():
         if model_type == "sd3":
             return encode_sd3_embeds(embed_encoder, device, texts)
-        elif model_type == "sotev3":
-            return encode_sotev3_embeds(embed_encoder, device, texts, prompt_images=prompt_images)
+        elif model_type == "raiflow":
+            return encode_raiflow_embeds(embed_encoder, device, texts, prompt_images=prompt_images)
         else:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -51,12 +51,12 @@ def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, d
     return ((text_encoder, text_encoder_2, text_encoder_3), (tokenizer, tokenizer_2, tokenizer_3))
 
 
-def encode_sotev3_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, texts: List[str], prompt_images=List[Image.Image]) -> List[torch.FloatTensor]:
-    return sotev3_utils.encode_sotev3_prompt(embed_encoders[0], embed_encoders[1], prompt=texts, prompt_images=prompt_images, device=device)
+def encode_raiflow_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, texts: List[str], prompt_images=List[Image.Image]) -> List[torch.FloatTensor]:
+    return raiflow_utils.encode_raiflow_prompt(embed_encoders[0], embed_encoders[1], prompt=texts, prompt_images=prompt_images, device=device)
 
-def get_sotev3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
-    from sotev3 import SoteDiffusionV3Pipeline
-    pipe = SoteDiffusionV3Pipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
+def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+    from raiflow import RaiFlowPipeline
+    pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder.requires_grad_(False)
     if dynamo_backend != "no":
