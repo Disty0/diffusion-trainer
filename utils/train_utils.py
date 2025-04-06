@@ -121,10 +121,11 @@ def run_model(
                 flip_target=False,
             )
 
-            if config["mask_rate"] > 0:
-                noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
-            else:
-                masked_count = None
+            if config["mixed_precision"] == "no":
+                noisy_model_input = noisy_model_input.to(dtype=model.dtype)
+                timesteps = timesteps.to(dtype=model.dtype)
+                prompt_embeds = prompt_embeds.to(dtype=model.dtype)
+                pooled_embeds = pooled_embeds.to(dtype=model.dtype)
 
             if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
                 with accelerator.autocast():
@@ -152,11 +153,12 @@ def run_model(
             else:
                 self_correct_count = None
 
-            if config["mixed_precision"] == "no":
-                noisy_model_input = noisy_model_input.to(dtype=model.dtype)
-                timesteps = timesteps.to(dtype=model.dtype)
-                prompt_embeds = prompt_embeds.to(dtype=model.dtype)
-                pooled_embeds = pooled_embeds.to(dtype=model.dtype)
+            if config["mask_rate"] > 0:
+                noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
+                if config["mixed_precision"] == "no":
+                    noisy_model_input = noisy_model_input.to(dtype=model.dtype)
+            else:
+                masked_count = None
 
         with accelerator.autocast():
             model_pred = model(
@@ -240,11 +242,6 @@ def run_model(
                 flip_target=False,
             )
 
-            if config["mask_rate"] > 0:
-                noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
-            else:
-                masked_count = None
-
             if config["mixed_precision"] == "no":
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
                 timesteps = timesteps.to(dtype=model.dtype)
@@ -275,6 +272,13 @@ def run_model(
                     noisy_model_input = noisy_model_input.to(dtype=model.dtype)
             else:
                 self_correct_count = None
+
+            if config["mask_rate"] > 0:
+                noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
+                if config["mixed_precision"] == "no":
+                    noisy_model_input = noisy_model_input.to(dtype=model.dtype)
+            else:
+                masked_count = None
 
         with accelerator.autocast():
             model_pred = model(
