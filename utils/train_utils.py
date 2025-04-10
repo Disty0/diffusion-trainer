@@ -205,9 +205,15 @@ def run_model(
             embed_dim = embeds_list[0].shape[-1]
             prompt_embeds = []
             empty_embeds_count = 0
+            nan_embeds_count = 0
             for i in range(len(embeds_list)):
                 if random.randint(0,100) > config["dropout_rate"] * 100:
-                    prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=torch.float32))
+                    if embeds_list[i].isnan().any(): # image embeds tends to nan very frequently
+                        prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=torch.float32))
+                        empty_embeds_count += 1
+                        nan_embeds_count += 1
+                    else:
+                        prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=torch.float32))
                 else:
                     # encoding the empty embed via the text encoder is the same as using zeros
                     prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=torch.float32))
@@ -239,7 +245,7 @@ def run_model(
                 device=accelerator.device,
                 num_train_timesteps=model.config.num_train_timesteps,
                 shift=config["timestep_shift"],
-                flip_target=False,
+                flip_target=True,
             )
 
             if config["mixed_precision"] == "no":
@@ -254,7 +260,7 @@ def run_model(
                         timestep=timesteps,
                         encoder_hidden_states=prompt_embeds,
                         return_dict=False,
-                        return_flow_pred=False,
+                        flip_target=False,
                     )[0].float()
 
                 noisy_model_input = noisy_model_input.float()
@@ -264,8 +270,8 @@ def run_model(
                     sigmas=sigmas,
                     noise=noise,
                     model_pred=model_pred,
-                    flip_target=False,
-                    x0_pred=True,
+                    flip_target=True,
+                    x0_pred=False,
                 )
 
                 if config["mixed_precision"] == "no":
@@ -286,12 +292,12 @@ def run_model(
                 timestep=timesteps,
                 encoder_hidden_states=prompt_embeds,
                 return_dict=False,
-                return_flow_pred=False,
+                flip_target=False,
             )[0]
 
         loss = None
         model_pred = model_pred.float()
-        target = latents.float()
+        target = target.float()
 
         if config["loss_weighting"] == "sigma_sqrt":
             sigma_sqrt = sigmas.sqrt().clamp(min=0.1, max=None)
@@ -301,6 +307,7 @@ def run_model(
         log_dict = {
             "timesteps": timesteps,
             "empty_embeds_count": empty_embeds_count,
+            "nan_embeds_count": nan_embeds_count,
             "self_correct_count": self_correct_count,
             "masked_count": masked_count,
             "seq_len": seq_len,
