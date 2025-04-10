@@ -176,12 +176,16 @@ class SaveBackend():
     def save_to_file(self, data: torch.FloatTensor, path: str) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.cpu.synchronize()
-        output_data_container = BytesIO()
-        torch.save(data, output_data_container)
-        output_data_container.seek(0)
-        compressed_data = brotli.compress(output_data_container.getvalue(), quality=10)
-        with open(path, "wb") as file:
-            file.write(compressed_data)
+        data_is_nan = bool((isinstance(data, torch.Tensor) and data.isnan().any()) or (isinstance(data, list) and any(tensor.isnan().any() for tensor in data)))
+        if data_is_nan:
+            print("NaN found in:", path)
+        else:
+            output_data_container = BytesIO()
+            torch.save(data, output_data_container)
+            output_data_container.seek(0)
+            compressed_data = brotli.compress(output_data_container.getvalue(), quality=10)
+            with open(path, "wb") as file:
+                file.write(compressed_data)
 
 
 class ImageBackend():

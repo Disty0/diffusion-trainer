@@ -101,10 +101,16 @@ def run_model(
             prompt_embeds = []
             pooled_embeds = []
             empty_embeds_count = 0
+            nan_embeds_count= 0
             for i in range(len(embeds_list)):
                 if random.randint(0,100) > config["dropout_rate"] * 100:
                     prompt_embeds.append(embeds_list[i][0].to(accelerator.device, dtype=torch.float32))
                     pooled_embeds.append(embeds_list[i][1].to(accelerator.device, dtype=torch.float32))
+                    if embeds_list[i][0].isnan().any() or embeds_list[i][1].isnan().any():
+                        prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=torch.float32))
+                        pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=torch.float32))
+                        empty_embeds_count += 1
+                        nan_embeds_count += 1
                 else:
                     prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=torch.float32))
                     pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=torch.float32))
@@ -181,6 +187,7 @@ def run_model(
         log_dict = {
             "timesteps": timesteps,
             "empty_embeds_count": empty_embeds_count,
+            "nan_embeds_count": nan_embeds_count,
             "self_correct_count": self_correct_count,
             "masked_count": masked_count,
             "seq_len": seq_len,
