@@ -3,7 +3,7 @@ import diffusers
 from PIL import Image
 from utils.models import sd3_utils, raiflow_utils
 
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
 
@@ -16,7 +16,7 @@ def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: t
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
-def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, model_type: str, texts: List[str], prompt_images=List[Image.Image]) -> torch.FloatTensor:
+def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, model_type: str, texts: List[str], prompt_images: Optional[List[Image.Image]] = None) -> torch.FloatTensor:
     with torch.no_grad():
         if model_type == "sd3":
             return encode_sd3_embeds(embed_encoder, device, texts)
@@ -51,7 +51,7 @@ def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, d
     return ((text_encoder, text_encoder_2, text_encoder_3), (tokenizer, tokenizer_2, tokenizer_3))
 
 
-def encode_raiflow_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, texts: List[str], prompt_images=List[Image.Image]) -> List[torch.FloatTensor]:
+def encode_raiflow_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, texts: List[str], prompt_images: Optional[List[Image.Image]] = None) -> List[torch.FloatTensor]:
     return raiflow_utils.encode_raiflow_prompt(embed_encoders[0], embed_encoders[1], prompt=texts, prompt_images=prompt_images, device=device)
 
 def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:

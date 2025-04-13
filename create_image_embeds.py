@@ -113,8 +113,8 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=4, type=int)
 
     parser.add_argument('--gc_steps', default=2048, type=int)
-    parser.add_argument('--dynamo_backend', default="inductor", type=str)
-    parser.add_argument('--enable_tunableop', default=False, action='store_true')
+    parser.add_argument('--dynamo_backend', default="no", type=str)
+    parser.add_argument('--tunableop', default=False, action='store_true')
 
     parser.add_argument('--save_images', default=False, action='store_true')
     parser.add_argument('--save_images_path', default="cropped_images", type=str)
@@ -153,12 +153,16 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"Failed to enable Flash Atten for ROCm: {e}")
 
-    if args.enable_tunableop:
+    torch.set_float32_matmul_precision('high')
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+
+    torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = True
+    torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction = True
+    torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
+
+    if args.tunableop:
         torch.cuda.tunable.enable(val=True)
-    try:
-        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
-    except Exception:
-        pass
 
     dtype = getattr(torch, args.dtype)
     save_dtype = getattr(torch, args.save_dtype)

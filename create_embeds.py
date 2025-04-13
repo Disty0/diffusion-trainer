@@ -21,7 +21,7 @@ print_filler = "--------------------------------------------------"
 
 def get_paths(dataset_path: str, out_path: str, model_type: str, text_ext: str) -> Tuple[List[str], List[str]]:
     print(print_filler)
-    print(f"Discovering {text_ext} files")
+    print(f"Searching for {text_ext} files")
     file_list = glob.glob(f"{dataset_path}/**/*{text_ext}", recursive=True)
     print(f"Found {len(file_list)} {text_ext} files")
     paths = []
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     parser.add_argument('--max_save_workers', default=12, type=int)
     parser.add_argument('--gc_steps', default=2048, type=int)
     parser.add_argument('--text_ext', default=".txt", type=str)
-    parser.add_argument('--disable_tunableop', default=False, action='store_true')
+    parser.add_argument('--tunableop', default=False, action='store_true')
     args = parser.parse_args()
 
     if args.dataset_path[-1] == "/":
@@ -115,12 +115,16 @@ if __name__ == '__main__':
         except Exception as e:
             print(f"Failed to enable Flash Atten for ROCm: {e}")
 
-    if not args.disable_tunableop:
+    torch.set_float32_matmul_precision('high')
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+
+    torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = True
+    torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction = True
+    torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
+
+    if args.tunableop:
         torch.cuda.tunable.enable(val=True)
-    try:
-        torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(True)
-    except Exception:
-        pass
 
     dtype = getattr(torch, args.dtype)
     save_dtype = getattr(torch, args.save_dtype)
