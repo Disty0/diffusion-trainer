@@ -56,8 +56,9 @@ def get_batches(batch_size: str, dataset_path: str, out_path: str, model_type: s
             text_batches.append(texts[-paths_left_out:])
             embed_pathes.append(paths[-paths_left_out:])
     else:
-        text_batches.append(texts)
-        embed_pathes.append(paths)
+        if texts:
+            text_batches.append(texts)
+            embed_pathes.append(paths)
 
     return text_batches, embed_pathes
 
