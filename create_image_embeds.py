@@ -60,7 +60,7 @@ def get_batches(batch_size: int, model_type: str, dataset_path: str, out_path: s
                 images_left_out = bucket_len % batch_size
                 for i in range(int((bucket_len - images_left_out) / batch_size)):
                     epoch_batch.append((bucket[i*batch_size:(i+1)*batch_size], key))
-                if images_left_out != 0:
+                if images_left_out > 0:
                     epoch_batch.append((bucket[-images_left_out:], key))
             else:
                 epoch_batch.append((bucket, key))

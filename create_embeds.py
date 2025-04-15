@@ -47,16 +47,15 @@ def get_batches(batch_size: str, dataset_path: str, out_path: str, model_type: s
     embed_pathes = []
     total_len = len(paths)
     paths_left_out = total_len % batch_size
-
-    if total_len > batch_size:
-        for i in range(int(total_len-paths_left_out)):
-            text_batches.append(texts[i*batch_size:(i+1)*batch_size])
-            embed_pathes.append(paths[i*batch_size:(i+1)*batch_size])
-        if paths_left_out != 0:
-            text_batches.append(texts[-paths_left_out:])
-            embed_pathes.append(paths[-paths_left_out:])
-    else:
-        if texts:
+    if total_len > 0:
+        if total_len > batch_size:
+            for i in range(int((total_len - paths_left_out) / batch_size)):
+                text_batches.append(texts[i*batch_size:(i+1)*batch_size])
+                embed_pathes.append(paths[i*batch_size:(i+1)*batch_size])
+            if paths_left_out > 0:
+                text_batches.append(texts[-paths_left_out:])
+                embed_pathes.append(paths[-paths_left_out:])
+        else:
             text_batches.append(texts)
             embed_pathes.append(paths)
 
@@ -137,6 +136,13 @@ if __name__ == '__main__':
     cache_backend = loader_utils.SaveBackend(model_type=args.model_type, save_dtype=save_dtype, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     text_batches, embed_pathes = get_batches(args.batch_size, args.dataset_path, args.out_path, args.model_type, args.text_ext)
     epoch_len = len(text_batches)
+    print("-----------------------------------------------------")
+    print("AAAAAA:", len(text_batches), "|", len(embed_pathes))
+    print("BBBBBB:", len(text_batches[0]), "|", len(embed_pathes[0]))
+    print("-----------------------------------------------------")
+    print(text_batches[0])
+    print("-----------------------------------------------------")
+    print(embed_pathes[0])
 
     def exit_handler(cache_backend):
         while not cache_backend.save_queue.empty():
