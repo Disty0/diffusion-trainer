@@ -86,7 +86,7 @@ if __name__ == '__main__':
     parser.add_argument('--device', default="cuda", type=str)
     parser.add_argument('--dtype', default="bfloat16", type=str)
     parser.add_argument('--save_dtype', default="bfloat16", type=str)
-    parser.add_argument('--dynamo_backend', default="inductor", type=str)
+    parser.add_argument('--dynamo_backend', default="no", type=str)
     parser.add_argument('--batch_size', default=4, type=int)
     parser.add_argument('--save_queue_lenght', default=4096, type=int)
     parser.add_argument('--max_save_workers', default=12, type=int)

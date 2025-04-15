@@ -1,6 +1,6 @@
 {
     "model_type": "sd3",
-    "dynamo_backend": "inductor",
+    "dynamo_backend": "no",
     "tunableop": false,
     "allow_tf32": true,
     "allow_reduced_precision": true,
@@ -16,7 +16,7 @@
     "learning_rate": 4e-6,
     "max_grad_norm": 0.0,
     "max_grad_clip": 0.0,
-    "log_grad_stats": true,
+    "log_grad_stats": false,
     "loss_type": "mse",
     "loss_reduction": "mean",
     "batch_size": 1,

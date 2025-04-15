@@ -4,7 +4,7 @@
     "timestep_shift": 3.0,
     "loss_weighting": "none",
     "dynamo_backend": "no",
-    "tunableop": true,
+    "tunableop": false,
     "allow_tf32": true,
     "allow_reduced_precision": true,
     "flash_sdp": true,
