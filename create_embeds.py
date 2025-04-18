@@ -136,13 +136,6 @@ if __name__ == '__main__':
     cache_backend = loader_utils.SaveBackend(model_type=args.model_type, save_dtype=save_dtype, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     text_batches, embed_pathes = get_batches(args.batch_size, args.dataset_path, args.out_path, args.model_type, args.text_ext)
     epoch_len = len(text_batches)
-    print("-----------------------------------------------------")
-    print("AAAAAA:", len(text_batches), "|", len(embed_pathes))
-    print("BBBBBB:", len(text_batches[0]), "|", len(embed_pathes[0]))
-    print("-----------------------------------------------------")
-    print(text_batches[0])
-    print("-----------------------------------------------------")
-    print(embed_pathes[0])
 
     def exit_handler(cache_backend):
         while not cache_backend.save_queue.empty():

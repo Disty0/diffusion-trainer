@@ -137,8 +137,8 @@ def run_model(
                 with accelerator.autocast():
                     model_pred = model(
                         hidden_states=noisy_model_input,
-                        timestep=timesteps,
                         encoder_hidden_states=prompt_embeds,
+                        timestep=timesteps,
                         pooled_projections=pooled_embeds,
                         return_dict=False,
                     )[0].float()
@@ -169,8 +169,8 @@ def run_model(
         with accelerator.autocast():
             model_pred = model(
                 hidden_states=noisy_model_input,
-                timestep=timesteps,
                 encoder_hidden_states=prompt_embeds,
+                timestep=timesteps,
                 pooled_projections=pooled_embeds,
                 return_dict=False,
             )[0]
@@ -264,8 +264,8 @@ def run_model(
                 with accelerator.autocast():
                     model_pred = model(
                         hidden_states=noisy_model_input,
-                        timestep=timesteps,
                         encoder_hidden_states=prompt_embeds,
+                        timestep=timesteps,
                         return_dict=False,
                         flip_target=False,
                     )[0].float()
@@ -296,8 +296,8 @@ def run_model(
         with accelerator.autocast():
             model_pred = model(
                 hidden_states=noisy_model_input,
-                timestep=timesteps,
                 encoder_hidden_states=prompt_embeds,
+                timestep=timesteps,
                 return_dict=False,
                 flip_target=False,
             )[0]
