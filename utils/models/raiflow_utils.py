@@ -15,6 +15,10 @@ def encode_raiflow_prompt(
 ) -> List[torch.FloatTensor]:
     device = device or text_encoder.device
 
+    if prompt_images is None and (prompt == "" or prompt == [""]):
+        # encoding the empty embed via the text encoder is the same as using zeros
+        return [torch.zeros((1, text_encoder.config.hidden_size), device=device, dtype=text_encoder.dtype)]
+
     prompt = [prompt] if isinstance(prompt, str) else prompt
 
     if prompt_images is not None and not isinstance(prompt_images, list):
@@ -36,6 +40,7 @@ def encode_raiflow_prompt(
 
     attention_mask = inputs["attention_mask"].to(device, dtype=text_encoder.dtype)
     prompt_embeds = prompt_embeds * attention_mask.unsqueeze(-1).expand(prompt_embeds.shape)
+
     prompt_embeds_list = []
     for i in range(prompt_embeds.size(0)):
         count = 0
