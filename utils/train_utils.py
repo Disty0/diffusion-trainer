@@ -17,7 +17,7 @@ def get_optimizer(optimizer: str, parameters: Iterator[Parameter], learning_rate
         return AdamWBF16(parameters, lr=learning_rate, **kwargs)
     if optimizer.lower() == "adamweightdecay":
         return transformers.AdamWeightDecay(parameters, lr=learning_rate, **kwargs)
-    if optimizer.lower() == "adafactor":
+    if optimizer.lower() == "adafactor_transformers":
         return transformers.Adafactor(parameters, lr=learning_rate, **kwargs)
     if optimizer.lower() == "adafactor_bf16":
         from utils.optimizers.adafactor_bf16 import patch_adafactor
