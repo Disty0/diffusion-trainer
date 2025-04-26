@@ -1,6 +1,8 @@
 import copy
-import torch
 import random
+import importlib
+
+import torch
 import diffusers
 import transformers
 
@@ -11,14 +13,11 @@ from torch.optim.optimizer import Optimizer
 from torch.nn.parameter import Parameter
 from accelerate import Accelerator
 
-def get_optimizer(optimizer: str, parameters: Iterator[Parameter], learning_rate: float, **kwargs) -> Optimizer:
+def get_optimizer(config: dict, parameters: Iterator[Parameter]) -> Optimizer:
+    optimizer, learning_rate, kwargs =  config["optimizer"], config["learning_rate"], config["optimizer_args"]
     if optimizer.lower() == "adamw_bf16":
         from utils.optimizers.adamw_bf16 import AdamWBF16
         return AdamWBF16(parameters, lr=learning_rate, **kwargs)
-    if optimizer.lower() == "adamweightdecay":
-        return transformers.AdamWeightDecay(parameters, lr=learning_rate, **kwargs)
-    if optimizer.lower() == "adafactor_transformers":
-        return transformers.Adafactor(parameters, lr=learning_rate, **kwargs)
     if optimizer.lower() == "adafactor_bf16":
         from utils.optimizers.adafactor_bf16 import patch_adafactor
         selected_optimizer = transformers.Adafactor(parameters, lr=learning_rate, **kwargs)
@@ -27,10 +26,13 @@ def get_optimizer(optimizer: str, parameters: Iterator[Parameter], learning_rate
     if optimizer.lower() == "came":
         from utils.optimizers.came import CAME
         return CAME(parameters, lr=learning_rate, **kwargs)
-    if optimizer.endswith("8bit") or optimizer.startswith("Paged"):
-        import bitsandbytes
-        return getattr(bitsandbytes.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
-    return getattr(torch.optim, optimizer)(parameters, lr=learning_rate, **kwargs)
+
+    if "." in optimizer:
+        optimizer_base, optimizer = optimizer.rsplit(".", maxsplit=1)
+        optimizer_base = importlib.import_module(optimizer_base)
+    else:
+        optimizer_base = torch.optim
+    return getattr(optimizer_base, optimizer)(parameters, lr=learning_rate, **kwargs)
 
 
 def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRScheduler:

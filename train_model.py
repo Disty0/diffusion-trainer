@@ -209,7 +209,7 @@ if __name__ == '__main__':
 
     if config["fused_optimizer"]:
         optimizer_dict = {p: accelerator.prepare(
-                train_utils.get_optimizer(config["optimizer"], [p], config["learning_rate"], **config["optimizer_args"])
+                train_utils.get_optimizer(config, [p])
             ) for p in model.parameters()
         }
         for key, optimizer in optimizer_dict.items():
@@ -240,7 +240,7 @@ if __name__ == '__main__':
             p.register_post_accumulate_grad_hook(optimizer_hook)
         train_dataloader, model = accelerator.prepare(train_dataloader, model)
     else:
-        optimizer = train_utils.get_optimizer(config["optimizer"], model.parameters(), config["learning_rate"], **config["optimizer_args"])
+        optimizer = train_utils.get_optimizer(config, model.parameters())
         lr_scheduler = train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
         train_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(train_dataloader, model, optimizer, lr_scheduler)
 
