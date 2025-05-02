@@ -48,11 +48,18 @@ def encode_vae_latents(latent_model: ModelMixin, image_processor: ImageProcessin
     with torch.no_grad():
         tensor_images = image_processor.preprocess(images).to(device, dtype=latent_model.dtype)
     latents = latent_model.encode(tensor_images).latent_dist.sample().to(dtype=torch.float32)
+
     with torch.no_grad():
-        if latent_model.config.shift_factor:
+        if latent_model.config.latents_mean is not None:
+            latents = latents - torch.tensor(latent_model.config.latents_mean, device=device, dtype=torch.float32).view(1,-1,1,1)
+        elif latent_model.config.shift_factor and latent_model.config.shift_factor != 0:
             latents = latents - latent_model.config.shift_factor
-        if latent_model.config.scaling_factor and latent_model.config.scaling_factor != 1:
+
+        if latent_model.config.latents_std is not None:
+            latents = latents / torch.tensor(latent_model.config.latents_std, device=device, dtype=torch.float32).view(1,-1,1,1)
+        elif latent_model.config.scaling_factor is not None and latent_model.config.scaling_factor != 1:
             latents = latents * latent_model.config.scaling_factor
+
     return latents.to(dtype=latent_model.dtype)
 
 
@@ -66,12 +73,20 @@ def decode_vae_latents(
 ) -> Union[Image.Image, torch.FloatTensor]:
     with torch.no_grad():
         latents = latents.to(device, dtype=torch.float32)
-        if latent_model.config.scaling_factor and latent_model.config.scaling_factor != 1:
+
+        if latent_model.config.latents_std is not None:
+            latents = latents * torch.tensor(latent_model.config.latents_std, device=device, dtype=torch.float32).view(1,-1,1,1)
+        elif latent_model.config.scaling_factor is not None and latent_model.config.scaling_factor != 1:
             latents = latents / latent_model.config.scaling_factor
-        if latent_model.config.shift_factor:
+
+        if latent_model.config.latents_mean is not None:
+            latents = latents + torch.tensor(latent_model.config.latents_mean, device=device, dtype=torch.float32).view(1,-1,1,1)
+        elif latent_model.config.shift_factor is not None and latent_model.config.shift_factor != 0:
             latents = latents + latent_model.config.shift_factor
+
         if mixed_precision == "no":
             latents = latents.to(dtype=latent_model.dtype)
+
     image_tensor = latent_model.decode(latents).sample
     if return_image:
         return image_processor.postprocess(image_tensor, output_type="pil")
