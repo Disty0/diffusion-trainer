@@ -391,8 +391,12 @@ def get_self_corrected_targets(
     else:
         model_x0_pred = noisy_model_input.float() - (model_pred * sigmas)
 
-    new_target = (target * 2) - model_pred
     new_noisy_model_input = ((1.0 - sigmas) * model_x0_pred) + (sigmas * noise)
+
+    if flip_target:
+        new_target = target - ((new_noisy_model_input - noisy_model_input) / sigmas)
+    else:
+        new_target = target + ((new_noisy_model_input - noisy_model_input) / sigmas)
 
     self_correct_count = new_noisy_model_input.shape[0]
     return new_noisy_model_input, new_target, self_correct_count
