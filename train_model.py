@@ -192,10 +192,13 @@ if __name__ == '__main__':
     if config["latent_type"] == "latent":
         dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
     elif config["latent_type"] == "image":
-        dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
+        dataset = loader_utils.ImageTensorsAndEmbedsDataset(epoch_batch)
     elif config["latent_type"] == "jpeg":
-        from raiflow import RaiFlowImageEncoder
-        dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
+        if config["encode_dcts_with_cpu"]:
+            from raiflow import RaiFlowImageEncoder
+            dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), device=accelerator.device)
+        else:
+            dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
     else:
         raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
@@ -457,10 +460,13 @@ if __name__ == '__main__':
             if config["latent_type"] == "latent":
                 dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
             elif config["latent_type"] == "image":
-                dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
+                dataset = loader_utils.ImageTensorsAndEmbedsDataset(epoch_batch)
             elif config["latent_type"] == "jpeg":
-                from raiflow import RaiFlowImageEncoder
-                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
+                if config["encode_dcts_with_cpu"]:
+                    from raiflow import RaiFlowImageEncoder
+                    dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), device=accelerator.device)
+                else:
+                    dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
             else:
                 raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))

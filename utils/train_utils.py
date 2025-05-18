@@ -198,10 +198,13 @@ def run_model(
         return loss, model_pred, target, log_dict
     elif config["model_type"] == "raiflow":
         with torch.no_grad():
-            latents = []
-            for i in range(len(latents_list)):
-                latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
-            latents = torch.stack(latents, dim=0).to(accelerator.device, dtype=torch.float32)
+            if config["latent_type"] == "jpeg" and not config["encode_dcts_with_cpu"]:
+                latents = model_processor.encode(latents_list, device=accelerator.device)
+            else:
+                latents = []
+                for i in range(len(latents_list)):
+                    latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
+                latents = torch.stack(latents, dim=0).to(accelerator.device, dtype=torch.float32)
 
             if config["latent_type"] == "latent":
                 if config["latent_corrections"] == "unscale":

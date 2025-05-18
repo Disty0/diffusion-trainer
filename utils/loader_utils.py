@@ -110,6 +110,21 @@ class ImagesAndEmbedsDataset(Dataset):
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
+            images.append(load_image_from_file(batch[0], resolution))
+            embeds.append(load_from_file(batch[1]))
+        return (images, embeds)
+
+
+class ImageTensorsAndEmbedsDataset(Dataset):
+    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]]):
+        self.batches = batches
+    def __len__(self) -> int:
+        return len(self.batches)
+    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
+        images = []
+        embeds = []
+        resolution = self.batches[index][1]
+        for batch in self.batches[index][0]:
             image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resolution)).copy()).transpose(2,0).transpose(1,2)
             image_tensor = ((image_tensor.float() / 255) - 0.5) * 2 # -1 to 1 range
             images.append(image_tensor)
