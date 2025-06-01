@@ -60,7 +60,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create a bucket list with a given dataset path')
     parser.add_argument('dataset_path', type=str)
     parser.add_argument('--pixel_count', default=1048576, type=int)
-    parser.add_argument('--res_steps', default=32, type=int)
+    parser.add_argument('--res_steps', default=16, type=int)
     args = parser.parse_args()
 
     if args.dataset_path[-1] == "/":
