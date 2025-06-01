@@ -192,7 +192,6 @@ class DCTsAndTokensDataset(Dataset):
                     text = file.read()
                 if text[-1] == "\n":
                     text = text[:-1]
-            print("AAA:", text)
             embeds.append(text)
         embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
         return (images, embeds)
