@@ -119,7 +119,6 @@ def run_model(
                     empty_embeds_count += 1
             prompt_embeds = torch.stack(prompt_embeds).to(accelerator.device, dtype=torch.float32)
             pooled_embeds = torch.stack(pooled_embeds).to(accelerator.device, dtype=torch.float32)
-            seq_len = prompt_embeds.shape[1]
 
             noisy_model_input, timesteps, target, sigmas, noise = get_flowmatch_inputs(
                 latents=latents,
@@ -192,7 +191,7 @@ def run_model(
             "nan_embeds_count": nan_embeds_count,
             "self_correct_count": self_correct_count,
             "masked_count": masked_count,
-            "seq_len": seq_len,
+            "seq_len": prompt_embeds.shape[1],
         }
 
         return loss, model_pred, target, log_dict
@@ -214,43 +213,52 @@ def run_model(
             elif config["latent_corrections"] != "none":
                 raise NotImplementedError(f'Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]} when using latent type {config["latent_type"]}')
 
-            embed_dim = embeds_list[0].shape[-1]
             prompt_embeds = []
             empty_embeds_count = 0
             nan_embeds_count = 0
-            for i in range(len(embeds_list)):
-                if random.randint(0,100) > config["dropout_rate"] * 100:
-                    if embeds_list[i].isnan().any(): # image embeds tends to nan very frequently
-                        prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=torch.float32))
-                        empty_embeds_count += 1
-                        nan_embeds_count += 1
+            if config["embed_type"] == "token":
+                seq_len = embeds_list[0].shape[0]
+                embed_dtype = torch.int64
+                for i in range(len(embeds_list)):
+                    if random.randint(0,100) > config["dropout_rate"] * 100:
+                        prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=embed_dtype))
                     else:
-                        prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=torch.float32))
-                else:
-                    # encoding the empty embed via the text encoder is the same as using zeros
-                    prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=torch.float32))
-                    empty_embeds_count += 1
+                        prompt_embeds.append(torch.tensor(model.config.pad_token_id).expand(seq_len).to(accelerator.device, dtype=embed_dtype))
+                        empty_embeds_count += 1
+            else:
+                embed_dim = embeds_list[0].shape[-1]
+                embed_dtype = torch.float32
+                for i in range(len(embeds_list)):
+                    if random.randint(0,100) > config["dropout_rate"] * 100:
+                        if embeds_list[i].isnan().any(): # image embeds tends to nan very frequently
+                            prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=embed_dtype))
+                            empty_embeds_count += 1
+                            nan_embeds_count += 1
+                        else:
+                            prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=embed_dtype))
+                    else:
+                        # encoding the empty embed via the text encoder is the same as using zeros
+                        prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=embed_dtype))
+                        empty_embeds_count += 1
 
-            max_len = 0
-            for embed in prompt_embeds:
-                max_len = max(max_len, embed.shape[0])
-            max_len = max(max_len, 256) # min seq len is 256
-            if max_len % 256 != 0: # make the seq len a multiple of 256
-                max_len +=  256 - (max_len % 256)
+                max_len = 0
+                for embed in prompt_embeds:
+                    max_len = max(max_len, embed.shape[0])
+                max_len = max(max_len, 256) # min seq len is 256
+                if max_len % 256 != 0: # make the seq len a multiple of 256
+                    max_len +=  256 - (max_len % 256)
 
-            for i in range(len(prompt_embeds)): # pad with ones
-                seq_len = prompt_embeds[i].shape[0]
-                if seq_len != max_len:
-                    prompt_embeds[i] = torch.cat(
-                        [
-                            prompt_embeds[i],
-                            torch.ones((max_len-seq_len, embed_dim), device=prompt_embeds[i].device, dtype=prompt_embeds[i].dtype)
-                        ],
-                        dim=0,
-                    )
-
-            prompt_embeds = torch.stack(prompt_embeds, dim=0).to(accelerator.device, dtype=torch.float32)
-            seq_len = prompt_embeds.shape[1]
+                for i in range(len(prompt_embeds)): # pad with ones
+                    seq_len = prompt_embeds[i].shape[0]
+                    if seq_len != max_len:
+                        prompt_embeds[i] = torch.cat(
+                            [
+                                prompt_embeds[i],
+                                torch.ones((max_len-seq_len, embed_dim), device=prompt_embeds[i].device, dtype=prompt_embeds[i].dtype)
+                            ],
+                            dim=0,
+                        )
+            prompt_embeds = torch.stack(prompt_embeds, dim=0).to(accelerator.device, dtype=embed_dtype)
 
             noisy_model_input, timesteps, target, sigmas, noise = get_flowmatch_inputs(
                 latents=latents,
@@ -322,7 +330,7 @@ def run_model(
             "nan_embeds_count": nan_embeds_count,
             "self_correct_count": self_correct_count,
             "masked_count": masked_count,
-            "seq_len": seq_len,
+            "seq_len": prompt_embeds.shape[1],
         }
 
         return loss, model_pred, target, log_dict

@@ -15,7 +15,7 @@ from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 
 from typing import List, Tuple, Union
-from transformers import ImageProcessingMixin
+from transformers import ImageProcessingMixin, PreTrainedTokenizer
 
 Image.MAX_IMAGE_PIXELS = 999999999 # 178956970
 
@@ -115,6 +115,30 @@ class ImagesAndEmbedsDataset(Dataset):
         return (images, embeds)
 
 
+class ImagesAndTokensDataset(Dataset):
+    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], tokenizer: PreTrainedTokenizer):
+        self.batches = batches
+        self.tokenizer = tokenizer
+    def __len__(self) -> int:
+        return len(self.batches)
+    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
+        images = []
+        embeds = []
+        resolution = self.batches[index][1]
+        for batch in self.batches[index][0]:
+            images.append(load_image_from_file(batch[0], resolution))
+            if batch[1] == "":
+                text = ""
+            else:
+                with open(batch[1], "r") as file:
+                    text = file.read()
+                if text[-1] == "\n":
+                    text = text[:-1]
+            embeds.append(text)
+        embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
+        return (images, embeds)
+
+
 class ImageTensorsAndEmbedsDataset(Dataset):
     def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]]):
         self.batches = batches
@@ -145,6 +169,32 @@ class DCTsAndEmbedsDataset(Dataset):
         for batch in self.batches[index][0]:
             images.append(self.image_encoder.encode(load_image_from_file(batch[0], resolution), device="cpu")[0])
             embeds.append(load_from_file(batch[1]))
+        return (images, embeds)
+
+
+class DCTsAndTokensDataset(Dataset):
+    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], image_encoder: ImageProcessingMixin, tokenizer: PreTrainedTokenizer):
+        self.batches = batches
+        self.image_encoder = image_encoder
+        self.tokenizer = tokenizer
+    def __len__(self) -> int:
+        return len(self.batches)
+    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
+        images = []
+        embeds = []
+        resolution = self.batches[index][1]
+        for batch in self.batches[index][0]:
+            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resolution), device="cpu")[0])
+            if batch[1] == "":
+                text = ""
+            else:
+                with open(batch[1], "r") as file:
+                    text = file.read()
+                if text[-1] == "\n":
+                    text = text[:-1]
+            print("AAA:", text)
+            embeds.append(text)
+        embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
         return (images, embeds)
 
 

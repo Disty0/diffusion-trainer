@@ -1,7 +1,8 @@
 {
     "model_type": "raiflow",
     "latent_type": "jpeg",
-    "encode_dcts_with_cpu": true,
+    "embed_type": "token",
+    "latent_corrections": "none",
     "timestep_shift": 3.0,
     "loss_weighting": "none",
     "dynamo_backend": "no",
@@ -44,22 +45,22 @@
     "offload_ema_non_blocking": true,
     "offload_ema_pin_memory": true,
     "ema_weights_dtype": "float32",
-    "load_queue_lenght": 128,
-    "max_load_workers": 4,
     "gc_steps": 32,
+    "checkpoint_save_steps": 512,
+    "checkpoints_limit": 20,
+    "max_load_workers": 2,
+    "load_queue_lenght": 64,
+    "reshuffle": true,
+    "encode_dcts_with_cpu": false,
     "log_with": "wandb",
     "project_name": "raiflow-mini",
     "resume_from": "none",
-    "checkpoint_save_steps": 512,
-    "checkpoints_limit": 20,
-    "reshuffle": true,
-    "latent_corrections": "none",
     "dataset_index": "cache/dataset_index.json",
     "project_dir": "/mnt/DataSSD/AI/models/RaiFlow/train_model",
-    "model_path": "/mnt/DataSSD/AI/models/RaiFlow/RaiFlow",    
+    "model_path": "/mnt/DataSSD/AI/models/RaiFlow/RaiFlow",
     "dataset_paths": [
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/danbooru-newest", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/danbooru/danbooru-newest-wd"], 1],
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/best/danbooru-best", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/best/danbooru-best-wd", "/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/best/danbooru-best-image"], 5],
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/best/hand_picked", ["/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/best/hand_picked-image", "/mnt/DataSSD/AI/anime_image_dataset/embeds/raiflow/best/hand_picked-wd"], 20]
+        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/danbooru-jxl", ["/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/captions/danbooru-wd", "/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/captions/danbooru-florence2"], 1],
+        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/pixiv-jxl", ["/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/captions/pixiv-wd", "/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/captions/pixiv-florence2"], 1],
+        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/vncg-jxl", ["/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/captions/vncg-wd", "/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/captions/vncg-florence2"], 1]
     ]
 }

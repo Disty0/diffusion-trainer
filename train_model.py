@@ -24,8 +24,12 @@ from typing import Dict, List, Tuple
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], empty_embed_path: str, latent_type: str = "latent") -> Dict[str, List[str]]:
-    embed_suffix = "_" + empty_embed_path.rsplit("empty_", maxsplit=1)[-1]
+def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], empty_embed_path: str, latent_type: str = "latent", embed_type: str = "embed") -> Dict[str, List[str]]:
+    if embed_type == "embed":
+        embed_suffix = "_" + empty_embed_path.rsplit("empty_", maxsplit=1)[-1]
+    else:
+        embed_suffix = ".txt"
+        empty_embed_path = ""
     print("Creating bucket list")
     bucket_list = {}
 
@@ -76,8 +80,8 @@ def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], i
     return bucket_list
 
 
-def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str = "latent") -> None:
-    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type=latent_type)
+def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str = "latent", embed_type: str = "embed") -> None:
+    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type=latent_type, embed_type=embed_type)
     print("Creating epoch batches")
     epoch_batch = []
     images_left_out_count = 0
@@ -140,7 +144,10 @@ if __name__ == '__main__':
     torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(config["math_sdp_reduction"])
 
     empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
-    empty_embed = loader_utils.load_from_file(empty_embed_path)
+    if config["embed_type"] == "token":
+        empty_embed = None
+    else:
+        empty_embed = loader_utils.load_from_file(empty_embed_path)
     first_epoch = 0
     current_epoch = 0
     current_step = 0
@@ -185,7 +192,7 @@ if __name__ == '__main__':
 
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, latent_type=config["latent_type"])
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, latent_type=config["latent_type"], embed_type=config["embed_type"])
     accelerator.wait_for_everyone()
     with open(config["dataset_index"], "r") as f:
         epoch_batch = json.load(f)
@@ -196,9 +203,17 @@ if __name__ == '__main__':
     elif config["latent_type"] == "jpeg":
         if config["encode_dcts_with_cpu"]:
             from raiflow import RaiFlowImageEncoder
-            dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), device=accelerator.device)
+            if config["embed_type"] == "token":
+                from transformers import AutoTokenizer
+                dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"), device=accelerator.device)
+            else:
+                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), device=accelerator.device)
         else:
-            dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
+            if config["embed_type"] == "token":
+                from transformers import AutoTokenizer
+                dataset = loader_utils.ImagesAndTokensDataset(epoch_batch, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
+            else:
+                dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
     else:
         raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
@@ -453,7 +468,7 @@ if __name__ == '__main__':
             del dataset, train_dataloader
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
-                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, latent_type=config["latent_type"])
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, latent_type=config["latent_type"], embed_type=config["embed_type"])
             accelerator.wait_for_everyone()
             with open(config["dataset_index"], "r") as f:
                 epoch_batch = json.load(f)
