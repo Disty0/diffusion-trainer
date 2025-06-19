@@ -8,4 +8,4 @@ sentencepiece==0.2.0
 transformers==4.52.4
 tqdm==4.67.1
 imagesize==1.4.1
-wandb==0.19.11
+wandb==0.20.1

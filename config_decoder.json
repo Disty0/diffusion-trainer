@@ -6,6 +6,7 @@
     "allow_reduced_precision": true,
     "flash_sdp": true,
     "mem_efficient_sdp": true,
+    "dynamic_sdp": false,
     "math_sdp": true,
     "math_sdp_reduction": true,
     "epochs": 10,

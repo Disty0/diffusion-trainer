@@ -122,6 +122,9 @@ if __name__ == '__main__':
     torch.backends.cuda.enable_mem_efficient_sdp(config["mem_efficient_sdp"])
     torch.backends.cuda.enable_math_sdp(config["math_sdp"])
     torch.backends.cuda.allow_fp16_bf16_reduction_math_sdp(config["math_sdp_reduction"])
+    if config["dynamic_sdp"]:
+        from utils.dynamic_sdp import dynamic_scaled_dot_product_attention
+        torch.nn.functional.scaled_dot_product_attention = dynamic_scaled_dot_product_attention
 
     first_epoch = 0
     current_epoch = 0
