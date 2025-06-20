@@ -87,16 +87,16 @@ def int8_matmul(
         return dequantize_symmetric(torch._int_mm(input, weight), scale, return_dtype, output_shape)
 
 
-def quantized_linear_forward_int8_matmul(self, input: torch.FloatTensor) -> torch.FloatTensor:
-    if torch.numel(input) / input.shape[-1] < 32:
-        return torch.nn.functional.linear(input, self.weight, self.bias)
-    return int8_matmul(input, self.weight, self.bias)
-
-
 def quantized_linear_forward_fp8_matmul(self, input: torch.FloatTensor) -> torch.FloatTensor:
     if torch.numel(input) / input.shape[-1] < 32:
         return torch.nn.functional.linear(input, self.weight, self.bias)
     return fp8_matmul(input, self.weight, self.bias)
+
+
+def quantized_linear_forward_int8_matmul(self, input: torch.FloatTensor) -> torch.FloatTensor:
+    if torch.numel(input) / input.shape[-1] < 32:
+        return torch.nn.functional.linear(input, self.weight, self.bias)
+    return int8_matmul(input, self.weight, self.bias)
 
 
 torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
