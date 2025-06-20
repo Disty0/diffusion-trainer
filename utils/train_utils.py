@@ -51,21 +51,27 @@ def get_loss_func(config: dict) -> Callable:
         return getattr(torch.nn.functional, config["loss_type"])
 
 
-def get_diffusion_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype) -> Tuple[ModelMixin]:
-    if model_type == "sd3":
-        pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
+def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype) -> Tuple[ModelMixin]:
+    if config["model_type"] == "sd3":
+        pipe = diffusers.AutoPipelineForText2Image.from_pretrained(config["model_path"], vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
         diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
         diffusion_model.requires_grad_(True)
-        return diffusion_model, copy.deepcopy(pipe.scheduler)
-    elif model_type == "raiflow":
+        processor = copy.deepcopy(pipe.scheduler)
+    elif config["model_type"] == "raiflow":
         from raiflow import RaiFlowPipeline
-        pipe = RaiFlowPipeline.from_pretrained(path, text_encoder=None, torch_dtype=dtype)
+        pipe = RaiFlowPipeline.from_pretrained(config["model_path"], text_encoder=None, torch_dtype=dtype)
         diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
         diffusion_model.requires_grad_(True)
-        return diffusion_model, copy.deepcopy(getattr(pipe, "image_encoder", pipe.scheduler))
+        processor = copy.deepcopy(getattr(pipe, "image_encoder", pipe.scheduler))
     else:
-        raise NotImplementedError(f"Model type {model_type} is not implemented")
-
+        raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
+    if config["use_quantized_matmul"]:
+        from .sdnq_utils import apply_sdnq_to_module
+        modules_to_not_convert = getattr(diffusion_model, "_keep_in_fp32_modules", [])
+        if modules_to_not_convert is None:
+            modules_to_not_convert = []
+        diffusion_model = apply_sdnq_to_module(diffusion_model, config["quantized_matmul_dtype"], modules_to_not_convert=modules_to_not_convert)
+    return diffusion_model, processor
 
 def get_model_class(model_type: str) -> ModelMixin:
     if model_type == "sd3":

@@ -224,7 +224,7 @@ if __name__ == '__main__':
     dtype = getattr(torch, config["weights_dtype"])
     print(f"Loading diffusion models with dtype {dtype} to device {accelerator.device}")
     accelerator.print(print_filler)
-    model, model_processor = train_utils.get_diffusion_model(config["model_type"], config["model_path"], accelerator.device, dtype)
+    model, model_processor = train_utils.get_diffusion_model(config, accelerator.device, dtype)
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()
 
@@ -282,7 +282,7 @@ if __name__ == '__main__':
             ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), train_utils.get_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
             ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
         else:
-            ema_model, _ = train_utils.get_diffusion_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype)
+            ema_model, _ = train_utils.get_diffusion_model(config, "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype)
             ema_model = EMAModel(ema_model.parameters(), model_cls=train_utils.get_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
         if config["offload_ema_pin_memory"]:
             ema_model.pin_memory()
@@ -400,7 +400,7 @@ if __name__ == '__main__':
                             if config["ema_update_steps"] > 0:
                                 gc.collect()
                                 accelerator.print(f"Saving EMA state to {save_path}")
-                                save_ema_model, _ = train_utils.get_diffusion_model(config["model_type"], config["model_path"], "cpu", ema_dtype)
+                                save_ema_model, _ = train_utils.get_diffusion_model(config, "cpu", ema_dtype)
                                 save_ema_model_state_dict = ema_model.state_dict()
                                 save_ema_model_state_dict.pop("shadow_params", None)
                                 save_ema_model.register_to_config(**save_ema_model_state_dict)
@@ -498,7 +498,7 @@ if __name__ == '__main__':
         if config["ema_update_steps"] > 0:
             gc.collect()
             accelerator.print(f"Saving EMA state to {save_path}")
-            save_ema_model, _ = train_utils.get_diffusion_model(config["model_type"], config["model_path"], "cpu", ema_dtype)
+            save_ema_model, _ = train_utils.get_diffusion_model(config, "cpu", ema_dtype)
             save_ema_model_state_dict = ema_model.state_dict()
             save_ema_model_state_dict.pop("shadow_params", None)
             save_ema_model.register_to_config(**save_ema_model_state_dict)
