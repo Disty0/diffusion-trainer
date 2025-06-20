@@ -139,7 +139,7 @@ def run_raiflow_model_training(
             device=accelerator.device,
             num_train_timesteps=model.config.num_train_timesteps,
             shift=config["timestep_shift"],
-            meanflow=config["prediction_type"] == "meanflow",
+            meanflow=bool(config["prediction_type"] == "meanflow"),
         )
 
         if config["mixed_precision"] == "no":

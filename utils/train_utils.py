@@ -12,6 +12,10 @@ from torch.optim.optimizer import Optimizer
 from torch.nn.parameter import Parameter
 from accelerate import Accelerator
 
+from .models.sd3_utils import run_sd3_model_training
+from .models.raiflow_utils import run_raiflow_model_training
+
+
 def get_optimizer(config: dict, parameters: Iterator[Parameter]) -> Optimizer:
     optimizer, learning_rate, kwargs =  config["optimizer"], config["learning_rate"], config["optimizer_args"]
     if optimizer.lower() == "adamw_bf16":
@@ -84,10 +88,8 @@ def run_model(
     loss_func: callable,
 ) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
     if config["model_type"] == "sd3":
-        from .models.sd3_utils import run_sd3_model_training
         return run_sd3_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
     elif config["model_type"] == "raiflow":
-        from .models.raiflow_utils import run_raiflow_model_training
         return run_raiflow_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
