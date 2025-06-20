@@ -60,11 +60,7 @@ def quantize_int8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor) ->
     return weight, input, scale
 
 
-def fp8_matmul(
-    input: torch.FloatTensor,
-    weight: torch.Tensor,
-    bias: torch.FloatTensor,
-) -> torch.FloatTensor:
+def fp8_matmul(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.FloatTensor) -> torch.FloatTensor:
     return_dtype = input.dtype
     output_shape = list(input.shape)
     output_shape[-1] = weight.shape[0]
@@ -72,11 +68,7 @@ def fp8_matmul(
     return torch._scaled_mm(input, weight, scale_a=input_scale, scale_b=scale, bias=bias, out_dtype=return_dtype).reshape(output_shape)
 
 
-def int8_matmul(
-    input: torch.FloatTensor,
-    weight: torch.FloatTensor,
-    bias: torch.FloatTensor,
-) -> torch.FloatTensor:
+def int8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor) -> torch.FloatTensor:
     return_dtype = input.dtype
     output_shape = list(input.shape)
     output_shape[-1] = weight.shape[0]
