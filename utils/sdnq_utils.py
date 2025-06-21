@@ -35,7 +35,7 @@ def dequantize_symmetric_with_bias(weight: torch.CharTensor, scale: torch.FloatT
     return torch.addcmul(bias, weight.to(dtype=scale.dtype), scale).to(dtype=dtype).reshape(result_shape)
 
 
-def quantize_fp8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor) -> Tuple[torch.CharTensor, torch.FloatTensor]:
+def quantize_fp8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor) -> Tuple[torch.Tensor, torch.Tensor, torch.FloatTensor, torch.FloatTensor]:
     input = input.flatten(0,-2).contiguous()
     weight = weight.transpose(0,1).contiguous()
     scale = torch.amax(weight.abs(), dim=0, keepdims=True).div(448)
@@ -47,7 +47,7 @@ def quantize_fp8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor) -> 
     return weight, input, scale, input_scale
 
 
-def quantize_int8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor) -> Tuple[torch.CharTensor, torch.FloatTensor]:
+def quantize_int8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor) -> Tuple[torch.CharTensor, torch.CharTensor, torch.FloatTensor]:
     input = input.flatten(0,-2).contiguous()
     weight = weight.transpose(0,1).contiguous()
     scale = torch.amax(weight.abs(), dim=0, keepdims=True).div(127)

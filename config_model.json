@@ -50,7 +50,7 @@
     "offload_ema_pin_memory": true,
     "ema_weights_dtype": "float32",
     "gc_steps": 32,
-    "checkpoint_save_steps": 128,
+    "checkpoint_save_steps": 64,
     "checkpoints_limit": 20,
     "max_load_workers": 2,
     "load_queue_lenght": 64,
