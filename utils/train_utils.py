@@ -59,10 +59,10 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype) 
         processor = copy.deepcopy(pipe.scheduler)
     elif config["model_type"] == "raiflow":
         from raiflow import RaiFlowPipeline
-        pipe = RaiFlowPipeline.from_pretrained(config["model_path"], text_encoder=None, torch_dtype=dtype)
+        pipe = RaiFlowPipeline.from_pretrained(config["model_path"], torch_dtype=dtype)
         diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
         diffusion_model.requires_grad_(True)
-        processor = copy.deepcopy(getattr(pipe, "image_encoder", pipe.scheduler))
+        processor = copy.deepcopy(pipe.image_encoder)
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
     if config["use_quantized_matmul"]:

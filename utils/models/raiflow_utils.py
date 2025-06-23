@@ -104,7 +104,7 @@ def run_raiflow_model_training(
             embed_dtype = torch.float32
             for i in range(len(embeds_list)):
                 if random.randint(0,100) > config["dropout_rate"] * 100:
-                    if embeds_list[i].isnan().any(): # image embeds tends to nan very frequently
+                    if config["do_nan_embed_check"] and embeds_list[i].isnan().any():
                         prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=embed_dtype))
                         empty_embeds_count += 1
                         nan_embeds_count += 1

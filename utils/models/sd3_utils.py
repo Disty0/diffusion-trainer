@@ -137,7 +137,7 @@ def run_sd3_model_training(
             if random.randint(0,100) > config["dropout_rate"] * 100:
                 prompt_embeds.append(embeds_list[i][0].to(accelerator.device, dtype=torch.float32))
                 pooled_embeds.append(embeds_list[i][1].to(accelerator.device, dtype=torch.float32))
-                if embeds_list[i][0].isnan().any() or embeds_list[i][1].isnan().any():
+                if config["do_nan_embed_check"] and (embeds_list[i][0].isnan().any() or embeds_list[i][1].isnan().any()):
                     prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=torch.float32))
                     pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=torch.float32))
                     empty_embeds_count += 1

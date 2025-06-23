@@ -322,7 +322,7 @@ if __name__ == '__main__':
                     if accelerator.sync_gradients:
                         if config["log_grad_stats"]:
                             for parameter in model.parameters():
-                                if hasattr(parameter, "grad"):
+                                if hasattr(parameter, "grad") and parameter.grad is not None:
                                     param_grad_abs = parameter.grad.abs()
                                     grad_max = max(grad_max, param_grad_abs.max().item())
                                     grad_mean += param_grad_abs.mean().item()
@@ -331,7 +331,7 @@ if __name__ == '__main__':
                             accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
                             if config["log_grad_stats"]:
                                 for parameter in model.parameters():
-                                    if hasattr(parameter, "grad"):
+                                    if hasattr(parameter, "grad") and parameter.grad is not None:
                                         clipped_grad_mean += parameter.grad.abs().mean().item()
                                         clipped_grad_mean_count += 1
                         if config["max_grad_norm"] > 0:
