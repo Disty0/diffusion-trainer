@@ -30,7 +30,7 @@
     "do_nan_embed_check": false,
     "loss_type": "mse",
     "loss_reduction": "mean",
-    "batch_size": 24,
+    "batch_size": 32,
     "gradient_accumulation_steps": 1,
     "gradient_checkpointing": true,
     "dropout_rate": 0.1,

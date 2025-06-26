@@ -171,9 +171,9 @@ def run_sd3_model_training(
                     timestep=timesteps,
                     pooled_projections=pooled_embeds,
                     return_dict=False,
-                )[0].float()
+                )[0].to(dtype=torch.float32)
 
-            noisy_model_input = noisy_model_input.float()
+            noisy_model_input = noisy_model_input.to(dtype=torch.float32)
             noisy_model_input, target, self_correct_count = get_self_corrected_targets(
                 noisy_model_input=noisy_model_input,
                 target=target,
@@ -204,8 +204,8 @@ def run_sd3_model_training(
             return_dict=False,
         )[0]
 
-    model_pred = model_pred.float()
-    target = target.float().detach()
+    model_pred = model_pred.to(dtype=torch.float32)
+    target = target.to(dtype=torch.float32).detach()
 
     if config["loss_weighting"] == "sigma_sqrt":
         sigma_sqrt = sigmas.sqrt().clamp(min=0.1, max=None)

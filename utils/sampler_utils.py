@@ -5,7 +5,7 @@ import torch
 
 def get_meanflow_target(target: torch.FloatTensor, sigmas: torch.FloatTensor, sigmas_next: torch.FloatTensor, jvp_out: torch.FloatTensor) -> torch.FloatTensor:
     with torch.no_grad():
-        return (target.float() - (sigmas.float() - sigmas_next.float()) * jvp_out.float()).detach()
+        return (target.to(dtype=torch.float32) - (sigmas.to(dtype=torch.float32) - sigmas_next.to(dtype=torch.float32)) * jvp_out.to(dtype=torch.float32)).detach()
 
 
 def get_flowmatch_inputs(
@@ -53,7 +53,7 @@ def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, d
             mask.append(unmask)
         else:
             masked_count += 1
-            mask.append(torch.randint(random.randint(config["mask_low_rate"],0), random.randint(2,config["mask_high_rate"]), (height, width), device=device).float().clamp(0,1))
+            mask.append(torch.randint(random.randint(config["mask_low_rate"],0), random.randint(2,config["mask_high_rate"]), (height, width), device=device).to(dtype=torch.float32).clamp(0,1))
 
     mask = torch.stack(mask, dim=0).unsqueeze(1).to(device, dtype=torch.float32)
     mask = mask.repeat(1,channels,1,1)
@@ -72,7 +72,7 @@ def get_self_corrected_targets(
 ) -> Tuple[torch.FloatTensor, torch.FloatTensor, int]:
     if x0_pred:
         model_x0_pred = model_pred
-    model_x0_pred = noisy_model_input.float() - (model_pred * sigmas)
+    model_x0_pred = noisy_model_input.to(dtype=torch.float32) - (model_pred * sigmas)
 
     # new_noisy_model_input = ((1.0 - sigmas) * model_x0_pred) + (sigmas * noise)
     new_noisy_model_input = torch.addcmul(torch.mul(sigmas, noise), torch.sub(1.0, sigmas), model_x0_pred)
