@@ -72,7 +72,7 @@ def run_raiflow_model_training(
 ) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
     with torch.no_grad():
         if config["latent_type"] == "jpeg" and not config["encode_dcts_with_cpu"]:
-            latents = model_processor.encode(latents_list, device=accelerator.device)
+            latents = model_processor.encode(latents_list, device=accelerator.device).to(accelerator.device, dtype=torch.float32)
         else:
             latents = []
             for i in range(len(latents_list)):

@@ -41,7 +41,7 @@
     "use_quantized_matmul": true,
     "quantized_matmul_dtype": "int8",
     "weights_dtype": "float32",
-    "mixed_precision": "fp16",
+    "mixed_precision": "bf16",
     "ema_decay": 0.995,
     "ema_update_steps": 4,
     "use_foreach_ema": true,
