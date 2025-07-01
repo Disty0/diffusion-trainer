@@ -52,8 +52,8 @@ def quantize_int8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor) ->
     weight = weight.transpose(0,1).contiguous()
     scale = torch.amax(weight.abs(), dim=0, keepdims=True).div(127)
     input_scale = torch.amax(input.abs(), dim=-1, keepdims=True).div(127)
-    weight = torch.div(weight, scale).round().clamp(-128, 127).to(torch.int8)
-    input = torch.div(input, input_scale).round().clamp(-128, 127).to(torch.int8)
+    weight = round_with_grad(torch.div(weight, scale)).clamp(-128, 127).to(torch.int8)
+    input = round_with_grad(torch.div(input, input_scale)).clamp(-128, 127).to(torch.int8)
     scale = torch.mul(input_scale, scale)
     if scale.dtype == torch.float16: # fp16 will overflow
         scale = scale.to(dtype=torch.float32)
@@ -89,6 +89,18 @@ def quantized_linear_forward_int8_matmul(self, input: torch.FloatTensor) -> torc
     if torch.numel(input) / input.shape[-1] < 32:
         return torch.nn.functional.linear(input, self.weight, self.bias)
     return int8_matmul(input, self.weight, self.bias)
+
+
+class RoundWithGrad(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):
+        return torch.round(input)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output.clone()
+
+round_with_grad = RoundWithGrad.apply
 
 
 torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
