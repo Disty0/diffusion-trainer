@@ -4,6 +4,7 @@
 import os
 from typing import List, Tuple
 
+
 class JXLBitstream:
     """
     A stream of bits with methods for easy handling.

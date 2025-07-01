@@ -21,6 +21,7 @@ from utils import loader_utils, latent_utils
 
 print_filler = "--------------------------------------------------"
 
+
 def get_bucket_list(model_type: str, dataset_path: str, out_path: str) -> Dict[str, List[str]]:
     print(print_filler)
     print("Creating bucket list")

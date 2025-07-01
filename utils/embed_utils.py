@@ -33,6 +33,7 @@ def encode_sd3_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTra
         embeds.append([prompt_embeds[i], pooled_prompt_embeds[i]])
     return embeds
 
+
 def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
     pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
@@ -53,6 +54,7 @@ def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, d
 
 def encode_raiflow_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, texts: List[str], prompt_images: Optional[List[Image.Image]] = None) -> List[torch.FloatTensor]:
     return raiflow_utils.encode_raiflow_prompt(embed_encoders[0], embed_encoders[1], prompt=texts, prompt_images=prompt_images, device=device)
+
 
 def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
     from raiflow import RaiFlowPipeline

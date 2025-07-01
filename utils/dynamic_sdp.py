@@ -6,6 +6,7 @@ import torch
 sdpa_slice_trigger_rate = float(os.environ.get('DYNAMIC_ATTENTION_TRIGGER_RATE', 1))
 attention_slice_rate = float(os.environ.get('DYNAMIC_ATTENTION_SLICE_RATE', 0.5))
 
+
 # Find something divisible with the input_tokens
 @cache
 def find_split_size(original_size, slice_block_size, slice_rate=2):

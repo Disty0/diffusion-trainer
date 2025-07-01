@@ -6,6 +6,7 @@ from typing import List, Tuple, Union
 from transformers import ImageProcessingMixin
 from diffusers.models.modeling_utils import ModelMixin
 
+
 def get_latent_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
     if model_type == "sd3":
         return get_sd3_vae(path, device, dtype, dynamo_backend)

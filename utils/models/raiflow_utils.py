@@ -11,6 +11,7 @@ from accelerate import Accelerator
 
 from ..sampler_utils import get_meanflow_target, get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
+
 def encode_raiflow_prompt(
     text_encoder: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,

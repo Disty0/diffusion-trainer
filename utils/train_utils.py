@@ -73,6 +73,7 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype) 
         diffusion_model = apply_sdnq_to_module(diffusion_model, config["quantized_matmul_dtype"], modules_to_not_convert=modules_to_not_convert)
     return diffusion_model, processor
 
+
 def get_model_class(model_type: str) -> ModelMixin:
     if model_type == "sd3":
         return diffusers.SD3Transformer2DModel

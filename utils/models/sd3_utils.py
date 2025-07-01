@@ -8,6 +8,7 @@ from accelerate import Accelerator
 
 from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
+
 def _encode_sd3_prompt_with_t5(
     text_encoder: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,
