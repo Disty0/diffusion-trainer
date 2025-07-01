@@ -28,14 +28,14 @@ def apply_sdnq_to_module(model, dtype: str, modules_to_not_convert: List[str] = 
 
 
 def dequantize_symmetric(weight: torch.CharTensor, scale: torch.FloatTensor, dtype: torch.dtype, result_shape: torch.Size) -> torch.FloatTensor:
-    return weight.to(dtype=scale.dtype).mul(scale).to(dtype=dtype).reshape(result_shape)
+    return weight.to(dtype=scale.dtype).mul_(scale).to(dtype=dtype).reshape(result_shape)
 
 
 def dequantize_symmetric_with_bias(weight: torch.CharTensor, scale: torch.FloatTensor, bias: torch.FloatTensor, dtype: torch.dtype, result_shape: torch.Size) -> torch.FloatTensor:
     return torch.addcmul(bias, weight.to(dtype=scale.dtype), scale).to(dtype=dtype).reshape(result_shape)
 
 
-def quantize_fp8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor, do_input_reshape: bool = True) -> Tuple[torch.Tensor, torch.Tensor, torch.FloatTensor, torch.FloatTensor]:
+def quantize_fp8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, do_input_reshape: bool = True) -> Tuple[torch.Tensor, torch.Tensor, torch.FloatTensor, torch.FloatTensor]:
     if do_input_reshape:
         input = input.flatten(0,-2).contiguous()
         weight = weight.t().contiguous()
@@ -45,10 +45,10 @@ def quantize_fp8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor, do_
     input = torch.div(input, input_scale).clamp_(-448, 448).to(dtype=torch.float8_e4m3fn)
     scale = scale.to(dtype=torch.float32)
     input_scale = input_scale.to(dtype=torch.float32)
-    return weight, input, scale, input_scale
+    return input, weight, input_scale, scale
 
 
-def quantize_int8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor, do_input_reshape: bool = True) -> Tuple[torch.CharTensor, torch.CharTensor, torch.FloatTensor]:
+def quantize_int8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, do_input_reshape: bool = True) -> Tuple[torch.CharTensor, torch.CharTensor, torch.FloatTensor]:
     if do_input_reshape:
         input = input.flatten(0,-2).contiguous()
         weight = weight.t().contiguous()
@@ -59,7 +59,7 @@ def quantize_int8_matmul(weight: torch.FloatTensor, input: torch.FloatTensor, do
     scale = torch.mul(input_scale, scale)
     if scale.dtype == torch.float16: # fp16 will overflow
         scale = scale.to(dtype=torch.float32)
-    return weight, input, scale
+    return input, weight, scale
 
 
 def fp8_matmul(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.FloatTensor, output_shape: torch.Size = None, do_input_reshape: bool = True) -> torch.FloatTensor:
@@ -67,7 +67,7 @@ def fp8_matmul(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.Float
     if output_shape is None:
         output_shape = list(input.shape)
         output_shape[-1] = weight.shape[0] if do_input_reshape else weight.shape[-1]
-    weight, input, scale, input_scale = quantize_fp8_matmul(weight, input, do_input_reshape=do_input_reshape)
+    input, weight, input_scale, scale = quantize_fp8_matmul(input, weight, do_input_reshape=do_input_reshape)
     return torch._scaled_mm(input, weight, scale_a=input_scale, scale_b=scale, bias=bias, out_dtype=return_dtype).reshape(output_shape)
 
 
@@ -76,7 +76,7 @@ def int8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch
     if output_shape is None:
         output_shape = list(input.shape)
         output_shape[-1] = weight.shape[0] if do_input_reshape else weight.shape[-1]
-    weight, input, scale = quantize_int8_matmul(weight, input, do_input_reshape=do_input_reshape)
+    input, weight, scale = quantize_int8_matmul(input, weight, do_input_reshape=do_input_reshape)
     if bias is not None:
         return dequantize_symmetric_with_bias(torch._int_mm(input, weight), scale, bias, return_dtype, output_shape)
     else:
