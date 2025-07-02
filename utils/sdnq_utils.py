@@ -83,42 +83,50 @@ def int8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch
         return dequantize_symmetric(torch._int_mm(input, weight), scale, return_dtype, output_shape)
 
 
+def fp8_matmul_backward(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, grad_output: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+    grad_input = grad_weight = grad_bias = None
+    if do_grad_input:
+        grad_input = fp8_matmul(grad_output.flatten(0,-2).contiguous(), weight, None, output_shape=input.shape, do_input_reshape=False)
+    if do_grad_weight:
+        grad_weight = fp8_matmul(grad_output.flatten(0,-2).t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
+    if do_grad_bias and bias is not None:
+        grad_bias = grad_output.sum(dim=0)
+    return grad_input, grad_weight, grad_bias
+
+
+def int8_matmul_backward(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, grad_output: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+    grad_input = grad_weight = grad_bias = None
+    if do_grad_input:
+        grad_input = int8_matmul(grad_output.flatten(0,-2).contiguous(), weight, None, output_shape=input.shape, do_input_reshape=False)
+    if do_grad_weight:
+        grad_weight = int8_matmul(grad_output.flatten(0,-2).t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
+    if do_grad_bias and bias is not None:
+        grad_bias = grad_output.sum(dim=0)
+    return grad_input, grad_weight, grad_bias
+
+
 class FP8MatmulBackward(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor) -> torch.FloatTensor:
         ctx.save_for_backward(input, weight, bias)
-        return fp8_matmul(input, weight, bias)
+        return fp8_matmul_compiled(input, weight, bias)
 
     @staticmethod
     def backward(ctx, grad_output: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         input, weight, bias = ctx.saved_tensors
-        grad_input = grad_weight = grad_bias = None
-        if ctx.needs_input_grad[0]:
-            grad_input = fp8_matmul(grad_output.flatten(0,-2).contiguous(), weight, None, output_shape=input.shape, do_input_reshape=False)
-        if ctx.needs_input_grad[1]:
-            grad_weight = fp8_matmul(grad_output.flatten(0,-2).t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
-        if bias is not None and ctx.needs_input_grad[2]:
-            grad_bias = grad_output.sum(dim=0)
-        return grad_input, grad_weight, grad_bias
+        return fp8_matmul_backward(input, weight, bias, grad_output, do_grad_input=ctx.needs_input_grad[0], do_grad_weight=ctx.needs_input_grad[1], do_grad_bias=ctx.needs_input_grad[2])
 
 
 class INT8MatmulBackward(torch.autograd.Function):
     @staticmethod
     def forward(ctx, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor) -> torch.FloatTensor:
         ctx.save_for_backward(input, weight, bias)
-        return int8_matmul(input, weight, bias)
+        return int8_matmul_compiled(input, weight, bias)
 
     @staticmethod
     def backward(ctx, grad_output: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         input, weight, bias = ctx.saved_tensors
-        grad_input = grad_weight = grad_bias = None
-        if ctx.needs_input_grad[0]:
-            grad_input = int8_matmul(grad_output.flatten(0,-2).contiguous(), weight, None, output_shape=input.shape, do_input_reshape=False)
-        if ctx.needs_input_grad[1]:
-            grad_weight = int8_matmul(grad_output.flatten(0,-2).t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
-        if bias is not None and ctx.needs_input_grad[2]:
-            grad_bias = grad_output.sum(dim=0)
-        return grad_input, grad_weight, grad_bias
+        return int8_matmul_backward(input, weight, bias, grad_output, do_grad_input=ctx.needs_input_grad[0], do_grad_weight=ctx.needs_input_grad[1], do_grad_bias=ctx.needs_input_grad[2])
 
 
 def quantized_linear_forward_fp8_matmul(self, input: torch.FloatTensor) -> torch.FloatTensor:
@@ -137,5 +145,7 @@ fp8_matmul_with_backward = FP8MatmulBackward.apply
 int8_matmul_with_backward = INT8MatmulBackward.apply
 
 torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
-fp8_matmul_with_backward = torch.compile(fp8_matmul_with_backward, fullgraph=True)
-int8_matmul_with_backward = torch.compile(int8_matmul_with_backward, fullgraph=True)
+fp8_matmul_compiled = torch.compile(fp8_matmul, fullgraph=True)
+fp8_matmul_backward = torch.compile(fp8_matmul_backward, fullgraph=True)
+int8_matmul_compiled = torch.compile(int8_matmul, fullgraph=True)
+int8_matmul_backward = torch.compile(int8_matmul_backward, fullgraph=True)
