@@ -109,7 +109,7 @@ if __name__ == '__main__':
     parser.add_argument('out_path', type=str)
     parser.add_argument('--model_type', default="sd3", type=str)
 
-    parser.add_argument('--device', default="cuda", type=str)
+    parser.add_argument('--device', default="auto", type=str)
     parser.add_argument('--dtype', default="float16", type=str)
     parser.add_argument('--save_dtype', default="float16", type=str)
     parser.add_argument('--batch_size', default=4, type=int)
@@ -168,7 +168,10 @@ if __name__ == '__main__':
 
     dtype = getattr(torch, args.dtype)
     save_dtype = getattr(torch, args.save_dtype)
-    device = torch.device(args.device)
+    if args.device == "auto":
+        device = torch.device("xpu" if hasattr(torch,"xpu") and torch.xpu.is_available() else "cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(args.device)
     print(f"Loading latent encoder models with dtype {dtype} to device {device}")
     print(print_filler)
     latent_model, image_processor = latent_utils.get_latent_model(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
