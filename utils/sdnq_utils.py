@@ -90,7 +90,7 @@ def fp8_matmul_backward(input: torch.FloatTensor, weight: torch.FloatTensor, bia
     if do_grad_weight:
         grad_weight = fp8_matmul(grad_output.flatten(0,-2).t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
     if do_grad_bias and bias is not None:
-        grad_bias = grad_output.sum(dim=0)
+        grad_bias = grad_output.flatten(0,-2).sum(dim=0)
     return grad_input, grad_weight, grad_bias
 
 
@@ -101,7 +101,7 @@ def int8_matmul_backward(input: torch.FloatTensor, weight: torch.FloatTensor, bi
     if do_grad_weight:
         grad_weight = int8_matmul(grad_output.flatten(0,-2).t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
     if do_grad_bias and bias is not None:
-        grad_bias = grad_output.sum(dim=0)
+        grad_bias = grad_output.flatten(0,-2).sum(dim=0)
     return grad_input, grad_weight, grad_bias
 
 
