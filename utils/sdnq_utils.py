@@ -85,23 +85,25 @@ def int8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch
 
 def fp8_matmul_backward(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, grad_output: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     grad_input = grad_weight = grad_bias = None
+    grad_output = grad_output.flatten(0,-2).contiguous()
     if do_grad_input:
-        grad_input = fp8_matmul(grad_output.flatten(0,-2).contiguous(), weight, None, output_shape=input.shape, do_input_reshape=False)
+        grad_input = fp8_matmul(grad_output, weight, None, output_shape=input.shape, do_input_reshape=False)
     if do_grad_weight:
-        grad_weight = fp8_matmul(grad_output.flatten(0,-2).t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
+        grad_weight = fp8_matmul(grad_output.t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
     if do_grad_bias and bias is not None:
-        grad_bias = grad_output.flatten(0,-2).sum(dim=0)
+        grad_bias = grad_output.sum(dim=0)
     return grad_input, grad_weight, grad_bias
 
 
 def int8_matmul_backward(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, grad_output: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     grad_input = grad_weight = grad_bias = None
+    grad_output = grad_output.flatten(0,-2).contiguous()
     if do_grad_input:
-        grad_input = int8_matmul(grad_output.flatten(0,-2).contiguous(), weight, None, output_shape=input.shape, do_input_reshape=False)
+        grad_input = int8_matmul(grad_output, weight, None, output_shape=input.shape, do_input_reshape=False)
     if do_grad_weight:
-        grad_weight = int8_matmul(grad_output.flatten(0,-2).t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
+        grad_weight = int8_matmul(grad_output.t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
     if do_grad_bias and bias is not None:
-        grad_bias = grad_output.flatten(0,-2).sum(dim=0)
+        grad_bias = grad_output.sum(dim=0)
     return grad_input, grad_weight, grad_bias
 
 
