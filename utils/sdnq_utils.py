@@ -12,7 +12,7 @@ def apply_sdnq_to_module(model, dtype: str, use_grad_ckpt: bool = True, modules_
         if module.__class__.__name__ == "Linear" and hasattr(module, "weight") and module.weight is not None:
             output_channel_size, channel_size = module.weight.shape
             if channel_size >= 32 and output_channel_size >= 32:
-                if dtype == "int8": 
+                if dtype == "int8":
                     use_quantized_matmul = output_channel_size % 8 == 0 and channel_size % 8 == 0
                     quantized_forward = quantized_linear_forward_int8_matmul if use_grad_ckpt else quantized_linear_forward_int8_matmul_no_ckpt
                 elif dtype == "fp8":
