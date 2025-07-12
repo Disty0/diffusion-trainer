@@ -72,7 +72,7 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype) 
             modules_to_not_convert.extend(diffusion_model._keep_in_fp32_modules)
         if getattr(diffusion_model, "_skip_layerwise_casting_patterns", None) is not None:
             modules_to_not_convert.extend(diffusion_model._skip_layerwise_casting_patterns)
-        diffusion_model = apply_sdnq_to_module(diffusion_model, config["quantized_matmul_dtype"], modules_to_not_convert=modules_to_not_convert)
+        diffusion_model = apply_sdnq_to_module(diffusion_model, config["quantized_matmul_dtype"], use_grad_ckpt=config["gradient_checkpointing"], modules_to_not_convert=modules_to_not_convert)
     return diffusion_model, processor
 
 
