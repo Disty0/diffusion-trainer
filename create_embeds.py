@@ -76,7 +76,8 @@ def write_embeds(
         cache_backend.save(embeds[i], embed_path[i])
 
 
-if __name__ == '__main__':
+@torch.no_grad()
+def main():
     print("\n" + print_filler)
     parser = argparse.ArgumentParser(description='Create embed cache')
     parser.add_argument('model_path', type=str)
@@ -162,3 +163,7 @@ if __name__ == '__main__':
             break # break so torch can save the new tunableops table
     atexit.unregister(exit_handler)
     exit_handler(cache_backend)
+
+
+if __name__ == '__main__':
+    main()

@@ -100,7 +100,8 @@ def write_latents(
             save_image_backend.save(images[i], save_image_paths[i])
 
 
-if __name__ == '__main__':
+@torch.no_grad()
+def main():
     print("\n" + print_filler)
     parser = argparse.ArgumentParser(description='Create latent cache')
 
@@ -223,3 +224,7 @@ if __name__ == '__main__':
 
     atexit.unregister(exit_handler)
     exit_handler(image_backend, cache_backend, save_image_backend)
+
+
+if __name__ == '__main__':
+    main()

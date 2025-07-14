@@ -115,7 +115,7 @@ def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]]
         json.dump(epoch_batch, f)
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Train a model with a given config')
     parser.add_argument('config_path', type=str)
     args = parser.parse_args()
@@ -508,3 +508,7 @@ if __name__ == '__main__':
         gc.collect()
         accelerator.print(f"\nSaved states to {save_path}")
     accelerator.end_training()
+
+
+if __name__ == '__main__':
+    main()
