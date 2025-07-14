@@ -208,9 +208,9 @@ def main():
             from raiflow import RaiFlowImageEncoder
             if config["embed_type"] == "token":
                 from transformers import AutoTokenizer
-                dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"), device=accelerator.device)
+                dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
             else:
-                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), device=accelerator.device)
+                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
         else:
             if config["embed_type"] == "token":
                 from transformers import AutoTokenizer
@@ -480,9 +480,17 @@ def main():
             elif config["latent_type"] == "jpeg":
                 if config["encode_dcts_with_cpu"]:
                     from raiflow import RaiFlowImageEncoder
-                    dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), device=accelerator.device)
+                    if config["embed_type"] == "token":
+                        from transformers import AutoTokenizer
+                        dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
+                    else:
+                        dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
                 else:
-                    dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
+                    if config["embed_type"] == "token":
+                        from transformers import AutoTokenizer
+                        dataset = loader_utils.ImagesAndTokensDataset(epoch_batch, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
+                    else:
+                        dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
             else:
                 raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
