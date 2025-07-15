@@ -163,6 +163,29 @@ def main():
                 raise ValueError(f"Unsupported model found: {type(model)=}")
             del load_model
 
+    def fused_optimizer_hook(parameter):
+        if config["log_grad_stats"]:
+            global grad_max, grad_mean, grad_mean_count
+            param_grad_abs = parameter.grad.abs()
+            grad_max = max(grad_max, param_grad_abs.max().item())
+            grad_mean += param_grad_abs.mean().item()
+            grad_mean_count += 1
+        if accelerator.sync_gradients and config["max_grad_clip"] > 0:
+            # this is **very** slow with fp16
+            accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
+            if config["log_grad_stats"]:
+                global clipped_grad_mean, clipped_grad_mean_count
+                clipped_grad_mean += parameter.grad.abs().mean().item()
+                clipped_grad_mean_count += 1
+        if accelerator.sync_gradients and config["max_grad_norm"] > 0:
+            # this is **very** slow with fp16 and norming per parameter isn't ideal
+            global grad_norm, grad_norm_count
+            grad_norm += accelerator.clip_grad_norm_(parameter, config["max_grad_norm"])
+            grad_norm_count += 1
+        optimizer[parameter][0].step()
+        optimizer[parameter][1].step()
+        optimizer[parameter][0].zero_grad()
+
     accelerator.register_save_state_pre_hook(save_model_hook)
     accelerator.register_load_state_pre_hook(load_model_hook)
 
@@ -181,13 +204,13 @@ def main():
     model, image_processor = latent_utils.get_latent_model(config["model_type"], config["model_path"], accelerator.device, dtype, "no")
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()
+    model = accelerator.prepare(model)
+
+    optimizer, lr_scheduler = train_utils.get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_hook)
 
     dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
-
-    optimizer = train_utils.get_optimizer(config, model.parameters())
-    lr_scheduler = train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
-    train_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(train_dataloader, model, optimizer, lr_scheduler)
+    train_dataloader = accelerator.prepare(train_dataloader)
 
     if config.get("resume_from", "") and config["resume_from"] != "none":
         accelerator.print(f"Resuming from: {config['resume_from']}")
@@ -258,27 +281,28 @@ def main():
                 else:
                     loss = getattr(torch.nn.functional, config["loss_type"])(model_pred, image_tensors, reduction=config["loss_reduction"])
                 accelerator.backward(loss)
-                if accelerator.sync_gradients:
-                    if config["log_grad_stats"]:
-                        for parameter in model.parameters():
-                            if hasattr(parameter, "grad"):
-                                param_grad_abs = parameter.grad.abs()
-                                grad_max = max(grad_max, param_grad_abs.max().item())
-                                grad_mean += param_grad_abs.mean().item()
-                                grad_mean_count += 1
-                    if config["max_grad_clip"] > 0:
-                        accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
+                if not config["fused_optimizer"]:
+                    if accelerator.sync_gradients:
                         if config["log_grad_stats"]:
                             for parameter in model.parameters():
                                 if hasattr(parameter, "grad"):
-                                    clipped_grad_mean += parameter.grad.abs().mean().item()
-                                    clipped_grad_mean_count += 1
-                    if config["max_grad_norm"] > 0:
-                        grad_norm += accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"])
-                        grad_norm_count += 1
-                optimizer.step()
-                lr_scheduler.step()
-                optimizer.zero_grad()
+                                    param_grad_abs = parameter.grad.abs()
+                                    grad_max = max(grad_max, param_grad_abs.max().item())
+                                    grad_mean += param_grad_abs.mean().item()
+                                    grad_mean_count += 1
+                        if config["max_grad_clip"] > 0:
+                            accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
+                            if config["log_grad_stats"]:
+                                for parameter in model.parameters():
+                                    if hasattr(parameter, "grad"):
+                                        clipped_grad_mean += parameter.grad.abs().mean().item()
+                                        clipped_grad_mean_count += 1
+                        if config["max_grad_norm"] > 0:
+                            grad_norm += accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"])
+                            grad_norm_count += 1
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
 
                 if accelerator.sync_gradients:
                     if config["ema_update_steps"] > 0 and current_step % config["ema_update_steps"] == 0:
@@ -337,7 +361,14 @@ def main():
                         accelerator.wait_for_everyone()
 
                     logs = {"loss": loss.detach().item(), "epoch": current_epoch}
-                    logs["lr"] = lr_scheduler.get_last_lr()[0]
+                    if config["fused_optimizer"]:
+                        last_lr = optimizer[list(optimizer.keys())[0]][1].get_last_lr()
+                    else:
+                        last_lr = lr_scheduler.get_last_lr()
+                    logs["lr"] = last_lr[0]
+                    if len(last_lr) > 1:
+                        logs["lr_2"] = last_lr[1]
+
                     if config["log_grad_stats"]:
                         logs["grad_max"] = grad_max
                         grad_max = 0

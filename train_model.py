@@ -188,6 +188,29 @@ def main():
                 raise ValueError(f"Unsupported model found: {type(model)=}")
             del load_model
 
+    def fused_optimizer_hook(parameter):
+        if config["log_grad_stats"]:
+            global grad_max, grad_mean, grad_mean_count
+            param_grad_abs = parameter.grad.abs()
+            grad_max = max(grad_max, param_grad_abs.max().item())
+            grad_mean += param_grad_abs.mean().item()
+            grad_mean_count += 1
+        if accelerator.sync_gradients and config["max_grad_clip"] > 0:
+            # this is **very** slow with fp16
+            accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
+            if config["log_grad_stats"]:
+                global clipped_grad_mean, clipped_grad_mean_count
+                clipped_grad_mean += parameter.grad.abs().mean().item()
+                clipped_grad_mean_count += 1
+        if accelerator.sync_gradients and config["max_grad_norm"] > 0:
+            # this is **very** slow with fp16 and norming per parameter isn't ideal
+            global grad_norm, grad_norm_count
+            grad_norm += accelerator.clip_grad_norm_(parameter, config["max_grad_norm"])
+            grad_norm_count += 1
+        optimizer[parameter][0].step()
+        optimizer[parameter][1].step()
+        optimizer[parameter][0].zero_grad()
+
     accelerator.register_save_state_pre_hook(save_model_hook)
     accelerator.register_load_state_pre_hook(load_model_hook)
 
@@ -199,18 +222,28 @@ def main():
     accelerator.wait_for_everyone()
     with open(config["dataset_index"], "r") as f:
         epoch_batch = json.load(f)
+
+    dtype = getattr(torch, config["weights_dtype"])
+    print(f"Loading diffusion models with dtype {dtype} to device {accelerator.device}")
+    accelerator.print(print_filler)
+    model, model_processor = train_utils.get_diffusion_model(config, accelerator.device, dtype)
+    if config["gradient_checkpointing"]:
+        model.enable_gradient_checkpointing()
+    model = accelerator.prepare(model)
+
+    optimizer, lr_scheduler = train_utils.get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_hook)
+
     if config["latent_type"] == "latent":
         dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
     elif config["latent_type"] == "image":
         dataset = loader_utils.ImageTensorsAndEmbedsDataset(epoch_batch)
     elif config["latent_type"] == "jpeg":
         if config["encode_dcts_with_cpu"]:
-            from raiflow import RaiFlowImageEncoder
             if config["embed_type"] == "token":
                 from transformers import AutoTokenizer
-                dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
+                dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=model_processor, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
             else:
-                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
+                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=model_processor)
         else:
             if config["embed_type"] == "token":
                 from transformers import AutoTokenizer
@@ -220,50 +253,7 @@ def main():
     else:
         raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
-
-    dtype = getattr(torch, config["weights_dtype"])
-    print(f"Loading diffusion models with dtype {dtype} to device {accelerator.device}")
-    accelerator.print(print_filler)
-    model, model_processor = train_utils.get_diffusion_model(config, accelerator.device, dtype)
-    if config["gradient_checkpointing"]:
-        model.enable_gradient_checkpointing()
-
-    if config["fused_optimizer"]:
-        optimizer_dict = {p: accelerator.prepare(
-                train_utils.get_optimizer(config, [p])
-            ) for p in model.parameters()
-        }
-        for key, optimizer in optimizer_dict.items():
-            optimizer_dict[key] = [optimizer, accelerator.prepare(train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))]
-        def optimizer_hook(parameter):
-            if config["log_grad_stats"]:
-                global grad_max, grad_mean, grad_mean_count
-                param_grad_abs = parameter.grad.abs()
-                grad_max = max(grad_max, param_grad_abs.max().item())
-                grad_mean += param_grad_abs.mean().item()
-                grad_mean_count += 1
-            if accelerator.sync_gradients and config["max_grad_clip"] > 0:
-                # this is **very** slow with fp16
-                accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
-                if config["log_grad_stats"]:
-                    global clipped_grad_mean, clipped_grad_mean_count
-                    clipped_grad_mean += parameter.grad.abs().mean().item()
-                    clipped_grad_mean_count += 1
-            if accelerator.sync_gradients and config["max_grad_norm"] > 0:
-                # this is **very** slow with fp16 and norming per parameter isn't ideal
-                global grad_norm, grad_norm_count
-                grad_norm += accelerator.clip_grad_norm_(parameter, config["max_grad_norm"])
-                grad_norm_count += 1
-            optimizer_dict[parameter][0].step()
-            optimizer_dict[parameter][1].step()
-            optimizer_dict[parameter][0].zero_grad()
-        for p in model.parameters():
-            p.register_post_accumulate_grad_hook(optimizer_hook)
-        train_dataloader, model = accelerator.prepare(train_dataloader, model)
-    else:
-        optimizer = train_utils.get_optimizer(config, model.parameters())
-        lr_scheduler = train_utils.get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
-        train_dataloader, model, optimizer, lr_scheduler = accelerator.prepare(train_dataloader, model, optimizer, lr_scheduler)
+    train_dataloader = accelerator.prepare(train_dataloader)
 
     if config.get("resume_from", "") and config["resume_from"] != "none":
         accelerator.print(f"Resuming from: {config['resume_from']}")
@@ -276,7 +266,7 @@ def main():
     if config["ema_update_steps"] > 0 and accelerator.is_main_process:
         ema_dtype = getattr(torch, config["ema_weights_dtype"])
         accelerator.print("\n" + print_filler)
-        print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
+        accelerator.print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
         accelerator.print(print_filler)
         if config.get("resume_from", "") and config["resume_from"] != "none":
             ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), train_utils.get_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
@@ -413,10 +403,14 @@ def main():
                         accelerator.wait_for_everyone()
 
                     logs = {"loss": loss.detach().item(), "epoch": current_epoch}
-                    if not config["fused_optimizer"]:
-                        logs["lr"] = lr_scheduler.get_last_lr()[0]
+                    if config["fused_optimizer"]:
+                        last_lr = optimizer[list(optimizer.keys())[0]][1].get_last_lr()
                     else:
-                        logs["lr"] = optimizer_dict[list(optimizer_dict.keys())[0]][1].get_last_lr()[0]
+                        last_lr = lr_scheduler.get_last_lr()
+                    logs["lr"] = last_lr[0]
+                    if len(last_lr) > 1:
+                        logs["lr_2"] = last_lr[1]
+
                     if config["log_grad_stats"]:
                         logs["grad_max"] = grad_max
                         grad_max = 0
@@ -479,12 +473,11 @@ def main():
                 dataset = loader_utils.ImageTensorsAndEmbedsDataset(epoch_batch)
             elif config["latent_type"] == "jpeg":
                 if config["encode_dcts_with_cpu"]:
-                    from raiflow import RaiFlowImageEncoder
                     if config["embed_type"] == "token":
                         from transformers import AutoTokenizer
-                        dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"), tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
+                        dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=model_processor, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
                     else:
-                        dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder"))
+                        dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=model_processor)
                 else:
                     if config["embed_type"] == "token":
                         from transformers import AutoTokenizer
