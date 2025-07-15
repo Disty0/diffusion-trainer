@@ -31,6 +31,9 @@ def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimize
     elif optimizer.lower() == "came":
         from utils.optimizers.came import CAME
         optimizer_class = CAME
+    elif optimizer.lower() == "muon":
+        from utils.optimizers.muon import SingleDeviceMuonWithAuxAdam
+        optimizer_class = SingleDeviceMuonWithAuxAdam
     elif "." in optimizer:
         optimizer_base, optimizer = optimizer.rsplit(".", maxsplit=1)
         if config["weights_dtype"] == "bfloat16" and optimizer_base == "torchao.optim":
@@ -42,7 +45,7 @@ def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimize
 
     if config["optimizer_cpu_offload"]:
         from torchao.optim import CPUOffloadOptimizer
-        return CPUOffloadOptimizer(parameters, optimizer_class, **kwargs)
+        return CPUOffloadOptimizer(parameters, optimizer_class, offload_gradients=config["optimizer_offload_gradients"], **kwargs)
     else:
         return optimizer_class(parameters, **kwargs)
 
