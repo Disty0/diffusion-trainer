@@ -18,25 +18,33 @@ from .models.raiflow_utils import run_raiflow_model_training
 print_filler = "--------------------------------------------------"
 
 
-def get_optimizer(optimizer, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
+def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
+    optimizer = config["optimizer"]
     if optimizer.lower() == "adamw_bf16":
         from utils.optimizers.adamw_bf16 import AdamWBF16
-        return AdamWBF16(parameters, **kwargs)
-    if optimizer.lower() == "adafactor_bf16":
+        optimizer_class = AdamWBF16
+    elif optimizer.lower() == "adafactor_bf16":
         from utils.optimizers.adafactor_bf16 import patch_adafactor
-        selected_optimizer = transformers.Adafactor(parameters, **kwargs)
+        selected_optimizer = transformers.Adafactor
         patch_adafactor(optimizer=selected_optimizer, stochastic_rounding=True)
-        return selected_optimizer
-    if optimizer.lower() == "came":
+        optimizer_class = selected_optimizer
+    elif optimizer.lower() == "came":
         from utils.optimizers.came import CAME
-        return CAME(parameters, **kwargs)
-
-    if "." in optimizer:
+        optimizer_class = CAME
+    elif "." in optimizer:
         optimizer_base, optimizer = optimizer.rsplit(".", maxsplit=1)
+        if config["weights_dtype"] == "bfloat16" and optimizer_base == "torchao.optim":
+            kwargs["bf16_stochastic_round"] = True
         optimizer_base = importlib.import_module(optimizer_base)
+        optimizer_class = getattr(optimizer_base, optimizer)
     else:
-        optimizer_base = torch.optim
-    return getattr(optimizer_base, optimizer)(parameters, **kwargs)
+        optimizer_class = getattr(torch.optim, optimizer)
+
+    if config["optimizer_cpu_offload"]:
+        from torchao.optim import CPUOffloadOptimizer
+        return CPUOffloadOptimizer(parameters, optimizer_class, **kwargs)
+    else:
+        return optimizer_class(parameters, **kwargs)
 
 
 def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRScheduler:
@@ -61,10 +69,10 @@ def get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_h
         sensitive_keys.extend(model._skip_layerwise_casting_patterns)
 
     optimizer_args = config["optimizer_args"].copy()
-    optimizer_args["lr"] = config["learning_rate"]
+    optimizer_args["lr"] = torch.tensor(config["learning_rate"]).to(accelerator.device, torch.float32)
 
     optimizer_args_sensitive = config["optimizer_args_sensitive"].copy()
-    optimizer_args_sensitive["lr"] = config["learning_rate_sensitive"]
+    optimizer_args_sensitive["lr"] = torch.tensor(config["learning_rate_sensitive"]).to(accelerator.device, torch.float32)
 
     param_list = []
     param_count = 0
@@ -93,12 +101,12 @@ def get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_h
     if config["fused_optimizer"]:
         optimizer_dict = {}
         for param in param_list:
-            optimizer = accelerator.prepare(get_optimizer(config["optimizer"], [param], **optimizer_args))
+            optimizer = accelerator.prepare(get_optimizer(config, [param], **optimizer_args))
             lr_scheduler = accelerator.prepare(get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))
             optimizer_dict[param] = [optimizer, lr_scheduler]
             param.register_post_accumulate_grad_hook(fused_optimizer_hook)
         for param in sensitive_param_list:
-            optimizer = accelerator.prepare(get_optimizer(config["optimizer"], [param], **optimizer_args_sensitive))
+            optimizer = accelerator.prepare(get_optimizer(config, [param], **optimizer_args_sensitive))
             lr_scheduler = accelerator.prepare(get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))
             optimizer_dict[param] = [optimizer, lr_scheduler]
             param.register_post_accumulate_grad_hook(fused_optimizer_hook)
@@ -107,11 +115,11 @@ def get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_h
         if sensitive_param_list_len > 0 and param_list_len > 0:
             optimizer_args["params"] = param_list
             optimizer_args_sensitive["params"] = sensitive_param_list
-            optimizer = get_optimizer(config["optimizer"], [optimizer_args, optimizer_args_sensitive])
+            optimizer = get_optimizer(config, [optimizer_args, optimizer_args_sensitive])
         elif param_list_len > 0:
-            optimizer = get_optimizer(config["optimizer"], param_list, **optimizer_args)
+            optimizer = get_optimizer(config, param_list, **optimizer_args)
         else:
-            optimizer = get_optimizer(config["optimizer"], sensitive_param_list, **optimizer_args_sensitive)
+            optimizer = get_optimizer(config, sensitive_param_list, **optimizer_args_sensitive)
         lr_scheduler = get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
         optimizer, lr_scheduler = accelerator.prepare(optimizer, lr_scheduler)
         return optimizer, lr_scheduler

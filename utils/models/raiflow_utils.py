@@ -145,8 +145,9 @@ def run_raiflow_model_training(
 
         if config["mixed_precision"] == "no":
             noisy_model_input = noisy_model_input.to(dtype=model.dtype)
-            timesteps = timesteps.to(dtype=model.dtype)
-            prompt_embeds = prompt_embeds.to(dtype=model.dtype)
+            sigmas = sigmas.to(dtype=model.dtype)
+            if config["embed_type"] != "token":
+                prompt_embeds = prompt_embeds.to(dtype=model.dtype)
 
         if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
             with accelerator.autocast():
@@ -161,7 +162,7 @@ def run_raiflow_model_training(
             noisy_model_input, target, self_correct_count = get_self_corrected_targets(
                 noisy_model_input=noisy_model_input,
                 target=target,
-                sigmas=sigmas,
+                sigmas=sigmas.to(torch.float32),
                 noise=noise,
                 model_pred=model_pred,
                 x0_pred=False,
