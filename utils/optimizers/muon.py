@@ -1,6 +1,8 @@
 import torch
 from .stochastic import copy_stochastic_
 
+from utils.sdnq_utils import int8_matmul_dynamic, fp8_matmul_dynamic
+
 def zeropower_via_newtonschulz5(G, steps: int, dtype=torch.bfloat16):
     """
     Newton-Schulz iteration to compute the zeroth power / orthogonalization of G. We opt to use a
@@ -32,12 +34,60 @@ def zeropower_via_newtonschulz5(G, steps: int, dtype=torch.bfloat16):
     return X
 
 
-def muon_update(grad, momentum, beta=0.95, ns_steps=5, nesterov=True, zeropower_dtype=torch.bfloat16):
+def zeropower_via_newtonschulz5_int8_matmul(G, steps: int, dtype=torch.bfloat16):
+    assert G.ndim >= 2
+    a, b, c = (3.4445, -4.7750,  2.0315)
+    X = G.to(dtype=dtype)
+    if G.size(-2) > G.size(-1):
+        X = X.mT
+
+    # Ensure spectral norm is at most 1
+    X = X / (X.norm(dim=(-2, -1), keepdim=True) + 1e-7)
+    # Perform the NS iterations
+    for _ in range(steps):
+        A = int8_matmul_dynamic(X, X, None, do_input_reshape=True)
+        B = int8_matmul_dynamic((c * A), A, None, do_input_reshape=False).add_(A, alpha=b)
+        X = int8_matmul_dynamic(B, X, None, do_input_reshape=False).add_(X, alpha=a)
+
+    if G.size(-2) > G.size(-1):
+        X = X.mT
+    return X
+
+
+def zeropower_via_newtonschulz5_fp8_matmul(G, steps: int, dtype=torch.bfloat16):
+    assert G.ndim >= 2
+    a, b, c = (3.4445, -4.7750,  2.0315)
+    X = G.to(dtype=dtype)
+    if G.size(-2) > G.size(-1):
+        X = X.mT
+
+    # Ensure spectral norm is at most 1
+    X = X / (X.norm(dim=(-2, -1), keepdim=True) + 1e-7)
+    # Perform the NS iterations
+    for _ in range(steps):
+        A = fp8_matmul_dynamic(X, X, None, do_input_reshape=True)
+        B = fp8_matmul_dynamic((c * A), A, None, do_input_reshape=False).add_(A, alpha=b)
+        X = fp8_matmul_dynamic(B, X, None, do_input_reshape=False).add_(X, alpha=a)
+
+    if G.size(-2) > G.size(-1):
+        X = X.mT
+    return X
+
+
+def muon_update(grad, momentum, beta=0.95, ns_steps=5, nesterov=True, zeropower_dtype=torch.bfloat16, use_quantized_matmul=False, quantized_matmul_dtype="int8"):
     momentum.lerp_(grad, 1 - beta)
     update = grad.lerp_(momentum, beta) if nesterov else momentum
     if update.ndim == 4: # for the case of conv filters
         update = update.view(len(update), -1)
-    update = zeropower_via_newtonschulz5(update, steps=ns_steps, dtype=zeropower_dtype)
+    if use_quantized_matmul:
+        if quantized_matmul_dtype == "int8":
+            update = zeropower_via_newtonschulz5_int8_matmul(update, steps=ns_steps, dtype=zeropower_dtype)
+        elif quantized_matmul_dtype == "fp8":
+            update = zeropower_via_newtonschulz5_fp8_matmul(update, steps=ns_steps, dtype=zeropower_dtype)
+        else:
+            raise NotImplementedError(f'Quantization type {quantized_matmul_dtype} is not implemented')
+    else:
+        update = zeropower_via_newtonschulz5(update, steps=ns_steps, dtype=zeropower_dtype)
     update *= max(1, grad.size(-2) / grad.size(-1))**0.5
     return update
 
@@ -64,9 +114,11 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                 group["weight_decay"] = group.get("weight_decay", 0)
                 group["bf16_stochastic_round"] = group.get("bf16_stochastic_round", False)
                 group["zeropower_dtype"] = group.get("zeropower_dtype", "bfloat16")
+                group["use_quantized_matmul"] = group.get("use_quantized_matmul", False)
+                group["quantized_matmul_dtype"] = group.get("quantized_matmul_dtype", "int8")
                 if isinstance(group["zeropower_dtype"], str):
                     group["zeropower_dtype"] = getattr(torch, group["zeropower_dtype"])
-                assert set(group.keys()) == set(["params", "lr", "momentum", "weight_decay", "bf16_stochastic_round", "use_muon", "zeropower_dtype"])
+                assert set(group.keys()) == set(["params", "lr", "momentum", "weight_decay", "bf16_stochastic_round", "use_muon", "zeropower_dtype", "use_quantized_matmul", "quantized_matmul_dtype"])
             else:
                 # defaults
                 group["lr"] = group.get("lr", 3e-4)
@@ -93,7 +145,7 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                     state = self.state[p]
                     if len(state) == 0:
                         state["momentum_buffer"] = torch.zeros_like(p)
-                    update = muon_update(p.grad, state["momentum_buffer"], beta=group["momentum"], zeropower_dtype=group["zeropower_dtype"])
+                    update = muon_update(p.grad, state["momentum_buffer"], beta=group["momentum"], zeropower_dtype=group["zeropower_dtype"], use_quantized_matmul=group["use_quantized_matmul"], quantized_matmul_dtype=group["quantized_matmul_dtype"])
                     if group["bf16_stochastic_round"]:
                         p_fp32 = p.to(torch.float32)
                         if group["weight_decay"] > 0:
@@ -127,3 +179,8 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                         p.add_(update, alpha=-group["lr"])
 
         return loss
+
+
+torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
+zeropower_via_newtonschulz5_int8_matmul = torch.compile(zeropower_via_newtonschulz5_int8_matmul, fullgraph=True)
+zeropower_via_newtonschulz5_fp8_matmul = torch.compile(zeropower_via_newtonschulz5_fp8_matmul, fullgraph=True)
