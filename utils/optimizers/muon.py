@@ -35,7 +35,7 @@ def zeropower_via_newtonschulz5(G, steps: int, dtype=torch.bfloat16):
 
 
 def zeropower_via_newtonschulz5_int8_matmul(G, steps: int, dtype=torch.bfloat16):
-    assert G.ndim >= 2
+    assert G.ndim == 2
     a, b, c = (3.4445, -4.7750,  2.0315)
     X = G.to(dtype=dtype)
     if G.size(-2) > G.size(-1):
@@ -55,7 +55,7 @@ def zeropower_via_newtonschulz5_int8_matmul(G, steps: int, dtype=torch.bfloat16)
 
 
 def zeropower_via_newtonschulz5_fp8_matmul(G, steps: int, dtype=torch.bfloat16):
-    assert G.ndim >= 2
+    assert G.ndim == 2
     a, b, c = (3.4445, -4.7750,  2.0315)
     X = G.to(dtype=dtype)
     if G.size(-2) > G.size(-1):
