@@ -32,8 +32,8 @@ def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimize
         from utils.optimizers.came import CAME
         optimizer_class = CAME
     elif optimizer.lower() == "muon":
-        from utils.optimizers.muon import SingleDeviceMuonWithAuxAdam
-        optimizer_class = SingleDeviceMuonWithAuxAdam
+        from utils.optimizers.muon import MuonWithAuxAdam
+        optimizer_class = MuonWithAuxAdam
     elif "." in optimizer:
         optimizer_base, optimizer = optimizer.rsplit(".", maxsplit=1)
         if config["weights_dtype"] == "bfloat16" and optimizer_base == "torchao.optim":
