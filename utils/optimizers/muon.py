@@ -22,8 +22,10 @@ def zeropower_via_newtonschulz5(G, steps: int, dtype=torch.bfloat16):
     # Perform the NS iterations
     for _ in range(steps):
         A = X @ X.mT
-        B = (b * A) + ((c * A) @ A) # quintic computation strategy adapted from suggestion by @jxbz, @leloykun, and @YouJiacheng
-        X = (a * X) + (B @ X)
+        #B = (b * A) + ((c * A) @ A) # quintic computation strategy adapted from suggestion by @jxbz, @leloykun, and @YouJiacheng
+        B = ((c * A) @ A).add_(A, alpha=b)
+        #X = (a * X) + (B @ X)
+        X = (B @ X).add_(X, alpha=a)
 
     if G.size(-2) > G.size(-1):
         X = X.mT
