@@ -190,6 +190,8 @@ def main():
     accelerator.register_load_state_pre_hook(load_model_hook)
 
     accelerator.print("\n" + print_filler)
+    accelerator.print("Initializing the trainer")
+    accelerator.print(print_filler)
 
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
@@ -212,27 +214,43 @@ def main():
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
     train_dataloader = accelerator.prepare(train_dataloader)
 
+    resume_checkpoint = None
     if config.get("resume_from", "") and config["resume_from"] != "none":
-        accelerator.print(f"Resuming from: {config['resume_from']}")
-        accelerator.load_state(os.path.join(config["project_dir"], config["resume_from"]))
-        current_step = int(config["resume_from"].split("-")[1])
-        first_epoch = current_step // math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"])
-        current_epoch = first_epoch
-        start_step = current_step
+        if config["resume_from"] == "latest":
+            checkpoints = os.listdir(config["project_dir"])
+            checkpoints = [d for d in checkpoints if d.startswith("checkpoint-")]
+            checkpoints = sorted(checkpoints, key=lambda x: int(x.split("-")[1]))
+            if len(checkpoints) > 0:
+                resume_checkpoint = checkpoints[-1]
+        else:
+            resume_checkpoint = config['resume_from']
+        if resume_checkpoint is None:
+            accelerator.print("No checkpoint found, starting a fresh training run")
+        else:
+            accelerator.print(f"Resuming from: {resume_checkpoint}")
+            accelerator.load_state(os.path.join(config["project_dir"], resume_checkpoint))
+            current_step = int(resume_checkpoint.split("-")[1])
+            first_epoch = current_step // math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"])
+            current_epoch = first_epoch
+            start_step = current_step
 
     if config["ema_update_steps"] > 0 and accelerator.is_main_process:
         ema_dtype = getattr(torch, config["ema_weights_dtype"])
-        accelerator.print("\n" + print_filler)
+        accelerator.print(print_filler)
         print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
         accelerator.print(print_filler)
-        if config.get("resume_from", "") and config["resume_from"] != "none":
+        if resume_checkpoint is not None:
+            accelerator.print(f"Resuming EMA from: {resume_checkpoint}")
+            accelerator.print(print_filler)
             ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
             ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
         else:
+            accelerator.print(print_filler)
             ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, "no")
             ema_model = EMAModel(ema_model.parameters(), model_cls=latent_utils.get_latent_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
         if config["offload_ema_pin_memory"]:
             ema_model.pin_memory()
+        accelerator.print(print_filler)
 
     accelerator.init_trackers(project_name=config["project_name"], config=config)
 
@@ -330,7 +348,7 @@ def main():
                             os.makedirs(config["project_dir"], exist_ok=True)
                             if config["checkpoints_limit"] != 0:
                                 checkpoints = os.listdir(config["project_dir"])
-                                checkpoints = [d for d in checkpoints if d.startswith("checkpoint")]
+                                checkpoints = [d for d in checkpoints if d.startswith("checkpoint-")]
                                 checkpoints = sorted(checkpoints, key=lambda x: int(x.split("-")[1]))
                                 if len(checkpoints) >= config["checkpoints_limit"]:
                                     num_to_remove = len(checkpoints) - config["checkpoints_limit"] + 1
