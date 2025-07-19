@@ -3,7 +3,6 @@ import importlib
 
 import torch
 import diffusers
-import transformers
 
 from typing import Callable, Iterator, List, Optional, Tuple, Union
 from diffusers.models.modeling_utils import ModelMixin
@@ -24,10 +23,8 @@ def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimize
         from utils.optimizers.adamw_bf16 import AdamWBF16
         optimizer_class = AdamWBF16
     elif optimizer.lower() == "adafactor_bf16":
-        from utils.optimizers.adafactor_bf16 import patch_adafactor
-        selected_optimizer = transformers.Adafactor
-        patch_adafactor(optimizer=selected_optimizer, stochastic_rounding=True)
-        optimizer_class = selected_optimizer
+        from utils.optimizers.adafactor_bf16 import AdafactorBF16
+        optimizer_class = AdafactorBF16
     elif optimizer.lower() == "came":
         from utils.optimizers.came import CAME
         optimizer_class = CAME
