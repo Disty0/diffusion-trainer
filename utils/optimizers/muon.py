@@ -8,7 +8,12 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
     """
     Non-distributed variant of MuonWithAuxAdam.
     """
-    def __init__(self, param_groups):
+    def __init__(self, params, **kwargs):
+        if isinstance(params, list) and isinstance(params[0], torch.nn.Parameter):
+            kwargs["params"] = params
+            param_groups = [kwargs,]
+        else:
+            param_groups = params
         for group in param_groups:
             assert "use_muon" in group
             if group["use_muon"]:
