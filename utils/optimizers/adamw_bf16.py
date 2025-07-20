@@ -1,7 +1,6 @@
 from typing import Tuple
 
 import torch
-from torch.utils._triton import has_triton
 from .stochastic import copy_stochastic_
 
 
@@ -63,9 +62,3 @@ def adam_update(grad: torch.FloatTensor, buf1: torch.FloatTensor, buf2: torch.Fl
     buf1c = buf1 / (1 - beta ** step)
     buf2c = buf2 / (1 - beta2 ** step)
     return buf1c.div_(buf2c.sqrt_().add_(eps))
-
-
-if has_triton():
-    torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
-    torch._dynamo.config.accumulated_recompile_limit = max(8192, torch._dynamo.config.accumulated_recompile_limit)
-    adam_update = torch.compile(adam_update, fullgraph=True)

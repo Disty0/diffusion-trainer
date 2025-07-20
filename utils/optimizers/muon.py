@@ -1,7 +1,6 @@
 from typing import Tuple, Optional
 
 import torch
-from torch.utils._triton import has_triton
 from .stochastic import copy_stochastic_
 
 from utils.sdnq_utils import int8_matmul_dynamic, fp8_matmul_dynamic
@@ -238,9 +237,7 @@ def zeropower_via_newtonschulz5_fp8_matmul(G: torch.FloatTensor, steps: int, dty
         X = X.mT
     return X
 
-
-if has_triton():
-    torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
-    torch._dynamo.config.accumulated_recompile_limit = max(8192, torch._dynamo.config.accumulated_recompile_limit)
-    adam_update = torch.compile(adam_update, fullgraph=True)
-    muon_update = torch.compile(muon_update, fullgraph=True)
+torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
+torch._dynamo.config.accumulated_recompile_limit = max(8192, torch._dynamo.config.accumulated_recompile_limit)
+zeropower_via_newtonschulz5_int8_matmul = torch.compile(zeropower_via_newtonschulz5_int8_matmul, fullgraph=True, dynamic=False)
+zeropower_via_newtonschulz5_fp8_matmul = torch.compile(zeropower_via_newtonschulz5_fp8_matmul, fullgraph=True, dynamic=False)
