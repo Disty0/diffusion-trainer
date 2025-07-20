@@ -424,9 +424,13 @@ def main():
                         last_lr = optimizer[list(optimizer.keys())[0]][1].get_last_lr()
                     else:
                         last_lr = lr_scheduler.get_last_lr()
-                    logs["lr"] = last_lr[0].item()
+                    logs["lr"] = last_lr[0]
+                    if isinstance(logs["lr"], torch.Tensor):
+                        logs["lr"] = logs["lr"].item()
                     if len(last_lr) > 1:
-                        logs["lr_2"] = last_lr[1].item()
+                        logs["lr_2"] = last_lr[1]
+                        if isinstance(logs["lr_2"], torch.Tensor):
+                            logs["lr_2"] = logs["lr_2"].item()
 
                     if config["log_grad_stats"]:
                         logs["grad_max"] = grad_max

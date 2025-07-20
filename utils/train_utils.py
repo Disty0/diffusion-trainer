@@ -48,7 +48,14 @@ def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimize
 
 
 def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRScheduler:
-    if "." in lr_scheduler:
+    if lr_scheduler in {"SequentialLR", "torch.optim.lr_scheduler.SequentialLR"}:
+        lr_schedulers = kwargs.pop("schedulers")
+        lr_schedulers_args = kwargs.pop("args")
+        lr_schedulers_list = []
+        for scheduler_name, scheduler_args in zip(lr_schedulers, lr_schedulers_args):
+            lr_schedulers_list.append(get_lr_scheduler(scheduler_name, optimizer, **scheduler_args))
+        return torch.optim.lr_scheduler.SequentialLR(optimizer, lr_schedulers_list, **kwargs)
+    elif "." in lr_scheduler:
         lr_scheduler_base, lr_scheduler = lr_scheduler.rsplit(".", maxsplit=1)
         lr_scheduler_base = importlib.import_module(lr_scheduler_base)
     else:
@@ -69,10 +76,10 @@ def get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_h
         sensitive_keys.extend(model._skip_layerwise_casting_patterns)
 
     optimizer_args = config["optimizer_args"].copy()
-    optimizer_args["lr"] = torch.tensor(config["learning_rate"]).to(accelerator.device, torch.float32)
+    optimizer_args["lr"] = config["learning_rate"]
 
     optimizer_args_sensitive = config["optimizer_args_sensitive"].copy()
-    optimizer_args_sensitive["lr"] = torch.tensor(config["learning_rate_sensitive"]).to(accelerator.device, torch.float32)
+    optimizer_args_sensitive["lr"] = config["learning_rate_sensitive"]
 
     param_list = []
     param_count = 0

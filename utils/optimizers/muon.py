@@ -18,8 +18,8 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
             assert "use_muon" in group
             if group["use_muon"]:
                 # defaults
-                group["lr"] = group.get("lr", 0.02)
-                group["betas"] = group.get("betas", (0.95, 0.999))
+                group["lr"] = group.get("lr", 1e-3)
+                group["betas"] = group.get("betas", (0.9, 0.95))
                 group["eps"] = group.get("eps", 1e-8)
                 group["weight_decay"] = group.get("weight_decay", 0)
                 group["ns_steps"] = group.get("ns_steps", 5)
@@ -34,9 +34,9 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                 assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "ns_steps", "adaptive", "nesterov", "bf16_stochastic_round", "use_muon", "zeropower_dtype", "use_quantized_matmul", "quantized_matmul_dtype"])
             else:
                 # defaults
-                group["lr"] = group.get("lr", 3e-4)
+                group["lr"] = group.get("lr", 1e-4)
                 group["betas"] = group.get("betas", (0.9, 0.95))
-                group["eps"] = group.get("eps", 1e-10)
+                group["eps"] = group.get("eps", 1e-8)
                 group["weight_decay"] = group.get("weight_decay", 0)
                 group["bf16_stochastic_round"] = group.get("bf16_stochastic_round", False)
                 assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "bf16_stochastic_round", "use_muon"])
