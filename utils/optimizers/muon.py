@@ -124,6 +124,15 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
         return loss
 
 
+def adam_update(grad: torch.FloatTensor, buf1: torch.FloatTensor, buf2: torch.FloatTensor, step: int, betas: Tuple[float, float], eps: float) -> torch.FloatTensor:
+    beta, beta2 = betas
+    buf1.lerp_(grad, 1 - beta)
+    buf2.lerp_(grad.square(), 1 - beta2)
+    buf1c = buf1 / (1 - beta ** step)
+    buf2c = buf2 / (1 - beta2 ** step)
+    return buf1c.div_(buf2c.sqrt_().add_(eps))
+
+
 def muon_update(
     grad: torch.FloatTensor,
     momentum_buffer: torch.FloatTensor,
@@ -157,15 +166,6 @@ def muon_update(
         grad.div_(v_hat.view_as(grad).sqrt_().add_(eps))
         grad.mul_(min(grad.shape)**0.5 / (grad.norm().add_(eps)))
     return grad
-
-
-def adam_update(grad: torch.FloatTensor, buf1: torch.FloatTensor, buf2: torch.FloatTensor, step: int, betas: Tuple[float, float], eps: float) -> torch.FloatTensor:
-    beta, beta2 = betas
-    buf1.lerp_(grad, 1 - beta)
-    buf2.lerp_(grad.square(), 1 - beta2)
-    buf1c = buf1 / (1 - beta ** step)
-    buf2c = buf2 / (1 - beta2 ** step)
-    return buf1c.div_(buf2c.sqrt_().add_(eps))
 
 
 def zeropower_via_newtonschulz5(G: torch.FloatTensor, steps: int, dtype: torch.dtype = torch.bfloat16) -> torch.FloatTensor:
