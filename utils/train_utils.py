@@ -49,11 +49,17 @@ def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimize
 
 def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRScheduler:
     if lr_scheduler in {"SequentialLR", "torch.optim.lr_scheduler.SequentialLR"}:
+        base_lrs = [group["lr"] for group in optimizer.param_groups]
         lr_schedulers = kwargs.pop("schedulers")
         lr_schedulers_args = kwargs.pop("args")
         lr_schedulers_list = []
+        scheduler_count = 0
         for scheduler_name, scheduler_args in zip(lr_schedulers, lr_schedulers_args):
+            if scheduler_count != 0 and scheduler_args.get("last_epoch", None) is None:
+                scheduler_args["last_epoch"] = 0
             lr_schedulers_list.append(get_lr_scheduler(scheduler_name, optimizer, **scheduler_args))
+            lr_schedulers_list[-1].base_lrs: list[float] = base_lrs
+            scheduler_count += 1
         return torch.optim.lr_scheduler.SequentialLR(optimizer, lr_schedulers_list, **kwargs)
     elif "." in lr_scheduler:
         lr_scheduler_base, lr_scheduler = lr_scheduler.rsplit(".", maxsplit=1)
@@ -76,10 +82,10 @@ def get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_h
         sensitive_keys.extend(model._skip_layerwise_casting_patterns)
 
     optimizer_args = config["optimizer_args"].copy()
-    optimizer_args["lr"] = config["learning_rate"]
+    optimizer_args["lr"] = torch.tensor(config["learning_rate"])
 
     optimizer_args_sensitive = config["optimizer_args_sensitive"].copy()
-    optimizer_args_sensitive["lr"] = config["learning_rate_sensitive"]
+    optimizer_args_sensitive["lr"] = torch.tensor(config["learning_rate_sensitive"])
 
     param_list = []
     param_count = 0
