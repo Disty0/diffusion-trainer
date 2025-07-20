@@ -146,6 +146,7 @@ def main():
         from utils.dynamic_sdp import dynamic_scaled_dot_product_attention
         torch.nn.functional.scaled_dot_product_attention = dynamic_scaled_dot_product_attention
 
+    os.makedirs(config["project_dir"], exist_ok=True)
     empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
     if config["embed_type"] == "token":
         empty_embed = None
@@ -386,7 +387,6 @@ def main():
                         accelerator.wait_for_everyone()
                         if accelerator.is_main_process:
                             accelerator.print("\n" + print_filler)
-                            os.makedirs(config["project_dir"], exist_ok=True)
                             if config["checkpoints_limit"] != 0:
                                 checkpoints = os.listdir(config["project_dir"])
                                 checkpoints = [d for d in checkpoints if d.startswith("checkpoint-")]
