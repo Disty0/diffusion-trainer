@@ -1,4 +1,7 @@
+from typing import Tuple, Optional
+
 import torch
+from torch.utils._triton import has_triton
 from .stochastic import copy_stochastic_
 
 from utils.sdnq_utils import int8_matmul_dynamic, fp8_matmul_dynamic
@@ -57,18 +60,20 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                         continue
                     state = self.state[p]
                     if len(state) == 0:
+                        state["step"] = 0
                         state["momentum_buffer"] = torch.zeros_like(p)
                         if group["adaptive"]:
                             state["v_buffer"] = torch.zeros_like(p)
-                            state["step"] = 0
+                    state["step"] += 1
                     update = muon_update(
                         p.grad,
-                        state,
-                        betas=group["betas"],
-                        eps=group["eps"],
+                        state["momentum_buffer"],
+                        state["v_buffer"] if group["adaptive"] else None,
+                        state["step"],
+                        group["betas"],
+                        group["eps"],
                         ns_steps=group["ns_steps"],
                         nesterov=group["nesterov"],
-                        adaptive=group["adaptive"],
                         zeropower_dtype=group["zeropower_dtype"],
                         use_quantized_matmul=group["use_quantized_matmul"],
                         quantized_matmul_dtype=group["quantized_matmul_dtype"],
@@ -119,11 +124,22 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
         return loss
 
 
-def muon_update(grad, state, betas=(0.95, 0.999), eps=1e-8, ns_steps=5, nesterov=True, adaptive=False, zeropower_dtype=torch.bfloat16, use_quantized_matmul=False, quantized_matmul_dtype="int8"):
+def muon_update(
+    grad: torch.FloatTensor,
+    momentum_buffer: torch.FloatTensor,
+    v_buffer: Optional[torch.FloatTensor],
+    step: int,
+    betas: Tuple[float, float],
+    eps: float,
+    ns_steps: int = 5,
+    nesterov: bool = True,
+    zeropower_dtype: torch.dtype = torch.bfloat16,
+    use_quantized_matmul: bool = False,
+    quantized_matmul_dtype: str = "int8",
+) -> torch.FloatTensor:
     beta, beta2 = betas
-    momentum = state["momentum_buffer"]
-    momentum.lerp_(grad, 1 - beta)
-    grad = grad.lerp_(momentum, beta) if nesterov else momentum
+    momentum_buffer.lerp_(grad, 1 - beta)
+    grad = grad.lerp_(momentum_buffer, beta) if nesterov else momentum_buffer
     if grad.ndim == 4: # for the case of conv filters
         grad = grad.view(len(grad), -1)
     if use_quantized_matmul:
@@ -135,17 +151,15 @@ def muon_update(grad, state, betas=(0.95, 0.999), eps=1e-8, ns_steps=5, nesterov
             raise NotImplementedError(f'Quantization type {quantized_matmul_dtype} is not implemented')
     else:
         grad = zeropower_via_newtonschulz5(grad, steps=ns_steps, dtype=zeropower_dtype)
-    if adaptive:
-        v = state["v_buffer"]
-        state["step"] += 1
-        v.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
-        v_hat = v / (1 - beta2 ** state["step"])
+    if v_buffer is not None:
+        v_buffer.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
+        v_hat = v_buffer / (1 - beta2 ** step)
         grad.div_(v_hat.view_as(grad).sqrt_().add_(eps))
         grad.mul_(min(grad.shape)**0.5 / (grad.norm().add_(eps)))
     return grad
 
 
-def adam_update(grad, buf1, buf2, step, betas, eps):
+def adam_update(grad: torch.FloatTensor, buf1: torch.FloatTensor, buf2: torch.FloatTensor, step: int, betas: Tuple[float, float], eps: float) -> torch.FloatTensor:
     beta, beta2 = betas
     buf1.lerp_(grad, 1 - beta)
     buf2.lerp_(grad.square(), 1 - beta2)
@@ -154,7 +168,7 @@ def adam_update(grad, buf1, buf2, step, betas, eps):
     return buf1c.div_(buf2c.sqrt_().add_(eps))
 
 
-def zeropower_via_newtonschulz5(G, steps: int, dtype=torch.bfloat16):
+def zeropower_via_newtonschulz5(G: torch.FloatTensor, steps: int, dtype: torch.dtype = torch.bfloat16) -> torch.FloatTensor:
     """
     Newton-Schulz iteration to compute the zeroth power / orthogonalization of G. We opt to use a
     quintic iteration whose coefficients are selected to maximize the slope at zero. For the purpose
@@ -185,7 +199,7 @@ def zeropower_via_newtonschulz5(G, steps: int, dtype=torch.bfloat16):
     return X
 
 
-def zeropower_via_newtonschulz5_int8_matmul(G, steps: int, dtype=torch.bfloat16):
+def zeropower_via_newtonschulz5_int8_matmul(G: torch.FloatTensor, steps: int, dtype: torch.dtype = torch.bfloat16) -> torch.FloatTensor:
     assert G.ndim == 2
     a, b, c = (3.4445, -4.7750,  2.0315)
     X = G.to(dtype=dtype)
@@ -205,7 +219,7 @@ def zeropower_via_newtonschulz5_int8_matmul(G, steps: int, dtype=torch.bfloat16)
     return X
 
 
-def zeropower_via_newtonschulz5_fp8_matmul(G, steps: int, dtype=torch.bfloat16):
+def zeropower_via_newtonschulz5_fp8_matmul(G: torch.FloatTensor, steps: int, dtype: torch.dtype = torch.bfloat16) -> torch.FloatTensor:
     assert G.ndim == 2
     a, b, c = (3.4445, -4.7750,  2.0315)
     X = G.to(dtype=dtype)
@@ -225,6 +239,8 @@ def zeropower_via_newtonschulz5_fp8_matmul(G, steps: int, dtype=torch.bfloat16):
     return X
 
 
-torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
-zeropower_via_newtonschulz5_int8_matmul = torch.compile(zeropower_via_newtonschulz5_int8_matmul, fullgraph=True)
-zeropower_via_newtonschulz5_fp8_matmul = torch.compile(zeropower_via_newtonschulz5_fp8_matmul, fullgraph=True)
+if has_triton():
+    torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
+    torch._dynamo.config.accumulated_recompile_limit = max(8192, torch._dynamo.config.accumulated_recompile_limit)
+    adam_update = torch.compile(adam_update, fullgraph=True)
+    muon_update = torch.compile(muon_update, fullgraph=True)
