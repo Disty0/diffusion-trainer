@@ -25,7 +25,7 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                 group["eps"] = group.get("eps", 1e-8)
                 group["weight_decay"] = group.get("weight_decay", 0)
                 group["ns_steps"] = group.get("ns_steps", 5)
-                group["nesterov"] = group.get("nesterov", False)
+                group["nesterov"] = group.get("nesterov", True)
                 group["adaptive"] = group.get("adaptive", False)
                 group["bf16_stochastic_round"] = group.get("bf16_stochastic_round", False)
                 group["zeropower_dtype"] = group.get("zeropower_dtype", "bfloat16")
