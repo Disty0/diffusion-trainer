@@ -422,7 +422,6 @@ def main():
         accelerator.print(f"Starting epoch {current_epoch}")
         accelerator.print(f"Current steps done: {current_step}")
         if config["reshuffle"]:
-            train_dataloader = accelerator.unwrap_model(train_dataloader)
             del dataset, train_dataloader
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
