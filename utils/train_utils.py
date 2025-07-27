@@ -70,16 +70,19 @@ def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRSch
 
 
 def get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_hook):
-    sensitive_keys = [
-        "latent_embedder", "unembedder", "text_embedder", "token_embedding",
-        "norm_unembed", "norm_ff", "norm_attn", "norm_attn_context", "norm",
-        "norm_cross_attn","norm_q", "norm_k", "norm_added_q", "norm_added_k",
-        "shift_latent", "shift_latent_out", "shift_in", "shift_out", "bias",
-        "scale_latent", "scale_latent_out", "scale_in", "scale_out",
-    ]
-    sensitive_keys.extend(config["sensitive_keys"])
-    if hasattr(model, "_skip_layerwise_casting_patterns"):
-        sensitive_keys.extend(model._skip_layerwise_casting_patterns)
+    if config["override_sensitive_keys"]:
+        sensitive_keys = config["sensitive_keys"]
+    else:
+        sensitive_keys = [
+            "latent_embedder", "unembedder", "text_embedder", "token_embedding",
+            "norm_unembed", "norm_ff", "norm_attn", "norm_attn_context", "norm",
+            "norm_cross_attn","norm_q", "norm_k", "norm_added_q", "norm_added_k",
+            "shift_latent", "shift_latent_out", "shift_in", "shift_out", "bias",
+            "scale_latent", "scale_latent_out", "scale_in", "scale_out",
+        ]
+        sensitive_keys.extend(config["sensitive_keys"])
+        if hasattr(model, "_skip_layerwise_casting_patterns"):
+            sensitive_keys.extend(model._skip_layerwise_casting_patterns)
 
     optimizer_args = config["optimizer_args"].copy()
     optimizer_args["lr"] = torch.tensor(config["learning_rate"])
