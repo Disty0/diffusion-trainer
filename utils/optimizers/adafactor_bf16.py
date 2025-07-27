@@ -157,7 +157,6 @@ def _single_tensor_adafactor_bf16(
         update.mul_(grad)
         denom = max(1.0, update.norm(2).item() / ((update.numel() ** 0.5) * d))
 
-        assert param.dtype == torch.bfloat16
         param_fp32 = param.to(torch.float32)
         # Perform stepweight decay
         if weight_decay != 0:
@@ -343,7 +342,6 @@ def _multi_tensor_adafactor_bf16(
         ]
 
         for param, update, alpha in zip(device_params, updates, alphas):
-            assert param.dtype == torch.bfloat16
             param_fp32 = param.to(torch.float32)
             # Perform stepweight decay
             if weight_decay != 0:

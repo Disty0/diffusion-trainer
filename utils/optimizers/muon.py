@@ -46,7 +46,6 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
 
     @torch.no_grad()
     def step(self, closure=None):
-
         loss = None
         if closure is not None:
             with torch.enable_grad():
@@ -83,12 +82,12 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                         alpha = -group["lr"] * max(1, update.size(-2) / update.size(-1))**0.5
                     if group["bf16_stochastic_round"]:
                         p_fp32 = p.to(torch.float32)
-                        if group["weight_decay"] > 0:
+                        if group["weight_decay"] != 0:
                             p_fp32.mul_(1 - group["lr"] * group["weight_decay"])
                         p_fp32.add_(update.view(p.shape), alpha=alpha)
                         copy_stochastic_(p, p_fp32)
                     else:
-                        if group["weight_decay"] > 0:
+                        if group["weight_decay"] != 0:
                             p.mul_(1 - group["lr"] * group["weight_decay"])
                         p.add_(update.view(p.shape), alpha=alpha)
             else:
@@ -111,12 +110,12 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                     )
                     if group["bf16_stochastic_round"]:
                         p_fp32 = p.to(torch.float32)
-                        if group["weight_decay"] > 0:
+                        if group["weight_decay"] != 0:
                             p_fp32.mul_(1 - group["lr"] * group["weight_decay"])
                         p_fp32.add_(update, alpha=-group["lr"])
                         copy_stochastic_(p, p_fp32)
                     else:
-                        if group["weight_decay"] > 0:
+                        if group["weight_decay"] != 0:
                             p.mul_(1 - group["lr"] * group["weight_decay"])
                         p.add_(update, alpha=-group["lr"])
 

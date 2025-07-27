@@ -1,6 +1,7 @@
 import torch
 import torch.optim
 
+from .stochastic import copy_stochastic_
 
 class CAME(torch.optim.Optimizer):
     """Implements CAME algorithm.
@@ -27,6 +28,7 @@ class CAME(torch.optim.Optimizer):
         clip_threshold=1.0,
         betas=(0.9, 0.999, 0.9999),
         weight_decay=0.0,
+        bf16_stochastic_round=False,
     ):
         assert lr > 0.
         assert all([0. <= beta <= 1. for beta in betas])
@@ -37,6 +39,7 @@ class CAME(torch.optim.Optimizer):
             clip_threshold=clip_threshold,
             betas=betas,
             weight_decay=weight_decay,
+            bf16_stochastic_round=bf16_stochastic_round,
         )
         super(CAME, self).__init__(params, defaults)
 
@@ -57,14 +60,11 @@ class CAME(torch.optim.Optimizer):
         return tensor.norm(2) / (tensor.numel() ** 0.5)
 
     def _approx_sq_grad(self, exp_avg_sq_row, exp_avg_sq_col):
-        r_factor = (
-            (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1, keepdim=True))
-            .rsqrt_()
-            .unsqueeze(-1)
-        )
+        r_factor = (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1, keepdim=True)).rsqrt_().unsqueeze(-1)
         c_factor = exp_avg_sq_col.unsqueeze(-2).rsqrt()
         return torch.mul(r_factor, c_factor)
 
+    @torch.no_grad()
     def step(self, closure=None):
         """Performs a single optimization step.
         Args:
@@ -79,9 +79,7 @@ class CAME(torch.optim.Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue
-                grad = p.grad.data
-                if grad.dtype in {torch.float16, torch.bfloat16}:
-                    grad = grad.float()
+                grad = p.grad
                 if grad.is_sparse:
                     raise RuntimeError("CAME does not support sparse gradients.")
 
@@ -110,7 +108,7 @@ class CAME(torch.optim.Optimizer):
                     state["RMS"] = 0
 
                 state["step"] += 1
-                state["RMS"] = self._rms(p.data)
+                state["RMS"] = self._rms(p)
 
                 update = (grad**2) + group["eps"][0]
                 if factored:
@@ -161,12 +159,15 @@ class CAME(torch.optim.Optimizer):
                 else:
                     update = exp_avg.clone()
 
-                if group["weight_decay"] != 0:
-                    p.data.add_(
-                            p.data, alpha=-group["weight_decay"] * group["lr"]
-                        )
-
-                update.mul_(group["lr"])
-                p.data.add_(-update)
+                if group["bf16_stochastic_round"]:
+                    p_fp32 = p.to(torch.float32)
+                    if group["weight_decay"] != 0:
+                        p_fp32.mul_(1 - group["lr"] * group["weight_decay"])
+                    p_fp32.add_(update, alpha=-group["lr"])
+                    copy_stochastic_(p, p_fp32)
+                else:
+                    if group["weight_decay"] != 0:
+                        p.mul_(1 - group["lr"] * group["weight_decay"])
+                    p.add_(update, alpha=-group["lr"])
 
         return loss
