@@ -165,7 +165,7 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype) 
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
     if config["use_quantized_matmul"]:
-        from .sdnq_utils import apply_sdnq_to_module
+        from .sdnq import apply_sdnq_to_module
         modules_to_not_convert = []
         if getattr(diffusion_model, "_keep_in_fp32_modules", None) is not None:
             modules_to_not_convert.extend(diffusion_model._keep_in_fp32_modules)
