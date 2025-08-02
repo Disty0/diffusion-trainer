@@ -3,7 +3,8 @@ from typing import Tuple, Optional
 import torch
 from .stochastic import copy_stochastic_
 
-from utils.sdnq_utils import int8_matmul_dynamic, fp8_matmul_dynamic
+from utils.sdnq.layers.linear.linear_int8_dynamic import int8_matmul_dynamic
+from utils.sdnq.layers.linear.linear_fp8_dynamic import fp8_matmul_dynamic
 
 
 class MuonWithAuxAdam(torch.optim.Optimizer):
