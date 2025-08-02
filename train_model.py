@@ -1,3 +1,5 @@
+from typing import Dict, List, Tuple
+
 import os
 import gc
 import math
@@ -13,13 +15,12 @@ import random
 import shutil
 import argparse
 from tqdm import tqdm
-from utils import loader_utils, train_utils
 
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
-from diffusers.training_utils import EMAModel
 
-from typing import Dict, List, Tuple
+from utils import loader_utils, train_utils
+from utils.ema_model import EMAModel
 
 print_filler = "--------------------------------------------------"
 
