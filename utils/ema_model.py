@@ -150,7 +150,7 @@ class EMAModel:
 
                 with context_manager:
                     if param.requires_grad:
-                        s_param.add_((param, s_param), alpha=one_minus_decay)
+                        s_param.add_(torch.sub(param, s_param), alpha=one_minus_decay)
                     else:
                         s_param.copy_(param)
 

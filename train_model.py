@@ -213,8 +213,9 @@ def main():
         optimizer[parameter][1].step()
         optimizer[parameter][0].zero_grad()
 
-    accelerator.register_save_state_pre_hook(save_model_hook)
-    accelerator.register_load_state_pre_hook(load_model_hook)
+    if not config["use_static_quantization"]:
+        accelerator.register_save_state_pre_hook(save_model_hook)
+        accelerator.register_load_state_pre_hook(load_model_hook)
 
     accelerator.print("\n" + print_filler)
     accelerator.print("Initializing the trainer")
@@ -290,7 +291,7 @@ def main():
             ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
         else:
             accelerator.print(print_filler)
-            ema_model, _ = train_utils.get_diffusion_model(config, "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype)
+            ema_model, _ = train_utils.get_diffusion_model(config, "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, is_ema=True)
             ema_model = EMAModel(ema_model.parameters(), model_cls=train_utils.get_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
         if config["offload_ema_pin_memory"]:
             ema_model.pin_memory()
@@ -404,11 +405,11 @@ def main():
 
                             save_path = os.path.join(config["project_dir"], f"checkpoint-{current_step}")
                             accelerator.print(f"Saving state to {save_path}")
-                            accelerator.save_state(save_path)
+                            accelerator.save_state(save_path, safe_serialization=bool(not config["use_static_quantization"]))
                             if config["ema_update_steps"] > 0:
                                 gc.collect()
                                 accelerator.print(f"Saving EMA state to {save_path}")
-                                save_ema_model, _ = train_utils.get_diffusion_model(config, "cpu", ema_dtype)
+                                save_ema_model, _ = train_utils.get_diffusion_model(config, "cpu", ema_dtype, is_ema=True)
                                 save_ema_model_state_dict = ema_model.state_dict()
                                 save_ema_model_state_dict.pop("shadow_params", None)
                                 save_ema_model.register_to_config(**save_ema_model_state_dict)
@@ -516,11 +517,11 @@ def main():
         save_path = os.path.join(config["project_dir"], "checkpoint-final")
         accelerator.print("\n" + print_filler)
         accelerator.print(f"Saving state to {save_path}")
-        accelerator.save_state(save_path)
+        accelerator.save_state(save_path, safe_serialization=bool(not config["use_static_quantization"]))
         if config["ema_update_steps"] > 0:
             gc.collect()
             accelerator.print(f"Saving EMA state to {save_path}")
-            save_ema_model, _ = train_utils.get_diffusion_model(config, "cpu", ema_dtype)
+            save_ema_model, _ = train_utils.get_diffusion_model(config, "cpu", ema_dtype, is_ema=True)
             save_ema_model_state_dict = ema_model.state_dict()
             save_ema_model_state_dict.pop("shadow_params", None)
             save_ema_model.register_to_config(**save_ema_model_state_dict)

@@ -1,8 +1,15 @@
-import torch
 from typing import List
 
+import torch
 
-def apply_sdnq_to_module(model, dtype: str, use_grad_ckpt: bool = True, modules_to_not_convert: List[str] = []):
+from .dequantizer import SDNQTensor
+
+
+@torch.no_grad()
+def apply_sdnq_to_module(model, config: dict, modules_to_not_convert: List[str] = []):
+    dtype = config["quantized_matmul_dtype"]
+    use_grad_ckpt = config["gradient_checkpointing"]
+    static_quant = config["use_static_quantization"]
     has_children = list(model.children())
     if not has_children:
         return model
@@ -15,12 +22,22 @@ def apply_sdnq_to_module(model, dtype: str, use_grad_ckpt: bool = True, modules_
                 if dtype == "int8":
                     use_quantized_matmul = output_channel_size % 8 == 0 and channel_size % 8 == 0
                     if use_grad_ckpt:
-                        from .layers.linear.linear_int8_dynamic import quantized_linear_forward_int8_matmul
-                        quantized_forward = quantized_linear_forward_int8_matmul
+                        if static_quant:
+                            from .layers.linear.linear_int8 import quantized_linear_forward_int8_matmul
+                            quantized_forward = quantized_linear_forward_int8_matmul
+                        else:
+                            from .layers.linear.linear_int8_dynamic import quantized_linear_forward_int8_matmul_dynamic
+                            quantized_forward = quantized_linear_forward_int8_matmul_dynamic
                     else:
-                        from .layers.linear.linear_int8_dynamic_ckpt import quantized_linear_forward_int8_matmul_ckpt
-                        quantized_forward = quantized_linear_forward_int8_matmul_ckpt
+                        if static_quant:
+                            from .layers.linear.linear_int8_ckpt import quantized_linear_forward_int8_matmul_ckpt
+                            quantized_forward = quantized_linear_forward_int8_matmul_ckpt
+                        else:
+                            from .layers.linear.linear_int8_dynamic_ckpt import quantized_linear_forward_int8_matmul_dynamic_ckpt
+                            quantized_forward = quantized_linear_forward_int8_matmul_dynamic_ckpt
                 elif dtype == "fp8":
+                    if static_quant:
+                        raise NotImplementedError(f'Quantization type {dtype} is not implemented with static quantization')
                     use_quantized_matmul = output_channel_size % 16 == 0 and channel_size % 16 == 0
                     if use_grad_ckpt:
                         from .layers.linear.linear_fp8_dynamic import quantized_linear_forward_fp8_matmul
@@ -33,7 +50,9 @@ def apply_sdnq_to_module(model, dtype: str, use_grad_ckpt: bool = True, modules_
                 if use_quantized_matmul:
                     module.forward = quantized_forward
                     module.forward = module.forward.__get__(module, module.__class__)
-        module = apply_sdnq_to_module(module, dtype, modules_to_not_convert=modules_to_not_convert)
+                    if static_quant:
+                        module.weight = torch.nn.Parameter(SDNQTensor.from_float(module.weight), requires_grad=module.weight.requires_grad)
+        module = apply_sdnq_to_module(module, config, modules_to_not_convert=modules_to_not_convert)
     return model
 
 

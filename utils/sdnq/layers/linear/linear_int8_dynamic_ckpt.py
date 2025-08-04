@@ -8,12 +8,12 @@ from .linear_int8_dynamic import int8_matmul_dynamic
 
 def int8_matmul_dynamic_ckpt(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, output_shape: torch.Size = None, do_input_reshape: bool = True) -> torch.FloatTensor:
     result = int8_matmul_dynamic(input, weight, bias)
-    new_weight, weight_scale = quantize_int8_matmul_input(weight, None, dim=0)
-    new_input, input_scale = quantize_int8_matmul_input(input, None, dim=0)
+    new_weight, weight_scale = quantize_int8_matmul_input(weight, dim=0)
+    new_input, input_scale = quantize_int8_matmul_input(input, dim=0)
     return result, new_input, new_weight, input_scale, weight_scale
 
 
-def int8_matmul_backward_ckpt(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, input_scale: torch.FloatTensor, weight_scale: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+def int8_matmul_dynamic_backward_ckpt(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, input_scale: torch.FloatTensor, weight_scale: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     grad_input = grad_weight = grad_bias = None
     input_shape = list(grad_output.shape)
     input_shape[-1] = input.shape[-1]
@@ -37,10 +37,10 @@ class INT8MatmulBackwardCKPT(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         input, weight, bias, input_scale, weight_scale = ctx.saved_tensors
-        return int8_matmul_backward_ckpt(grad_output, input, weight, bias, input_scale, weight_scale, do_grad_input=ctx.needs_input_grad[0], do_grad_weight=ctx.needs_input_grad[1], do_grad_bias=ctx.needs_input_grad[2])
+        return int8_matmul_dynamic_backward_ckpt(grad_output, input, weight, bias, input_scale, weight_scale, do_grad_input=ctx.needs_input_grad[0], do_grad_weight=ctx.needs_input_grad[1], do_grad_bias=ctx.needs_input_grad[2])
 
 
-def quantized_linear_forward_int8_matmul_ckpt(self, input: torch.FloatTensor) -> torch.FloatTensor:
+def quantized_linear_forward_int8_matmul_dynamic_ckpt(self, input: torch.FloatTensor) -> torch.FloatTensor:
     if torch.numel(input) / input.shape[-1] < 32:
         return torch.nn.functional.linear(input, self.weight, self.bias)
     return int8_matmul_with_backward_ckpt(input, self.weight, self.bias)
@@ -48,4 +48,4 @@ def quantized_linear_forward_int8_matmul_ckpt(self, input: torch.FloatTensor) ->
 
 int8_matmul_with_backward_ckpt = INT8MatmulBackwardCKPT.apply
 int8_matmul_dynamic_ckpt = torch.compile(int8_matmul_dynamic_ckpt, fullgraph=True, dynamic=False)
-int8_matmul_backward_ckpt = torch.compile(int8_matmul_backward_ckpt, fullgraph=True, dynamic=False)
+int8_matmul_dynamic_backward_ckpt = torch.compile(int8_matmul_dynamic_backward_ckpt, fullgraph=True, dynamic=False)

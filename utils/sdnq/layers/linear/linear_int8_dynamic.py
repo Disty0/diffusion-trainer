@@ -30,7 +30,7 @@ def int8_matmul_dynamic(input: torch.FloatTensor, weight: torch.FloatTensor, bia
         return dequantize_symmetric(torch._int_mm(input, weight), scale, return_dtype, output_shape)
 
 
-def int8_matmul_backward(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+def int8_matmul_dynamic_backward(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     grad_input = grad_weight = grad_bias = None
     grad_output = grad_output.flatten(0,-2).contiguous()
     if do_grad_input:
@@ -51,10 +51,10 @@ class INT8MatmulBackward(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
         input, weight, bias = ctx.saved_tensors
-        return int8_matmul_backward(grad_output, input, weight, bias, do_grad_input=ctx.needs_input_grad[0], do_grad_weight=ctx.needs_input_grad[1], do_grad_bias=ctx.needs_input_grad[2])
+        return int8_matmul_dynamic_backward(grad_output, input, weight, bias, do_grad_input=ctx.needs_input_grad[0], do_grad_weight=ctx.needs_input_grad[1], do_grad_bias=ctx.needs_input_grad[2])
 
 
-def quantized_linear_forward_int8_matmul(self, input: torch.FloatTensor) -> torch.FloatTensor:
+def quantized_linear_forward_int8_matmul_dynamic(self, input: torch.FloatTensor) -> torch.FloatTensor:
     if torch.numel(input) / input.shape[-1] < 32:
         return torch.nn.functional.linear(input, self.weight, self.bias)
     return int8_matmul_with_backward(input, self.weight, self.bias)
@@ -62,4 +62,4 @@ def quantized_linear_forward_int8_matmul(self, input: torch.FloatTensor) -> torc
 
 int8_matmul_with_backward = INT8MatmulBackward.apply
 int8_matmul_dynamic_compiled = torch.compile(int8_matmul_dynamic, fullgraph=True, dynamic=False)
-int8_matmul_backward = torch.compile(int8_matmul_backward, fullgraph=True, dynamic=False)
+int8_matmul_dynamic_backward = torch.compile(int8_matmul_dynamic_backward, fullgraph=True, dynamic=False)

@@ -22,3 +22,6 @@ def fp8_matmul(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.Float
         output_shape[-1] = weight.shape[-1]
     input, input_scale = quantize_fp8_matmul_input(input)
     return torch._scaled_mm(input, weight, scale_a=input_scale, scale_b=scale, bias=bias, out_dtype=return_dtype).reshape(output_shape)
+
+
+fp8_matmul_compiled = torch.compile(fp8_matmul, fullgraph=True, dynamic=False)

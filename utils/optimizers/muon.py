@@ -5,6 +5,7 @@ from .stochastic import copy_stochastic_
 
 from utils.sdnq.layers.linear.linear_int8_dynamic import int8_matmul_dynamic
 from utils.sdnq.layers.linear.linear_fp8_dynamic import fp8_matmul_dynamic
+from utils.sdnq.dequantizer import SDNQTensor
 
 
 class MuonWithAuxAdam(torch.optim.Optimizer):
@@ -31,10 +32,11 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                 group["bf16_stochastic_round"] = group.get("bf16_stochastic_round", False)
                 group["zeropower_dtype"] = group.get("zeropower_dtype", "bfloat16")
                 group["use_quantized_matmul"] = group.get("use_quantized_matmul", False)
+                group["use_quantized_buffers"] = group.get("use_quantized_buffers", False)
                 group["quantized_matmul_dtype"] = group.get("quantized_matmul_dtype", "int8")
                 if isinstance(group["zeropower_dtype"], str):
                     group["zeropower_dtype"] = getattr(torch, group["zeropower_dtype"])
-                assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "ns_steps", "adaptive", "nesterov", "bf16_stochastic_round", "use_muon", "zeropower_dtype", "use_quantized_matmul", "quantized_matmul_dtype"])
+                assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "ns_steps", "adaptive", "nesterov", "bf16_stochastic_round", "use_muon", "zeropower_dtype", "use_quantized_matmul", "use_quantized_buffers", "quantized_matmul_dtype"])
             else:
                 # defaults
                 group["lr"] = group.get("lr", 1e-4)
@@ -60,9 +62,15 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                     state = self.state[p]
                     if len(state) == 0:
                         state["step"] = 0
-                        state["momentum_buffer"] = torch.zeros_like(p)
+                        if group["use_quantized_buffers"]:
+                            state["momentum_buffer"] = SDNQTensor.from_float(torch.zeros_like(p))
+                        else:
+                            state["momentum_buffer"] = torch.zeros_like(p)
                         if group["adaptive"]:
-                            state["v_buffer"] = torch.zeros_like(p)
+                            if group["use_quantized_buffers"]:
+                                state["v_buffer"] = SDNQTensor.from_float(torch.zeros_like(p))
+                            else:
+                                state["v_buffer"] = torch.zeros_like(p)
                     state["step"] += 1
                     update = muon_update(
                         p.grad,

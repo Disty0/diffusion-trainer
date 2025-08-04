@@ -150,7 +150,8 @@ def get_loss_func(config: dict) -> Callable:
         return getattr(torch.nn.functional, config["loss_type"])
 
 
-def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype) -> Tuple[ModelMixin]:
+def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, is_ema: bool = False) -> Tuple[ModelMixin]:
+    device = torch.device(device)
     if config["model_type"] == "sd3":
         pipe = diffusers.AutoPipelineForText2Image.from_pretrained(config["model_path"], vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
         diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
@@ -164,14 +165,16 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype) 
         processor = copy.deepcopy(pipe.image_encoder)
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
-    if config["use_quantized_matmul"]:
+    if config["use_quantized_matmul"] and not is_ema:
         from .sdnq import apply_sdnq_to_module
         modules_to_not_convert = []
         if getattr(diffusion_model, "_keep_in_fp32_modules", None) is not None:
             modules_to_not_convert.extend(diffusion_model._keep_in_fp32_modules)
         if getattr(diffusion_model, "_skip_layerwise_casting_patterns", None) is not None:
             modules_to_not_convert.extend(diffusion_model._skip_layerwise_casting_patterns)
-        diffusion_model = apply_sdnq_to_module(diffusion_model, config["quantized_matmul_dtype"], use_grad_ckpt=config["gradient_checkpointing"], modules_to_not_convert=modules_to_not_convert)
+        diffusion_model = apply_sdnq_to_module(diffusion_model, config, modules_to_not_convert=modules_to_not_convert)
+    if device.type != "cpu":
+        getattr(torch, device.type).empty_cache()
     return diffusion_model, processor
 
 
