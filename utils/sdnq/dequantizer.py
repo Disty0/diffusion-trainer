@@ -34,7 +34,7 @@ def quantize_int8(input: torch.FloatTensor, dim: int = -1) -> Tuple[torch.CharTe
 @torch.no_grad()
 def quantize_int8_sr(input: torch.FloatTensor, dim: int = -1) -> Tuple[torch.CharTensor, torch.FloatTensor]:
     scale = torch.amax(input.abs(), dim=dim, keepdims=True).div_(127)
-    input = torch.addcdiv(torch.randn_like(input), input, scale).round_().clamp_(-128, 127).to(dtype=torch.int8)
+    input = torch.randn_like(input).addcdiv_(input, scale).round_().clamp_(-128, 127).to(dtype=torch.int8)
     return input, scale
 
 
