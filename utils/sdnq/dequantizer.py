@@ -31,6 +31,13 @@ def quantize_int8(input: torch.FloatTensor, dim: int = -1) -> Tuple[torch.CharTe
     return input, scale
 
 
+@torch.no_grad()
+def quantize_int8_sr(input: torch.FloatTensor, dim: int = -1) -> Tuple[torch.CharTensor, torch.FloatTensor]:
+    scale = torch.amax(input.abs(), dim=dim, keepdims=True).div_(127)
+    input = torch.addcdiv(torch.randn_like(input), input, scale).round_().clamp_(-128, 127).to(dtype=torch.int8)
+    return input, scale
+
+
 class SDNQTensor(torch.Tensor):
     @staticmethod
     @torch._dynamo.disable
@@ -66,8 +73,11 @@ class SDNQTensor(torch.Tensor):
         return f'SDNQTensor(quant_data={repr(self.quant_data)}, scale={repr(self.scale)})'
 
     @staticmethod
-    def from_float(float_tensor):
-        quant_data, scale = quantize_int8(float_tensor.detach())
+    def from_float(float_tensor, sr: bool = False):
+        if sr:
+            quant_data, scale = quantize_int8_sr(float_tensor.detach())
+        else:
+            quant_data, scale = quantize_int8(float_tensor.detach())
         return SDNQTensor(quant_data, scale)
 
     @classmethod
@@ -174,7 +184,7 @@ def sdnq_to(func, *args, **kwargs):
 def sdnq_copy_(func, x, y, *args, **kwargs):
     if isinstance(x, SDNQTensor):
         if not isinstance(y, SDNQTensor):
-            y = SDNQTensor.from_float(y)
+            y = SDNQTensor.from_float(y, sr=True)
         quant_data = y.quant_data
         scale = y.scale
         x.quant_data.copy_(quant_data, *args, **kwargs)
@@ -248,5 +258,6 @@ torch.serialization.add_safe_globals([SDNQTensor])
 
 torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)
 torch._dynamo.config.accumulated_recompile_limit = max(8192, torch._dynamo.config.accumulated_recompile_limit)
+quantize_int8_sr = torch.compile(quantize_int8_sr, fullgraph=True, dynamic=False)
 quantize_int8 = torch.compile(quantize_int8, fullgraph=True, dynamic=False)
 dequantize_symmetric_compiled = torch.compile(dequantize_symmetric, fullgraph=True, dynamic=False)
