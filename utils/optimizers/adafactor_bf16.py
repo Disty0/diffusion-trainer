@@ -407,4 +407,3 @@ def adafactor_bf16(
         found_inf=found_inf,
         has_complex=has_complex,
     )
-    

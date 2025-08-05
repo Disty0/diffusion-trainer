@@ -5,6 +5,7 @@ from ...dequantizer import dequantize_symmetric
 from .linear_int8 import int8_matmul, quantize_int8_matmul_input # noqa: TID252
 from .linear_int8_dynamic import int8_matmul_dynamic # noqa: TID252
 
+
 def int8_matmul_ckpt(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.FloatTensor, scale: torch.FloatTensor, output_shape: torch.Size = None, do_input_reshape: bool = True, do_transpose: bool = False) -> torch.FloatTensor:
     result = int8_matmul(input, weight, bias, scale, output_shape=output_shape, do_input_reshape=do_input_reshape, do_transpose=do_transpose)
     new_input, input_scale = quantize_int8_matmul_input(input, dim=0)

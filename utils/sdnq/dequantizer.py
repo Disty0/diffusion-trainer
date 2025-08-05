@@ -104,7 +104,6 @@ class SDNQTensor(torch.Tensor):
         return SDNQTensor(quant_data, scale), all_gather_outputs
 
 
-
 op_implementations_dict = {}
 def register_op(ops: List[torch._ops.OpOverload]):
     def impl_decorator(op_impl):
