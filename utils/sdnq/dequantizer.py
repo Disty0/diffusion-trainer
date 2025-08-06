@@ -92,10 +92,6 @@ class SDNQTensor(torch.Tensor):
             kwargs = {}
         if func not in op_implementations_dict:
             raise AssertionError(f'SDNQTensor does not yet support op: {str(func)}')
-            if func.name().rsplit(".",maxsplit=1)[0].endswith("_"):
-                return sdnq_generic_func_(func, *args, **kwargs)
-            else:
-                return sdnq_generic_func(func, *args, **kwargs)
         return op_implementations_dict[func](func, *args, **kwargs)
 
     def fsdp_pre_all_gather(self, mesh, outer_size=None, outer_stride=None, module=None, mp_policy=None):

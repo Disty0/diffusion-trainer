@@ -16,12 +16,15 @@ def quantize_fp8_matmul_input(input: torch.FloatTensor, dim: int = -1, do_input_
     return input, input_scale
 
 
-def fp8_matmul(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.FloatTensor, scale: torch.FloatTensor, output_shape: torch.Size = None) -> torch.FloatTensor:
+def fp8_matmul(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.FloatTensor, scale: torch.FloatTensor, output_shape: torch.Size = None, do_input_reshape: bool = True, do_transpose: bool = False) -> torch.FloatTensor:
     return_dtype = input.dtype
+    if do_transpose:
+        weight = weight.t().contiguous()
+        scale = scale.t()
     if output_shape is None:
         output_shape = list(input.shape)
         output_shape[-1] = weight.shape[-1]
-    input, input_scale = quantize_fp8_matmul_input(input)
+    input, input_scale = quantize_fp8_matmul_input(input, do_input_reshape=do_input_reshape)
     return torch._scaled_mm(input, weight, scale_a=input_scale, scale_b=scale, bias=bias, out_dtype=return_dtype).reshape(output_shape)
 
 

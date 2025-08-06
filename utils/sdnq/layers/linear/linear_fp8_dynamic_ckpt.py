@@ -8,8 +8,8 @@ from .linear_fp8_dynamic import fp8_matmul_dynamic
 
 def fp8_matmul_dynamic_ckpt(input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, output_shape: torch.Size = None, do_input_reshape: bool = True) -> torch.FloatTensor:
     result = fp8_matmul_dynamic(input, weight, bias)
-    new_weight, weight_scale = quantize_fp8_matmul_input(weight, None, dim=0)
-    new_input, input_scale = quantize_fp8_matmul_input(input, None, dim=0)
+    new_weight, weight_scale = quantize_fp8_matmul_input(weight, dim=0)
+    new_input, input_scale = quantize_fp8_matmul_input(input, dim=0)
     return result, new_input, new_weight, input_scale, weight_scale
 
 
