@@ -49,7 +49,7 @@ def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimize
 
 def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRScheduler:
     if lr_scheduler in {"SequentialLR", "torch.optim.lr_scheduler.SequentialLR"}:
-        base_lrs = [group["lr"] for group in optimizer.param_groups]
+        base_lrs = [group["lr"].clone() if isinstance(group["lr"], torch.Tensor) else group["lr"] for group in optimizer.param_groups]
         lr_schedulers = kwargs.pop("schedulers")
         lr_schedulers_args = kwargs.pop("args")
         lr_schedulers_list = []
@@ -58,7 +58,7 @@ def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRSch
             if scheduler_count != 0 and scheduler_args.get("last_epoch", None) is None:
                 scheduler_args["last_epoch"] = 0
             lr_schedulers_list.append(get_lr_scheduler(scheduler_name, optimizer, **scheduler_args))
-            lr_schedulers_list[-1].base_lrs: list[float] = base_lrs
+            lr_schedulers_list[-1].base_lrs: list[float, torch.FloatTensor] = base_lrs
             scheduler_count += 1
         return torch.optim.lr_scheduler.SequentialLR(optimizer, lr_schedulers_list, **kwargs)
     elif "." in lr_scheduler:
