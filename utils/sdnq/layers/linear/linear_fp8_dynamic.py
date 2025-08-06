@@ -10,6 +10,8 @@ def quantize_fp8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, do_
         input_stride = input.stride()
         if input_stride[0] > input_stride[1] and input_stride[1] == 1:
             input = input.t().contiguous().t()
+    input = input.to(dtype=torch.float32)
+    weight = weight.to(dtype=torch.float32)
     scale = torch.amax(weight.abs(), dim=0, keepdims=True).div_(448)
     input_scale = torch.amax(input.abs(), dim=-1, keepdims=True).div_(448)
     weight = torch.div(weight, scale).clamp_(-448, 448).to(dtype=torch.float8_e4m3fn)

@@ -9,6 +9,7 @@ def quantize_fp8_matmul_input(input: torch.FloatTensor, dim: int = -1, do_input_
         input_stride = input.stride()
         if input_stride[0] > input_stride[1] and input_stride[1] == 1:
             input = input.t().contiguous().t()
+    input = input.to(dtype=torch.float32)
     input_scale = torch.amax(input.abs(), dim=dim, keepdims=True).div_(448)
     input = torch.div(input, input_scale).clamp_(-448, 448).to(dtype=torch.float8_e4m3fn)
     input_scale = input_scale.to(dtype=torch.float32)

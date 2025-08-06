@@ -8,6 +8,8 @@ def quantize_int8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, do
     if do_input_reshape:
         input = input.flatten(0,-2).contiguous()
         weight = weight.t().contiguous()
+    input = input.to(dtype=torch.float32)
+    weight = weight.to(dtype=torch.float32)
     scale = torch.amax(weight.abs(), dim=0, keepdims=True).div_(127)
     input_scale = torch.amax(input.abs(), dim=-1, keepdims=True).div_(127)
     weight = torch.div(weight, scale).round_().clamp_(-128, 127).to(dtype=torch.int8)
