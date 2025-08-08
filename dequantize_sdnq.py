@@ -10,13 +10,14 @@ def main(model_path, out_path, dtype=None):
         if isinstance(value, SDNQTensor):
             print("Dequantizing:", key)
             value.sr = False
-            value.return_dtype = dtype if dtype is not None else torch.float32
+            value.return_dtype = dtype if dtype is not None else getattr(value, "return_dtype", torch.float32)
             state_dict[key] = value.dequantize()
+    print("\nSaving the converted the model...")
     if out_path.endswith(".safetensors"):
         save_file(state_dict, out_path)
     else:
         torch.save(state_dict, out_path)
-    print("\nSuccessfully converted the model!\n")
+    print("Successfully converted the model!\n")
 
 
 if __name__ == '__main__':
@@ -24,7 +25,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Create a bucket list with a given dataset path')
     parser.add_argument('model_path', type=str)
     parser.add_argument('out_path', type=str)
-    parser.add_argument('--dtype', default="float32", type=str)
+    parser.add_argument('--dtype', default="none", type=str)
 
     args = parser.parse_args()
     dtype = getattr(torch, args.dtype) if args.dtype not in {None, "none"} else None
