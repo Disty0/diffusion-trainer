@@ -10,6 +10,7 @@ def apply_sdnq_to_module(model, config: dict, modules_to_not_convert: List[str] 
     dtype = config["quantized_matmul_dtype"]
     use_grad_ckpt = config["gradient_checkpointing"]
     static_quant = config["use_static_quantization"]
+    use_sr = config["use_stochastic_quantization"]
     has_children = list(model.children())
     if not has_children:
         return model
@@ -51,7 +52,7 @@ def apply_sdnq_to_module(model, config: dict, modules_to_not_convert: List[str] 
                     module.forward = quantized_forward
                     module.forward = module.forward.__get__(module, module.__class__)
                     if static_quant:
-                        module.weight = torch.nn.Parameter(SDNQTensor.from_float(module.weight), requires_grad=module.weight.requires_grad)
+                        module.weight = torch.nn.Parameter(SDNQTensor.from_float(module.weight, sr=use_sr), requires_grad=module.weight.requires_grad)
         module = apply_sdnq_to_module(module, config, modules_to_not_convert=modules_to_not_convert)
     return model
 

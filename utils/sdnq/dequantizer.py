@@ -36,14 +36,14 @@ def quantize_int8(input: torch.FloatTensor, dim: int = -1) -> Tuple[torch.CharTe
 def quantize_int8_sr(input: torch.FloatTensor, dim: int = -1) -> Tuple[torch.CharTensor, torch.FloatTensor]:
     input = input.to(dtype=torch.float32)
     scale = torch.amax(input.abs(), dim=dim, keepdims=True).div_(127)
-    input = torch.rand_like(input).addcdiv_(input, scale).floor_().clamp_(-128, 127).to(dtype=torch.int8)
+    input = torch.normal(0, 0.25, input.shape, device=input.device, dtype=torch.float32).addcdiv_(input, scale).round_().clamp_(-128, 127).to(dtype=torch.int8)
     return input, scale
 
 
 class SDNQTensor(torch.Tensor):
     @staticmethod
     @torch._dynamo.disable
-    def __new__(cls, quant_data: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
+    def __new__(cls, quant_data: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype, sr: bool = False):
         return torch.Tensor._make_wrapper_subclass(
             cls,
             quant_data.shape,
@@ -54,10 +54,11 @@ class SDNQTensor(torch.Tensor):
         )
 
     @torch._dynamo.disable
-    def __init__(self, quant_data: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype):
+    def __init__(self, quant_data: torch.Tensor, scale: torch.Tensor, dtype: torch.dtype, sr: bool = False):
         self.quant_data = quant_data
         self.scale = scale
         self.return_dtype = dtype
+        self.sr = sr
 
     def dequantize(self, dtype=None):
         if dtype is None:
@@ -65,18 +66,20 @@ class SDNQTensor(torch.Tensor):
         return dequantize_symmetric_compiled(self.quant_data, self.scale, dtype=dtype)
     
     def __tensor_flatten__(self) -> Tuple[List[str], Any]:
-        return ["quant_data", "scale", "return_dtype"], None
+        return ["quant_data", "scale", "return_dtype", "sr"], None
 
     @classmethod
     def __tensor_unflatten__(cls, tensor_data_dict, extra_metadata, outer_size=None, outer_stride=None):
         assert extra_metadata is None
-        quant_data = tensor_data_dict["quant_data"]
-        scale = tensor_data_dict["scale"]
-        dtype = tensor_data_dict["return_dtype"]
-        return SDNQTensor(quant_data, scale, dtype)
+        return SDNQTensor(
+            tensor_data_dict["quant_data"],
+            tensor_data_dict["scale"],
+            tensor_data_dict["return_dtype"],
+            sr=tensor_data_dict["sr"],
+        )
 
     def __repr__(self):
-        return f'SDNQTensor(quant_data={repr(self.quant_data)}, scale={repr(self.scale)}, dtype={self.return_dtype})'
+        return f'SDNQTensor(quant_data={repr(self.quant_data)}, scale={repr(self.scale)}, dtype={self.return_dtype}, sr={self.sr})'
 
     @staticmethod
     def from_float(float_tensor: torch.FloatTensor, sr: bool = False):
@@ -84,7 +87,7 @@ class SDNQTensor(torch.Tensor):
             quant_data, scale = quantize_int8_sr(float_tensor.detach())
         else:
             quant_data, scale = quantize_int8(float_tensor.detach())
-        return SDNQTensor(quant_data, scale, float_tensor.dtype)
+        return SDNQTensor(quant_data, scale, float_tensor.dtype, sr=sr)
 
     @classmethod
     def __torch_dispatch__(cls, func, types, args, kwargs):
@@ -96,11 +99,11 @@ class SDNQTensor(torch.Tensor):
 
     def fsdp_pre_all_gather(self, mesh, outer_size=None, outer_stride=None, module=None, mp_policy=None):
         dtype = mp_policy.param_dtype if mp_policy is not None else self.return_dtype
-        return (self.quant_data, self.scale, dtype), None
+        return (self.quant_data, self.scale, dtype, self.sr), None
 
     def fsdp_post_all_gather(self, all_gather_outputs: Tuple[torch.Tensor, ...], metadata: Any, param_dtype: torch.dtype, *, out: Optional[torch.Tensor] = None):
-        quant_data, scale, dtype = all_gather_outputs
-        return SDNQTensor(quant_data, scale, dtype), all_gather_outputs
+        quant_data, scale, dtype, sr = all_gather_outputs
+        return SDNQTensor(quant_data, scale, dtype, sr=sr), all_gather_outputs
 
 
 op_implementations_dict = {}
@@ -163,6 +166,7 @@ def sdnq_view_ops(func, *args, **kwargs):
         func(args[0].quant_data, *args[1:], **kwargs),
         func(args[0].scale, *args[1:], **kwargs),
         args[0].return_dtype,
+        sr=args[0].sr,
     )
     return return_and_correct_aliasing(func, args, kwargs, out)
 
@@ -174,6 +178,7 @@ def sdnq_to(func, *args, **kwargs):
         func(args[0].quant_data, *args[1:], **kwargs),
         func(args[0].scale, *args[1:], **kwargs),
         dtype if dtype is not None else args[0].return_dtype,
+        sr=args[0].sr,
     )
     if dtype is not None:
         kwargs["dtype"] = dtype
@@ -184,7 +189,7 @@ def sdnq_to(func, *args, **kwargs):
 def sdnq_copy_(func, x, y, *args, **kwargs):
     if isinstance(x, SDNQTensor):
         if not isinstance(y, SDNQTensor):
-            y = SDNQTensor.from_float(y, sr=True)
+            y = SDNQTensor.from_float(y, sr=x.sr)
         x.quant_data.copy_(y.quant_data, *args, **kwargs)
         x.scale.copy_(y.scale, *args, **kwargs)
     else:
@@ -234,7 +239,8 @@ def sdnq_split(func, weight, size, dim=0, **kwargs):
     quant_data_list = func(weight.quant_data, size, dim=dim, **kwargs)
     scale_list = func(weight.scale, size, dim=dim, **kwargs)
     dtype = weight.return_dtype
-    out = [SDNQTensor(quant_data, scale, dtype) for quant_data, scale in zip(quant_data_list, scale_list)]
+    sr = weight.sr
+    out = [SDNQTensor(quant_data, scale, dtype, sr=sr) for quant_data, scale in zip(quant_data_list, scale_list)]
     return out
 
 
@@ -244,12 +250,12 @@ def sdnq_new_zeros(func, x, size, *args, **kwargs):
     dtype = kwargs.pop("dtype", x.return_dtype)
     quant_data = torch.zeros(size, device=device, dtype=torch.int8)
     scale = torch.zeros((*size[:-1],1), device=device, dtype=torch.float32)
-    return SDNQTensor(quant_data, scale, dtype)
+    return SDNQTensor(quant_data, scale, dtype, sr=x.sr)
 
 
 @register_op([torch.ops.aten.view.default, torch.ops.aten.as_strided.default])
 def sdnq_view(func, *args, **kwargs):
-    out = SDNQTensor(args[0].quant_data, args[0].scale, args[0].return_dtype)
+    out = SDNQTensor(args[0].quant_data, args[0].scale, args[0].return_dtype, sr=args[0].sr)
     return return_and_correct_aliasing(func, args, kwargs, out)
 
 

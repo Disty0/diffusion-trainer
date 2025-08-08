@@ -63,12 +63,12 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                     if len(state) == 0:
                         state["step"] = 0
                         if group["use_quantized_buffers"]:
-                            state["momentum_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps))
+                            state["momentum_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), sr=False)
                         else:
                             state["momentum_buffer"] = torch.zeros_like(p)
                         if group["adaptive"]:
                             if group["use_quantized_buffers"]:
-                                state["v_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps))
+                                state["v_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), sr=False)
                             else:
                                 state["v_buffer"] = torch.zeros_like(p)
                     state["step"] += 1
