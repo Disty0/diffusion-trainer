@@ -33,8 +33,6 @@ def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimize
         optimizer_class = MuonWithAuxAdam
     elif "." in optimizer:
         optimizer_base, optimizer = optimizer.rsplit(".", maxsplit=1)
-        if config["weights_dtype"] == "bfloat16" and optimizer_base == "torchao.optim":
-            kwargs["bf16_stochastic_round"] = True
         optimizer_base = importlib.import_module(optimizer_base)
         optimizer_class = getattr(optimizer_base, optimizer)
     else:
