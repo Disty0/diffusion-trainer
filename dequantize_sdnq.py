@@ -10,7 +10,7 @@ def main(model_path, out_path, dtype=None):
         if isinstance(value, SDNQTensor):
             print("Dequantizing:", key)
             value.sr = False
-            value.return_dtype = dtype if dtype is not None else getattr(value, "return_dtype", torch.float32)
+            value.return_dtype = dtype if dtype is not None else getattr(value, "return_dtype", value.scale.dtype)
             state_dict[key] = value.dequantize()
     print("\nSaving the converted the model...")
     if out_path.endswith(".safetensors"):

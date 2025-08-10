@@ -33,10 +33,11 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                 group["zeropower_dtype"] = group.get("zeropower_dtype", "bfloat16")
                 group["use_quantized_matmul"] = group.get("use_quantized_matmul", False)
                 group["use_quantized_buffers"] = group.get("use_quantized_buffers", False)
+                group["use_stochastic_quantization"] = group.get("use_stochastic_quantization", True)
                 group["quantized_matmul_dtype"] = group.get("quantized_matmul_dtype", "int8")
                 if isinstance(group["zeropower_dtype"], str):
                     group["zeropower_dtype"] = getattr(torch, group["zeropower_dtype"])
-                assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "ns_steps", "adaptive", "nesterov", "bf16_stochastic_round", "use_muon", "zeropower_dtype", "use_quantized_matmul", "use_quantized_buffers", "quantized_matmul_dtype"])
+                assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "ns_steps", "adaptive", "nesterov", "bf16_stochastic_round", "use_muon", "zeropower_dtype", "use_quantized_matmul", "use_quantized_buffers", "use_stochastic_quantization", "quantized_matmul_dtype"])
             else:
                 # defaults
                 group["lr"] = group.get("lr", 1e-4)
@@ -63,12 +64,12 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                     if len(state) == 0:
                         state["step"] = 0
                         if group["use_quantized_buffers"]:
-                            state["momentum_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), sr=False)
+                            state["momentum_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), sr=group["use_stochastic_quantization"])
                         else:
                             state["momentum_buffer"] = torch.zeros_like(p)
                         if group["adaptive"]:
                             if group["use_quantized_buffers"]:
-                                state["v_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), sr=False)
+                                state["v_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), sr=group["use_stochastic_quantization"])
                             else:
                                 state["v_buffer"] = torch.zeros_like(p)
                     state["step"] += 1
