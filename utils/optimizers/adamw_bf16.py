@@ -17,7 +17,8 @@ class AdamWBF16(torch.optim.Optimizer):
             group["betas"] = group.get("betas", (0.9, 0.95))
             group["eps"] = group.get("eps", 1e-8)
             group["weight_decay"] = group.get("weight_decay", 0)
-            assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay"])
+            group["bf16_stochastic_round"] = group.get("bf16_stochastic_round", True)
+            assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "bf16_stochastic_round"])
         super().__init__(param_groups, dict())
 
     @torch.no_grad()
@@ -31,11 +32,13 @@ class AdamWBF16(torch.optim.Optimizer):
             for p in group["params"]:
                 if p.grad is None:
                     continue
+
                 state = self.state[p]
                 if len(state) == 0:
                     state["exp_avg"] = torch.zeros_like(p)
                     state["exp_avg_sq"] = torch.zeros_like(p)
                     state["step"] = 0
+
                 state["step"] += 1
                 update = adam_update(
                     p.grad,
@@ -45,11 +48,17 @@ class AdamWBF16(torch.optim.Optimizer):
                     group["betas"],
                     group["eps"]
                 )
-                p_fp32 = p.to(torch.float32)
-                if group["weight_decay"] != 0:
-                    p_fp32.mul_(1 - group["lr"] * group["weight_decay"])
-                p_fp32.add_(update, alpha=-group["lr"])
-                copy_stochastic_(p, p_fp32)
+
+                if group["bf16_stochastic_round"]:
+                    p_fp32 = p.to(torch.float32)
+                    if group["weight_decay"] != 0:
+                        p_fp32.mul_(1 - group["lr"] * group["weight_decay"])
+                    p_fp32.add_(update, alpha=-group["lr"])
+                    copy_stochastic_(p, p_fp32)
+                else:
+                    if group["weight_decay"] != 0:
+                        p.mul_(1 - group["lr"] * group["weight_decay"])
+                    p.add_(update, alpha=-group["lr"])
 
         return loss
 

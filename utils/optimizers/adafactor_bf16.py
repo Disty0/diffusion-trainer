@@ -2,7 +2,7 @@ from typing import cast, Optional, TYPE_CHECKING, Union
 
 import torch
 from torch import Tensor
-from torch.optim.optimizer import _disable_dynamo_if_unsupported, Optimizer, TensorListList
+from torch.optim.optimizer import _disable_dynamo_if_unsupported, Optimizer, TensorListList, _get_scalar_dtype
 
 from .stochastic import copy_stochastic_
 
@@ -17,7 +17,106 @@ except ImportError:
             return x
 
 
-class AdafactorBF16(torch.optim.Adafactor):
+class AdafactorBF16(torch.optim.Optimizer):
+    def __init__(
+        self,
+        params,
+        lr: Union[float, Tensor] = 1e-2,
+        beta2_decay: float = -0.8,
+        eps: tuple[Optional[float], float] = (None, 1e-3),
+        d: float = 1.0,
+        weight_decay: float = 0.0,
+        *,
+        foreach: Optional[bool] = None,
+        maximize: bool = False,
+        bf16_stochastic_round: bool = True,
+    ):
+        if isinstance(lr, Tensor) and lr.numel() != 1:
+            raise ValueError("Tensor lr must be 1-element")
+        if not 0.0 <= lr:
+            raise ValueError(f"Learning rate should be >= 0 but is: {lr}")
+        if not 0.0 >= beta2_decay:
+            raise ValueError(f"beta2_decay should be <= 0 but is: {beta2_decay}")
+        if eps[0] is not None and not 0.0 <= eps[0]:
+            raise ValueError(f"epsilon1 should be >= 0 but is: {eps[0]}")
+        if not 0.0 <= eps[1]:
+            raise ValueError(f"epsilon2 should be >= 0 but is: {eps[1]}")
+        if not 1.0 <= d:
+            raise ValueError(f"Clipping threshold d should be >= 1 but is: {d}")
+        if not 0.0 <= weight_decay:
+            raise ValueError(f"weight_decay should be >= 0 but is: {weight_decay}")
+        defaults = {
+            "lr": lr,
+            "beta2_decay": beta2_decay,
+            "eps": eps,
+            "d": d,
+            "weight_decay": weight_decay,
+            "foreach": foreach,
+            "maximize": maximize,
+            "bf16_stochastic_round": bf16_stochastic_round,
+        }
+        super().__init__(params, defaults)
+
+    def __setstate__(self, state):
+        super().__setstate__(state)
+        for group in self.param_groups:
+            group.setdefault("foreach", None)
+            for p in group["params"]:
+                p_state = self.state.get(p, [])
+                if len(p_state) != 0 and not torch.is_tensor(p_state["step"]):
+                    step_val = float(p_state["step"])
+                    p_state["step"] = torch.tensor(step_val, dtype=_get_scalar_dtype())
+
+    def _init_group(
+        self,
+        group,
+        params_with_grad,
+        grads,
+        row_vars,
+        col_vars,
+        variances,
+        state_steps,
+    ):
+        for p in group["params"]:
+            if p.grad is None:
+                continue
+            if torch.is_complex(p):
+                raise RuntimeError("Adafactor does not support complex parameters")
+            if p.grad.is_sparse:
+                raise RuntimeError("Adafactor does not support sparse gradients")
+
+            params_with_grad.append(p)
+            grads.append(p.grad)
+
+            state = self.state[p]
+
+            # State initialization
+            if len(state) == 0:
+                # note(crcrpar): Deliberately host `step` on CPU if both capturable and fused are off.
+                # This is because kernel launches are costly on CUDA and XLA.
+                state["step"] = torch.tensor(0.0, dtype=_get_scalar_dtype())
+
+                if p.grad.dim() > 1:
+                    row_shape = list(p.grad.shape)
+                    row_shape[-1] = 1
+                    # Row factor of variance, NOT the same shape as grads (will be reduced along last dim)
+                    state["row_var"] = p.grad.new_zeros(row_shape)
+
+                    col_shape = list(p.grad.shape)
+                    col_shape[-2] = 1
+                    # Col factor of variance, NOT the same shape as grads (will be reduced along penultimate dim)
+                    state["col_var"] = p.grad.new_zeros(col_shape)
+                else:
+                    state["variance"] = torch.zeros_like(
+                        p.grad, memory_format=torch.preserve_format
+                    )
+
+            row_vars.append(state.get("row_var", None))
+            col_vars.append(state.get("col_var", None))
+            variances.append(state.get("variance", None))
+            state_steps.append(state["step"])
+        return False  # has_complex
+
     @torch.no_grad()
     def step(self, closure=None):
         r"""Perform a single optimization step.
@@ -70,6 +169,7 @@ class AdafactorBF16(torch.optim.Adafactor):
                 grad_scale=getattr(self, "grad_scale", None),
                 found_inf=getattr(self, "found_inf", None),
                 has_complex=has_complex,
+                bf16_stochastic_round=group["bf16_stochastic_round"],
             )
 
         return loss
@@ -97,6 +197,7 @@ def _single_tensor_adafactor_bf16(
     eps2: float,
     maximize: bool,
     has_complex: bool,
+    bf16_stochastic_round: bool,
 ):
     assert grad_scale is None and found_inf is None, (
         "Grad scaling should occur outside of optimizer.step()"
@@ -157,12 +258,17 @@ def _single_tensor_adafactor_bf16(
         update.mul_(grad)
         denom = max(1.0, update.norm(2).item() / ((update.numel() ** 0.5) * d))
 
-        param_fp32 = param.to(torch.float32)
         # Perform stepweight decay
-        if weight_decay != 0:
-            param_fp32.mul_(1 - lr * weight_decay)
-        param_fp32.add_(update, alpha=-alpha / denom)
-        copy_stochastic_(param, param_fp32)
+        if bf16_stochastic_round:
+            param_fp32 = param.to(torch.float32)
+            if weight_decay != 0:
+                param_fp32.mul_(1 - lr * weight_decay)
+            param_fp32.add_(update, alpha=-alpha / denom)
+            copy_stochastic_(param, param_fp32)
+        else:
+            if weight_decay != 0:
+                param.mul_(1 - lr * weight_decay)
+            param.add_(update, alpha=-alpha / denom)
 
 
 def _group_tensors_by_device_dtype_and_is_multidim(
@@ -221,6 +327,7 @@ def _multi_tensor_adafactor_bf16(
     eps2: float,
     maximize: bool,
     has_complex: bool,
+    bf16_stochastic_round: bool,
 ):
     if len(params) == 0:
         return
@@ -342,12 +449,17 @@ def _multi_tensor_adafactor_bf16(
         ]
 
         for param, update, alpha in zip(device_params, updates, alphas):
-            param_fp32 = param.to(torch.float32)
             # Perform stepweight decay
-            if weight_decay != 0:
-                param_fp32.mul_(1 - lr * weight_decay)
-            param_fp32.add_(update, alpha=alpha)
-            copy_stochastic_(param, param_fp32)
+            if bf16_stochastic_round:
+                param_fp32 = param.to(torch.float32)
+                if weight_decay != 0:
+                    param_fp32.mul_(1 - lr * weight_decay)
+                param_fp32.add_(update, alpha=alpha)
+                copy_stochastic_(param, param_fp32)
+            else:
+                if weight_decay != 0:
+                    param.mul_(1 - lr * weight_decay)
+                param.add_(update, alpha=alpha)
 
 
 @_disable_dynamo_if_unsupported(single_tensor_fn=_single_tensor_adafactor_bf16)
@@ -372,6 +484,7 @@ def adafactor_bf16(
     eps1: float,
     eps2: float,
     maximize: bool,
+    bf16_stochastic_round: bool,
 ):
     r"""Functional API that performs Adafactor algorithm computation.
 
@@ -406,4 +519,5 @@ def adafactor_bf16(
         grad_scale=grad_scale,
         found_inf=found_inf,
         has_complex=has_complex,
+        bf16_stochastic_round=bf16_stochastic_round,
     )
