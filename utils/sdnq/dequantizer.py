@@ -121,8 +121,6 @@ def register_op(ops: List[torch._ops.OpOverload]):
     torch.ops.aten.sub.Scalar,
     torch.ops.aten.add.Tensor,
     torch.ops.aten.add.Scalar,
-    torch.ops.aten.mul.Tensor,
-    torch.ops.aten.mul.Scalar,
     torch.ops.aten.addcmul.default,
     torch.ops.aten.addcdiv.default,
     torch.ops.aten.lerp.Tensor,
@@ -207,8 +205,24 @@ def sdnq_zeros_like(func, x, *args, **kwargs):
     return torch.zeros(x.shape, *args, dtype=dtype, device=device, **kwargs)
 
 
-@register_op([torch.ops.aten.mul_.Tensor, torch.ops.aten.mul_.Scalar])
+@register_op([torch.ops.aten.mul.Tensor, torch.ops.aten.mul.Scalar])
 def sdnq_mul(func, x, y):
+    if isinstance(x, SDNQTensor):
+        input = x
+        other = y
+    else:
+        input = y
+        other = x
+    if isinstance(other, SDNQTensor):
+        other = other.dequantize()
+    if func == torch.ops.aten.mul.Scalar or isinstance(other, (int,float)) or other.shape == input.scale.shape or other.numel() == 1:
+        return dequantize_symmetric_compiled(input.quant_data, (input.scale * other), dtype=input.return_dtype)
+    else:
+        return input.dequantize().mul_(other)
+
+
+@register_op([torch.ops.aten.mul_.Tensor, torch.ops.aten.mul_.Scalar])
+def sdnq_mul_(func, x, y):
     if isinstance(x, SDNQTensor):
         sdnq_first = True
         input = x
