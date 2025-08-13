@@ -121,10 +121,13 @@ def register_op(ops: List[torch._ops.OpOverload]):
     torch.ops.aten.sub.Scalar,
     torch.ops.aten.add.Tensor,
     torch.ops.aten.add.Scalar,
+    torch.ops.aten.mul.Tensor,
+    torch.ops.aten.mul.Scalar,
     torch.ops.aten.addcmul.default,
     torch.ops.aten.addcdiv.default,
     torch.ops.aten.lerp.Tensor,
     torch.ops.aten.lerp.Scalar,
+    torch.ops.aten.linalg_vector_norm.default,
 ])
 def sdnq_generic_func(func, *args, **kwargs):
     args = [x.dequantize() if isinstance(x, SDNQTensor) else x for x in args]
@@ -204,12 +207,7 @@ def sdnq_zeros_like(func, x, *args, **kwargs):
     return torch.zeros(x.shape, *args, dtype=dtype, device=device, **kwargs)
 
 
-@register_op([
-    torch.ops.aten.mul.Tensor,
-    torch.ops.aten.mul.Scalar,
-    torch.ops.aten.mul_.Tensor,
-    torch.ops.aten.mul_.Scalar,
-])
+@register_op([torch.ops.aten.mul_.Tensor, torch.ops.aten.mul_.Scalar])
 def sdnq_mul(func, x, y):
     if isinstance(x, SDNQTensor):
         sdnq_first = True
@@ -221,14 +219,12 @@ def sdnq_mul(func, x, y):
         other = x
     if isinstance(other, SDNQTensor):
         other = other.dequantize()
-    if sdnq_first and func in {torch.ops.aten.mul_.Tensor, torch.ops.aten.mul_.Scalar} and (func == torch.ops.aten.mul_.Scalar or isinstance(other, (int,float)) or other.shape == input.scale.shape or other.numel() == 1):
+    if sdnq_first and (func == torch.ops.aten.mul_.Scalar or isinstance(other, (int,float)) or other.shape == input.scale.shape or other.numel() == 1):
         input.scale.mul_(other)
         return input
     else:
         result = input.dequantize().mul_(other)
-        if func in {torch.ops.aten.mul_.Tensor, torch.ops.aten.mul_.Scalar}:
-            return x.copy_(result)
-        return result
+        return x.copy_(result)
 
 
 # FSDP ops
