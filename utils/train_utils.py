@@ -72,11 +72,14 @@ def get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_h
         sensitive_keys = config["sensitive_keys"]
     else:
         sensitive_keys = [
-            "latent_embedder", "unembedder", "text_embedder", "token_embedding",
+            "latent_embedder", "unembedder", "text_embedder", "token_embedding", "bias",
             "norm_unembed", "norm_ff", "norm_attn", "norm_attn_context", "norm",
             "norm_cross_attn","norm_q", "norm_k", "norm_added_q", "norm_added_k",
-            "shift_latent", "shift_latent_out", "shift_in", "shift_out", "bias",
+            "scale_attn_context", "scale_cross_attn", "scale_attn", "scale_ff",
+            "shift_latent", "shift_latent_out", "shift_in", "shift_out",
             "scale_latent", "scale_latent_out", "scale_in", "scale_out",
+            "scale_joint_hidden_states", "scale_context_hidden_states",
+            "scale_cond_hidden_states", "scale_refiner_hidden_states",
         ]
         sensitive_keys.extend(config["sensitive_keys"])
         if hasattr(model, "_skip_layerwise_casting_patterns"):
