@@ -64,12 +64,12 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                     if len(state) == 0:
                         state["step"] = 0
                         if group["use_quantized_buffers"]:
-                            state["momentum_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), sr=group["use_stochastic_quantization"])
+                            state["momentum_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), qtype=group["quantized_matmul_dtype"], sr=group["use_stochastic_quantization"])
                         else:
                             state["momentum_buffer"] = torch.zeros_like(p)
                         if group["adaptive"]:
                             if group["use_quantized_buffers"]:
-                                state["v_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), sr=group["use_stochastic_quantization"])
+                                state["v_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), qtype=group["quantized_matmul_dtype"], sr=group["use_stochastic_quantization"])
                             else:
                                 state["v_buffer"] = torch.zeros_like(p)
                     state["step"] += 1
@@ -204,7 +204,7 @@ def zeropower_via_newtonschulz5(G: torch.FloatTensor, steps: int, dtype: torch.d
 
     if G.size(-2) > G.size(-1):
         X = X.mT
-    return X
+    return X.to(dtype=G.dtype)
 
 
 def zeropower_via_newtonschulz5_int8_matmul(G: torch.FloatTensor, steps: int, dtype: torch.dtype = torch.bfloat16) -> torch.FloatTensor:
@@ -224,7 +224,7 @@ def zeropower_via_newtonschulz5_int8_matmul(G: torch.FloatTensor, steps: int, dt
 
     if G.size(-2) > G.size(-1):
         X = X.mT
-    return X
+    return X.to(dtype=G.dtype)
 
 
 def zeropower_via_newtonschulz5_fp8_matmul(G: torch.FloatTensor, steps: int, dtype: torch.dtype = torch.bfloat16) -> torch.FloatTensor:
@@ -244,7 +244,7 @@ def zeropower_via_newtonschulz5_fp8_matmul(G: torch.FloatTensor, steps: int, dty
 
     if G.size(-2) > G.size(-1):
         X = X.mT
-    return X
+    return X.to(dtype=G.dtype)
 
 
 torch._dynamo.config.cache_size_limit = max(8192, torch._dynamo.config.cache_size_limit)

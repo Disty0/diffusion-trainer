@@ -46,16 +46,22 @@ def apply_sdnq_to_module(model, config: dict, modules_to_not_convert: List[str] 
                         from .layers.linear.forward import quantized_linear_forward
                         quantized_forward = quantized_linear_forward
                 elif dtype == "fp8":
-                    if use_static_quantization:
-                        raise NotImplementedError(f'Quantization type {dtype} is not implemented with static quantization')
                     use_quantized_matmul = use_quantized_matmul and output_channel_size % 16 == 0 and channel_size % 16 == 0
                     if use_quantized_matmul:
                         if use_grad_ckpt:
-                            from .layers.linear.linear_fp8_dynamic import quantized_linear_forward_fp8_matmul
-                            quantized_forward = quantized_linear_forward_fp8_matmul
+                            if use_static_quantization:
+                                from .layers.linear.linear_fp8 import quantized_linear_forward_fp8_matmul
+                                quantized_forward = quantized_linear_forward_fp8_matmul
+                            else:
+                                from .layers.linear.linear_fp8_dynamic import quantized_linear_forward_fp8_matmul_dynamic
+                                quantized_forward = quantized_linear_forward_fp8_matmul_dynamic
                         else:
-                            from .layers.linear.linear_fp8_dynamic_ckpt import quantized_linear_forward_fp8_matmul_ckpt
-                            quantized_forward = quantized_linear_forward_fp8_matmul_ckpt
+                            if use_static_quantization:
+                                from .layers.linear.linear_fp8_ckpt import quantized_linear_forward_fp8_matmul_ckpt
+                                quantized_forward = quantized_linear_forward_fp8_matmul_ckpt
+                            else:
+                                from .layers.linear.linear_fp8_dynamic_ckpt import quantized_linear_forward_fp8_matmul_dynamic_ckpt
+                                quantized_forward = quantized_linear_forward_fp8_matmul_dynamic_ckpt
                     elif use_static_quantization:
                         from .layers.linear.forward import quantized_linear_forward
                         quantized_forward = quantized_linear_forward

@@ -1,16 +1,14 @@
 from typing import Tuple, Optional
 
 import torch
-from ...dequantizer import dequantize_symmetric, dequantize_symmetric_with_bias # noqa: TID252
+from ...dequantizer import dequantize_symmetric, dequantize_symmetric_with_bias, quantize_int8 # noqa: TID252
 from .linear_int8_dynamic import int8_matmul_dynamic # noqa: TID252
 
 
 def quantize_int8_matmul_input(input: torch.FloatTensor, scale: Optional[torch.FloatTensor] = None, dim: int = -1, do_input_reshape: bool = True) -> Tuple[torch.CharTensor, torch.FloatTensor]:
     if do_input_reshape:
         input = input.flatten(0,-2).contiguous()
-    input = input.to(dtype=torch.float32)
-    input_scale = torch.amax(input.abs(), dim=dim, keepdims=True).div_(127)
-    input = torch.div(input, input_scale).round_().clamp_(-128, 127).to(dtype=torch.int8)
+    input, input_scale = quantize_int8(input, dim=dim)
     scale = torch.mul(input_scale, scale) if scale is not None else input_scale
     if scale.dtype == torch.float16: # fp16 will overflow
         scale = scale.to(dtype=torch.float32)

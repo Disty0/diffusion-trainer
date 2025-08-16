@@ -1,23 +1,18 @@
 from typing import Tuple
 
 import torch
+from ...dequantizer import quantize_fp8 # noqa: TID252
 
 
 def quantize_fp8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, do_input_reshape: bool = True) -> Tuple[torch.Tensor, torch.Tensor, torch.FloatTensor, torch.FloatTensor]:
     if do_input_reshape:
         input = input.flatten(0,-2).contiguous()
-        weight = weight.t().contiguous()
         input_stride = input.stride()
         if input_stride[0] > input_stride[1] and input_stride[1] == 1:
             input = input.t().contiguous().t()
-    input = input.to(dtype=torch.float32)
-    weight = weight.to(dtype=torch.float32)
-    scale = torch.amax(weight.abs(), dim=0, keepdims=True).div_(448)
-    input_scale = torch.amax(input.abs(), dim=-1, keepdims=True).div_(448)
-    weight = torch.div(weight, scale).clamp_(-448, 448).to(dtype=torch.float8_e4m3fn)
-    input = torch.div(input, input_scale).clamp_(-448, 448).to(dtype=torch.float8_e4m3fn)
-    scale = scale.to(dtype=torch.float32)
-    input_scale = input_scale.to(dtype=torch.float32)
+        weight = weight.t().contiguous()
+    weight, scale = quantize_fp8(weight, dim=0)
+    input, input_scale = quantize_fp8(input, dim=-1)
     return input, weight, input_scale, scale
 
 
