@@ -244,7 +244,7 @@ def sdnq_mul(func, x, y):
     if isinstance(other, SDNQTensor):
         other = other.dequantize()
     if func == torch.ops.aten.mul.Scalar or isinstance(other, (int,float)) or other.shape == input.scale.shape or other.numel() == 1:
-        return dequantize_symmetric_compiled(input.quant_data, (input.scale * other), dtype=input.return_dtype)
+        return SDNQTensor(input.quant_data, (input.scale * other), input.return_dtype, qtype=input.qtype, sr=input.sr)
     else:
         return input.dequantize().mul_(other)
 
