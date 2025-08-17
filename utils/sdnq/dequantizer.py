@@ -10,7 +10,7 @@ def dequantize_symmetric(weight: torch.CharTensor, scale: torch.FloatTensor, dty
     if dtype is not None:
         result = result.to(dtype=dtype)
     if result_shape is not None:
-        result = result.reshape(result_shape)
+        result = result.view(result_shape)
     return result
 
 
@@ -20,7 +20,7 @@ def dequantize_symmetric_with_bias(weight: torch.CharTensor, scale: torch.FloatT
     if dtype is not None:
         result = result.to(dtype=dtype)
     if result_shape is not None:
-        result = result.reshape(result_shape)
+        result = result.view(result_shape)
     return result
 
 

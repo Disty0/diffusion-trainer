@@ -8,7 +8,7 @@ def quantized_linear_backward(grad_output: torch.FloatTensor, input: torch.Float
     grad_input = grad_weight = grad_bias = None
     grad_output = grad_output.flatten(0,-2).contiguous()
     if do_grad_input:
-        grad_input = torch.mm(grad_output, dequantize_symmetric(weight, scale)).reshape(input.shape)
+        grad_input = torch.mm(grad_output, dequantize_symmetric(weight, scale)).view(input.shape)
     if do_grad_weight:
         grad_weight = torch.mm(grad_output.t().contiguous(), input.flatten(0,-2).contiguous())
     if do_grad_bias and bias is not None:
