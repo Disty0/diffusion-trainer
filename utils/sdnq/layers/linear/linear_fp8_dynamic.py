@@ -4,13 +4,20 @@ import torch
 from ...dequantizer import quantize_fp8 # noqa: TID252
 
 
+def check_fp8_mats(input: torch.Tensor, weight: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    input_stride = input.stride()
+    if not (input_stride[0] > input_stride[1] and input_stride[1] == 1):
+        input = input.contiguous()
+    weight_stride = weight.stride()
+    if not (weight_stride[0] == 1 and weight_stride[1] > 1):
+        weight = weight.t().contiguous().t()
+    return input, weight
+
+
 def quantize_fp8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, do_input_reshape: bool = True) -> Tuple[torch.Tensor, torch.Tensor, torch.FloatTensor, torch.FloatTensor]:
     if do_input_reshape:
-        input = input.flatten(0,-2).contiguous()
-        input_stride = input.stride()
-        if input_stride[0] > input_stride[1] and input_stride[1] == 1:
-            input = input.t().contiguous().t()
-        weight = weight.t().contiguous()
+        input = input.flatten(0,-2)
+        weight = weight.t()
     weight, scale = quantize_fp8(weight, dim=0)
     input, input_scale = quantize_fp8(input, dim=-1)
     return input, weight, input_scale, scale
@@ -22,23 +29,17 @@ def fp8_matmul_dynamic(input: torch.FloatTensor, weight: torch.Tensor, bias: tor
         output_shape = list(input.shape)
         output_shape[-1] = weight.shape[0] if do_input_reshape else weight.shape[-1]
     input, weight, input_scale, scale = quantize_fp8_matmul(input, weight, do_input_reshape=do_input_reshape)
+    input, weight = check_fp8_mats(input, weight)
     return torch._scaled_mm(input, weight, scale_a=input_scale, scale_b=scale, bias=bias, out_dtype=return_dtype).view(output_shape)
 
 
 def fp8_matmul_dynamic_backward(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     grad_input = grad_weight = grad_bias = None
-    grad_output = grad_output.flatten(0,-2).contiguous()
+    grad_output = grad_output.flatten(0,-2)
     if do_grad_input:
-        weight_stride = weight.stride()
-        if weight_stride[0] > weight_stride[1] and weight_stride[1] == 1:
-            weight = weight.t().contiguous().t()
         grad_input = fp8_matmul_dynamic(grad_output, weight, None, output_shape=input.shape, do_input_reshape=False)
     if do_grad_weight:
-        input = input.flatten(0,-2).contiguous()
-        input_stride = input.stride()
-        if input_stride[0] > input_stride[1] and input_stride[1] == 1:
-            input = input.t().contiguous().t()
-        grad_weight = fp8_matmul_dynamic(grad_output.t().contiguous(), input, None, output_shape=None, do_input_reshape=False)
+        grad_weight = fp8_matmul_dynamic(grad_output.t(), input.flatten(0,-2), None, output_shape=None, do_input_reshape=False)
     if do_grad_bias and bias is not None:
         grad_bias = grad_output.sum(dim=0)
     return grad_input, grad_weight, grad_bias

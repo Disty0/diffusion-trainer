@@ -6,8 +6,8 @@ from ...dequantizer import dequantize_symmetric, dequantize_symmetric_with_bias,
 
 def quantize_int8_matmul(input: torch.FloatTensor, weight: torch.FloatTensor, do_input_reshape: bool = True) -> Tuple[torch.CharTensor, torch.CharTensor, torch.FloatTensor]:
     if do_input_reshape:
-        input = input.flatten(0,-2).contiguous()
-        weight = weight.t().contiguous()
+        input = input.flatten(0,-2)
+        weight = weight.t()
     weight, scale = quantize_int8(weight, dim=0)
     input, input_scale = quantize_int8(input, dim=-1)
     scale = torch.mul(input_scale, scale)
@@ -30,11 +30,11 @@ def int8_matmul_dynamic(input: torch.FloatTensor, weight: torch.FloatTensor, bia
 
 def int8_matmul_dynamic_backward(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     grad_input = grad_weight = grad_bias = None
-    grad_output = grad_output.flatten(0,-2).contiguous()
+    grad_output = grad_output.flatten(0,-2)
     if do_grad_input:
         grad_input = int8_matmul_dynamic(grad_output, weight, None, output_shape=input.shape, do_input_reshape=False)
     if do_grad_weight:
-        grad_weight = int8_matmul_dynamic(grad_output.t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
+        grad_weight = int8_matmul_dynamic(grad_output.t(), input.flatten(0,-2), None, output_shape=None, do_input_reshape=False)
     if do_grad_bias and bias is not None:
         grad_bias = grad_output.sum(dim=0)
     return grad_input, grad_weight, grad_bias

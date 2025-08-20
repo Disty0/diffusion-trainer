@@ -112,6 +112,9 @@ class SDNQTensor(torch.Tensor):
                 quant_data, scale = quantize_fp8_sr_compiled(float_tensor.detach())
             else:
                 quant_data, scale = quantize_fp8_compiled(float_tensor.detach())
+            weight_stride = quant_data.stride()
+            if not (weight_stride[0] == 1 and weight_stride[1] > 1):
+                quant_data = quant_data.t().contiguous().t()
         else:
             raise NotImplementedError(f'Quantization type {qtype} is not implemented')
         return SDNQTensor(quant_data, scale, float_tensor.dtype, qtype=qtype, sr=sr)

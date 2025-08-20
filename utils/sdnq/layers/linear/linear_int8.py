@@ -7,7 +7,7 @@ from .linear_int8_dynamic import int8_matmul_dynamic # noqa: TID252
 
 def quantize_int8_matmul_input(input: torch.FloatTensor, scale: Optional[torch.FloatTensor] = None, dim: int = -1, do_input_reshape: bool = True) -> Tuple[torch.CharTensor, torch.FloatTensor]:
     if do_input_reshape:
-        input = input.flatten(0,-2).contiguous()
+        input = input.flatten(0,-2)
     input, input_scale = quantize_int8(input, dim=dim)
     scale = torch.mul(input_scale, scale) if scale is not None else input_scale
     if scale.dtype == torch.float16: # fp16 will overflow
@@ -18,7 +18,7 @@ def quantize_int8_matmul_input(input: torch.FloatTensor, scale: Optional[torch.F
 def int8_matmul(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.FloatTensor, scale: torch.FloatTensor, output_shape: torch.Size = None, do_input_reshape: bool = True, do_transpose: bool = False) -> torch.FloatTensor:
     return_dtype = input.dtype
     if do_transpose:
-        weight = weight.t().contiguous()
+        weight = weight.t()
         scale = scale.t()
     if output_shape is None:
         output_shape = list(input.shape)
@@ -32,11 +32,11 @@ def int8_matmul(input: torch.FloatTensor, weight: torch.Tensor, bias: torch.Floa
 
 def int8_matmul_backward(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.Tensor, scale: torch.FloatTensor, bias: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     grad_input = grad_weight = grad_bias = None
-    grad_output = grad_output.flatten(0,-2).contiguous()
+    grad_output = grad_output.flatten(0,-2)
     if do_grad_input:
         grad_input = int8_matmul_dynamic(grad_output, dequantize_symmetric(weight, scale), None, output_shape=input.shape, do_input_reshape=False)
     if do_grad_weight:
-        grad_weight = int8_matmul_dynamic(grad_output.t().contiguous(), input.flatten(0,-2).contiguous(), None, output_shape=None, do_input_reshape=False)
+        grad_weight = int8_matmul_dynamic(grad_output.t(), input.flatten(0,-2), None, output_shape=None, do_input_reshape=False)
     if do_grad_bias and bias is not None:
         grad_bias = grad_output.sum(dim=0)
     return grad_input, grad_weight, grad_bias

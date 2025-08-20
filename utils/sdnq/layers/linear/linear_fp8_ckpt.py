@@ -16,15 +16,11 @@ def fp8_matmul_backward_ckpt(grad_output: torch.FloatTensor, input: torch.FloatT
     grad_input = grad_weight = grad_bias = None
     input_shape = list(grad_output.shape)
     input_shape[-1] = input.shape[-1]
-    grad_output = grad_output.flatten(0,-2).contiguous()
+    grad_output = grad_output.flatten(0,-2)
     if do_grad_input:
-        weight = dequantize_symmetric(weight, scale)
-        weight_stride = weight.stride()
-        if weight_stride[0] > weight_stride[1] and weight_stride[1] == 1:
-            weight = weight.t().contiguous().t()
-        grad_input = fp8_matmul_dynamic(grad_output, weight, None, output_shape=input.shape, do_input_reshape=False)
+        grad_input = fp8_matmul_dynamic(grad_output, dequantize_symmetric(weight, scale), None, output_shape=input.shape, do_input_reshape=False)
     if do_grad_weight:
-        grad_weight = fp8_matmul(grad_output.t().contiguous(), input, None, input_scale, output_shape=None, do_input_reshape=False)
+        grad_weight = fp8_matmul(grad_output.t(), input, None, input_scale, output_shape=None, do_input_reshape=False)
     if do_grad_bias and bias is not None:
         grad_bias = grad_output.sum(dim=0)
     return grad_input, grad_weight, grad_bias
