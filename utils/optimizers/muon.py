@@ -186,21 +186,21 @@ def zeropower_via_newtonschulz5(G: torch.FloatTensor, steps: int, dtype: torch.d
     where S' is diagonal with S_{ii}' ~ Uniform(0.5, 1.5), which turns out not to hurt model
     performance at all relative to UV^T, where USV^T = G is the SVD.
     """
-    assert G.ndim >= 2 # batched Muon implementation by @scottjmaddox, and put into practice in the record by @YouJiacheng
+    assert G.ndim == 2
     a, b, c = (3.4445, -4.7750,  2.0315)
     X = G.to(dtype=dtype)
     if G.size(-2) > G.size(-1):
         X = X.mT
 
     # Ensure spectral norm is at most 1
-    X = X / (X.norm(dim=(-2, -1), keepdim=True) + 1e-7)
+    X = X / (X.norm(dim=(-2, -1), keepdim=True).add_(1e-7))
     # Perform the NS iterations
     for _ in range(steps):
-        A = X @ X.mT
+        A = torch.mm(X, X.mT)
         #B = (b * A) + ((c * A) @ A) # quintic computation strategy adapted from suggestion by @jxbz, @leloykun, and @YouJiacheng
-        B = ((c * A) @ A).add_(A, alpha=b)
+        B = torch.addmm(A, A, A, beta=b, alpha=c)
         #X = (a * X) + (B @ X)
-        X = (B @ X).add_(X, alpha=a)
+        X = torch.addmm(X, B, X, beta=a)
 
     if G.size(-2) > G.size(-1):
         X = X.mT
@@ -215,12 +215,12 @@ def zeropower_via_newtonschulz5_int8_matmul(G: torch.FloatTensor, steps: int, dt
         X = X.mT
 
     # Ensure spectral norm is at most 1
-    X = X / (X.norm(dim=(-2, -1), keepdim=True) + 1e-7)
+    X = X / (X.norm(dim=(-2, -1), keepdim=True).add_(1e-7))
     # Perform the NS iterations
     for _ in range(steps):
         A = int8_matmul_dynamic(X, X, None, do_input_reshape=True)
-        B = int8_matmul_dynamic((c * A), A, None, do_input_reshape=False).add_(A, alpha=b)
-        X = int8_matmul_dynamic(B, X, None, do_input_reshape=False).add_(X, alpha=a)
+        B = int8_matmul_dynamic((A*c), A, (A*b), do_input_reshape=False)
+        X = int8_matmul_dynamic(B, X, (X*a), do_input_reshape=False)
 
     if G.size(-2) > G.size(-1):
         X = X.mT
@@ -235,12 +235,12 @@ def zeropower_via_newtonschulz5_fp8_matmul(G: torch.FloatTensor, steps: int, dty
         X = X.mT
 
     # Ensure spectral norm is at most 1
-    X = X / (X.norm(dim=(-2, -1), keepdim=True) + 1e-7)
+    X = X / (X.norm(dim=(-2, -1), keepdim=True).add_(1e-7))
     # Perform the NS iterations
     for _ in range(steps):
         A = fp8_matmul_dynamic(X, X, None, do_input_reshape=True)
-        B = fp8_matmul_dynamic((c * A), A, None, do_input_reshape=False).add_(A, alpha=b)
-        X = fp8_matmul_dynamic(B, X, None, do_input_reshape=False).add_(X, alpha=a)
+        B = fp8_matmul_dynamic((A*c), A, (A*b), do_input_reshape=False)
+        X = fp8_matmul_dynamic(B, X, (X*a), do_input_reshape=False)
 
     if G.size(-2) > G.size(-1):
         X = X.mT
