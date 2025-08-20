@@ -51,11 +51,10 @@ def quantize_fp8(input: torch.FloatTensor, dim: int = -1) -> Tuple[torch.CharTen
 
 @torch.no_grad()
 def quantize_fp8_sr(input: torch.FloatTensor, dim: int = -1) -> Tuple[torch.CharTensor, torch.FloatTensor]:
-    input = input.to(dtype=torch.float32)
-    scale = torch.amax(input.abs(), dim=dim, keepdims=True).div_(448)
-    input = torch.normal(0, 0.25, input.shape, device=input.device, dtype=input.dtype,
-    ).addcdiv_(input, scale).clamp_(-448, 448).to(dtype=torch.float8_e4m3fn)
-    return input, scale
+    input, scale = quantize_fp8(input, dim=dim)
+    input = input.view(torch.int8).add_(torch.randint_like(input, low=0, high=2, dtype=torch.int8))
+    input = input.clamp_(-128,126).view(torch.uint8).clamp_(0,254).view(torch.float8_e4m3fn)
+    return input
 
 
 class SDNQTensor(torch.Tensor):

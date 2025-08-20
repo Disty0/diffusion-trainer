@@ -1,6 +1,7 @@
 import torch
 from torch import Tensor
 
+
 def copy_stochastic_(target: Tensor, source: Tensor):
     """
     copies source into target using stochastic rounding
@@ -9,13 +10,8 @@ def copy_stochastic_(target: Tensor, source: Tensor):
         target: the target tensor with dtype=bfloat16
         source: the target tensor with dtype=float32
     """
-    # create a random 16 bit integer
-    result = torch.randint_like(
-        source,
-        dtype=torch.int32,
-        low=0,
-        high=(1 << 16),
-    )
+    # create a random 16 bit integer, high = (1 << 16)
+    result = torch.randint_like(source, dtype=torch.int32, low=0, high=65536)
 
     # add the random number to the lower 16 bit of the mantissa
     result.add_(source.view(dtype=torch.int32))
