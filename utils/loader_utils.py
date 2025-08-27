@@ -164,8 +164,8 @@ class ImageTensorsAndEmbedsDataset(Dataset):
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resolution)).copy()).transpose(2,0).transpose(1,2)
-            image_tensor = ((image_tensor.float() / 255) - 0.5) * 2 # -1 to 1 range
+            image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resolution)).copy()).permute(2,0,1)
+            image_tensor = ((image_tensor.float() / 127.5) - 1) # -1 to 1 range
             images.append(image_tensor)
             embeds.append(load_from_file(batch[1]))
         return (images, embeds)

@@ -5,7 +5,7 @@ import torch
 
 def get_meanflow_target(target: torch.FloatTensor, sigmas: torch.FloatTensor, sigmas_next: torch.FloatTensor, jvp_out: torch.FloatTensor) -> torch.FloatTensor:
     with torch.no_grad():
-        return (target.to(dtype=torch.float32) - (sigmas.to(dtype=torch.float32) - sigmas_next.to(dtype=torch.float32)) * jvp_out.to(dtype=torch.float32)).detach()
+        return torch.addcmul(target.to(dtype=torch.float32), (sigmas_next.to(dtype=torch.float32) - sigmas.to(dtype=torch.float32)), jvp_out.to(dtype=torch.float32)).detach()
 
 
 def get_flowmatch_inputs(
@@ -72,7 +72,8 @@ def get_self_corrected_targets(
 ) -> Tuple[torch.FloatTensor, torch.FloatTensor, int]:
     if x0_pred:
         model_x0_pred = model_pred
-    model_x0_pred = noisy_model_input.to(dtype=torch.float32) - (model_pred * sigmas)
+    #model_x0_pred = noisy_model_input.to(dtype=torch.float32) - (model_pred * sigmas)
+    model_x0_pred = torch.addcmul(noisy_model_input.to(dtype=torch.float32), model_pred, -sigmas)
 
     # new_noisy_model_input = ((1.0 - sigmas) * model_x0_pred) + (sigmas * noise)
     new_noisy_model_input = torch.addcmul(torch.mul(sigmas, noise), torch.sub(1.0, sigmas), model_x0_pred)
