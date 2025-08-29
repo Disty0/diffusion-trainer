@@ -30,7 +30,7 @@ def fp8_matmul_dynamic(input: torch.FloatTensor, weight: torch.Tensor, bias: tor
         output_shape[-1] = weight.shape[0] if do_input_reshape else weight.shape[-1]
     input, weight, input_scale, scale = quantize_fp8_matmul(input, weight, do_input_reshape=do_input_reshape)
     input, weight = check_fp8_mats(input, weight)
-    return torch._scaled_mm(input, weight, scale_a=input_scale, scale_b=scale, bias=bias, out_dtype=return_dtype).view(output_shape)
+    return torch._scaled_mm(input, weight, scale_a=input_scale, scale_b=scale, bias=bias, out_dtype=torch.bfloat16).view(output_shape).to(return_dtype)
 
 
 def fp8_matmul_dynamic_backward(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.FloatTensor, bias: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:

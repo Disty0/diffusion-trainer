@@ -239,8 +239,8 @@ def zeropower_via_newtonschulz5_fp8_matmul(G: torch.FloatTensor, steps: int, dty
     # Perform the NS iterations
     for _ in range(steps):
         A = fp8_matmul_dynamic(X, X, None, do_input_reshape=True)
-        B = fp8_matmul_dynamic((A*c), A, (A*b), do_input_reshape=False)
-        X = fp8_matmul_dynamic(B, X, (X*a), do_input_reshape=False)
+        B = fp8_matmul_dynamic((A*c), A, None, do_input_reshape=False).add_(A, alpha=b)
+        X = fp8_matmul_dynamic(B, X, None, do_input_reshape=False).add_(X, alpha=a)
 
     if G.size(-2) > G.size(-1):
         X = X.mT
