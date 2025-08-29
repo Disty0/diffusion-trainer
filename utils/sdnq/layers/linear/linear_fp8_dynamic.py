@@ -30,6 +30,8 @@ def fp8_matmul_dynamic(input: torch.FloatTensor, weight: torch.Tensor, bias: tor
         output_shape[-1] = weight.shape[0] if do_input_reshape else weight.shape[-1]
     input, weight, input_scale, scale = quantize_fp8_matmul(input, weight, do_input_reshape=do_input_reshape)
     input, weight = check_fp8_mats(input, weight)
+    if bias is not None and bias.dtype != torch.bfloat16:
+        bias = bias.to(dtype=torch.bfloat16)
     return torch._scaled_mm(input, weight, scale_a=input_scale, scale_b=scale, bias=bias, out_dtype=torch.bfloat16).view(output_shape).to(return_dtype)
 
 
