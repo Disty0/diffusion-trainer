@@ -72,7 +72,7 @@ def apply_sdnq_to_module(model, config: dict, modules_to_not_convert: List[str] 
                     module.forward = quantized_forward
                     module.forward = module.forward.__get__(module, module.__class__)
                     if use_static_quantization:
-                        module.weight = torch.nn.Parameter(SDNQTensor.from_float(module.weight, sr=use_sr), requires_grad=module.weight.requires_grad)
+                        module.weight = torch.nn.Parameter(SDNQTensor.from_float(module.weight, qtype=dtype, sr=use_sr), requires_grad=module.weight.requires_grad)
 
         module = apply_sdnq_to_module(module, config, modules_to_not_convert=modules_to_not_convert)
     return model
