@@ -94,12 +94,12 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                         p_fp32 = p.to(torch.float32)
                         if group["weight_decay"] != 0:
                             p_fp32.mul_(1 - group["lr"] * group["weight_decay"])
-                        p_fp32.add_(update.view(p.shape), alpha=alpha)
+                        p_fp32.add_(update, alpha=alpha)
                         copy_stochastic_(p, p_fp32)
                     else:
                         if group["weight_decay"] != 0:
                             p.mul_(1 - group["lr"] * group["weight_decay"])
-                        p.add_(update.view(p.shape), alpha=alpha)
+                        p.add_(update, alpha=alpha)
             else:
                 for p in group["params"]:
                     if p.grad is None:
@@ -155,10 +155,12 @@ def muon_update(
     quantized_matmul_dtype: str = "int8",
 ) -> torch.FloatTensor:
     beta, beta2 = betas
+    reshape_grad = (grad.ndim > 2)
     momentum_buffer.lerp_(grad, 1 - beta)
     grad = grad.lerp_(momentum_buffer, beta) if nesterov else momentum_buffer
-    if grad.ndim == 4: # for the case of conv filters
-        grad = grad.view(len(grad), -1)
+    if reshape_grad: # for the case of conv filters
+        grad_shape = grad.shape
+        grad = grad.flatten(1, -1)
     if use_quantized_matmul:
         if quantized_matmul_dtype == "int8":
             grad = zeropower_via_newtonschulz5_int8_matmul(grad, steps=ns_steps, dtype=zeropower_dtype)
@@ -168,6 +170,8 @@ def muon_update(
             raise NotImplementedError(f'Quantization type {quantized_matmul_dtype} is not implemented')
     else:
         grad = zeropower_via_newtonschulz5(grad, steps=ns_steps, dtype=zeropower_dtype)
+    if reshape_grad:
+        grad = grad.unflatten(-1, grad_shape[1:])
     if v_buffer is not None:
         v_buffer.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
         v_hat = v_buffer / (1 - beta2 ** step)
