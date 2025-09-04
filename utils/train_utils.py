@@ -19,7 +19,7 @@ print_filler = "--------------------------------------------------"
 
 def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
     optimizer = config["optimizer"]
-    if optimizer.lower() in {"adamw_sdnq"}:
+    if optimizer.lower() in {"adamw_sdnq", "adamw_bf16"}:
         from utils.optimizers.adamw import AdamW
         optimizer_class = AdamW
     elif optimizer.lower() == "adafactor_bf16":
