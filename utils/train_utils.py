@@ -19,9 +19,9 @@ print_filler = "--------------------------------------------------"
 
 def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
     optimizer = config["optimizer"]
-    if optimizer.lower() == "adamw_bf16":
-        from utils.optimizers.adamw_bf16 import AdamWBF16
-        optimizer_class = AdamWBF16
+    if optimizer.lower() in {"adamw_sdnq"}:
+        from utils.optimizers.adamw import AdamW
+        optimizer_class = AdamW
     elif optimizer.lower() == "adafactor_bf16":
         from utils.optimizers.adafactor_bf16 import AdafactorBF16
         optimizer_class = AdafactorBF16

@@ -5,7 +5,7 @@ from .stochastic import copy_stochastic_
 from utils.sdnq.dequantizer import SDNQTensor
 
 
-class AdamWBF16(torch.optim.Optimizer):
+class AdamW(torch.optim.Optimizer):
     def __init__(self, params, **kwargs):
         if isinstance(params, list) and isinstance(params[0], torch.nn.Parameter):
             kwargs["params"] = params
