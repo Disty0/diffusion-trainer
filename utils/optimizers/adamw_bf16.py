@@ -2,6 +2,7 @@ from typing import Tuple
 
 import torch
 from .stochastic import copy_stochastic_
+from utils.sdnq.dequantizer import SDNQTensor
 
 
 class AdamWBF16(torch.optim.Optimizer):
@@ -18,7 +19,10 @@ class AdamWBF16(torch.optim.Optimizer):
             group["eps"] = group.get("eps", 1e-8)
             group["weight_decay"] = group.get("weight_decay", 0)
             group["bf16_stochastic_round"] = group.get("bf16_stochastic_round", True)
-            assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "bf16_stochastic_round"])
+            group["use_quantized_buffers"] = group.get("use_quantized_buffers", False)
+            group["quantized_buffers_dtype"] = group.get("quantized_buffers_dtype", "int8")
+            group["use_stochastic_quantization"] = group.get("use_stochastic_quantization", True)
+            assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "bf16_stochastic_round", "use_quantized_buffers", "quantized_buffers_dtype", "use_stochastic_quantization"])
         super().__init__(param_groups, dict())
 
     @torch.no_grad()
@@ -35,9 +39,13 @@ class AdamWBF16(torch.optim.Optimizer):
 
                 state = self.state[p]
                 if len(state) == 0:
-                    state["exp_avg"] = torch.zeros_like(p)
-                    state["exp_avg_sq"] = torch.zeros_like(p)
                     state["step"] = 0
+                    if group["use_quantized_buffers"]:
+                        state["exp_avg"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), qtype=group["quantized_buffers_dtype"], sr=group["use_stochastic_quantization"])
+                        state["exp_avg_sq"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), qtype=group["quantized_buffers_dtype"], sr=group["use_stochastic_quantization"])
+                    else:
+                        state["exp_avg"] = torch.zeros_like(p)
+                        state["exp_avg_sq"] = torch.zeros_like(p)
 
                 state["step"] += 1
                 update = adam_update(
