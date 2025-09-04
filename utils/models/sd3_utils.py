@@ -6,7 +6,7 @@ from diffusers.models.modeling_utils import ModelMixin
 from transformers import PreTrainedModel, PreTrainedTokenizer
 from accelerate import Accelerator
 
-from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
+from ..sampler_utils import get_flowmatch_inputs, get_loss_weighting, get_self_corrected_targets, mask_noisy_model_input
 
 
 def _encode_sd3_prompt_with_t5(
@@ -153,8 +153,8 @@ def run_sd3_model_training(
         noisy_model_input, timesteps, target, sigmas, _, noise = get_flowmatch_inputs(
             latents=latents,
             device=accelerator.device,
+            sampler_config=config["sampler_config"],
             num_train_timesteps=model_processor.config.num_train_timesteps,
-            shift=config["timestep_shift"],
             meanflow=False,
         )
 
@@ -208,10 +208,7 @@ def run_sd3_model_training(
     model_pred = model_pred.to(dtype=torch.float32)
     target = target.to(dtype=torch.float32).detach()
 
-    if config["loss_weighting"] == "sigma_sqrt":
-        sigma_sqrt = sigmas.sqrt().clamp(min=0.1, max=None)
-        model_pred = model_pred * sigma_sqrt
-        target = target * sigma_sqrt
+    model_pred, target = get_loss_weighting(loss_weighting=config["loss_weighting"], model_pred=model_pred, target=target, sigmas=sigmas)
     loss = loss_func(model_pred, target, reduction=config["loss_reduction"])
 
     log_dict = {

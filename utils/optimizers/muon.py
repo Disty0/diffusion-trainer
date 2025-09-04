@@ -38,7 +38,7 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                 group["use_stochastic_quantization"] = group.get("use_stochastic_quantization", True)
                 if isinstance(group["zeropower_dtype"], str):
                     group["zeropower_dtype"] = getattr(torch, group["zeropower_dtype"])
-                assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "ns_steps", "adaptive", "nesterov", "bf16_stochastic_round", "use_muon", "zeropower_dtype", "use_quantized_matmul", "quantized_matmul_dtype", "use_quantized_buffers", "quantized_buffers_dtype", "use_stochastic_quantization"])
+                assert set(group.keys()) == set(["params", "lr", "use_muon", "betas", "eps", "weight_decay", "ns_steps", "nesterov", "adaptive", "bf16_stochastic_round", "zeropower_dtype", "use_quantized_matmul", "quantized_matmul_dtype", "use_quantized_buffers", "quantized_buffers_dtype", "use_stochastic_quantization"])
             else:
                 # defaults
                 group["lr"] = group.get("lr", 1e-4)

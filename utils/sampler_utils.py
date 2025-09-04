@@ -11,23 +11,33 @@ def get_meanflow_target(target: torch.FloatTensor, sigmas: torch.FloatTensor, si
 def get_flowmatch_inputs(
     latents: torch.FloatTensor,
     device: torch.device,
+    sampler_config: dict,
     num_train_timesteps: int = 1000,
-    shift: float = 3.0,
-    noise: Optional[torch.FloatTensor] = None,
     meanflow: bool = False,
+    noise: Optional[torch.FloatTensor] = None,
 ) -> Tuple[torch.FloatTensor]:
-    # use timestep 1000 as well for zero snr
-    # torch.randn is not random so we use uniform instead
-    # uniform range is larger than 1.0 to hit the timestep 1000 more
-    if meanflow:
-        u = torch.empty((2, latents.shape[0]), device=device, dtype=torch.float32).uniform_(0.0, 1.0056)
-        sigmas_next = torch.amin(u, dim=0).clamp(0, 1.0 - 1/num_train_timesteps).view(-1, 1, 1, 1)
-        u = torch.amax(u, dim=0)
-    else:
-        u = torch.empty((latents.shape[0],), device=device, dtype=torch.float32).uniform_(0.0, 1.0056)
+    shape = (2, latents.shape[0]) if meanflow else (latents.shape[0],)
 
-    u = (u * shift) / (1 + (shift - 1) * u)
-    u = u.clamp(1/num_train_timesteps,1.0)
+    if sampler_config["weighting_scheme"] == "uniform":
+        # uniform range is larger than 1.0 to hit the timestep 1000 more
+        u = torch.empty(shape, device=device, dtype=torch.float32).uniform_(0.0, 1.0056)
+    elif sampler_config["weighting_scheme"] == "logit_normal":
+        u = torch.normal(sampler_config["logit_mean"], sampler_config["logit_std"], shape, device=device, dtype=torch.float32).sigmoid_()
+    elif sampler_config["weighting_scheme"] == "mode":
+        u = torch.rand(shape, device=device, dtype=torch.float32)
+        # u = 1 - u - mode_scale * (torch.cos(math.pi * u / 2) ** 2 - 1 + u)
+        u = 1 - u.sub_((torch.cos(u.mul(torch.pi / 2)).square_().add_(-1).add_(u)).mul_(sampler_config["mode_scale"]))
+    else:
+        raise NotImplementedError(f'weighting_scheme type {sampler_config["weighting_scheme"]} is not implemented')
+
+    if meanflow:
+        sigmas_next = torch.amin(u, dim=0).clamp_(0, 1.0 - 1/num_train_timesteps).view(-1, 1, 1, 1)
+        u = torch.amax(u, dim=0)
+
+    if sampler_config["shift"] != 0:
+        u = (u * sampler_config["shift"]) / (1 + (sampler_config["shift"] - 1) * u)
+
+    u = u.clamp_(1/num_train_timesteps,1.0)
     timesteps = torch.mul(u, num_train_timesteps)
     sigmas = u.view(-1, 1, 1, 1)
     if not meanflow:
@@ -40,6 +50,22 @@ def get_flowmatch_inputs(
     target = noise - latents
 
     return noisy_model_input, timesteps, target, sigmas, sigmas_next, noise
+
+
+def get_loss_weighting(loss_weighting, model_pred, target, sigmas):
+    if loss_weighting == "none":
+        return model_pred, target
+    elif loss_weighting == "sigma_sqrt_clamp":
+        weight = sigmas.sqrt().clamp(min=0.1, max=None)
+    elif loss_weighting == "sigma_sqrt":
+        weight = sigmas.sqrt()
+    elif loss_weighting == "cosmap":
+        # weighting = 2 / (torch.pi * (1 - (2 * sigmas) + 2 * sigmas**2))
+        double_sigmas = 2 * sigmas
+        weight = (2 / torch.pi) / (1 - double_sigmas + (double_sigmas * sigmas))
+    else:
+        raise NotImplementedError(f'loss_weighting type {loss_weighting} is not implemented')
+    return torch.mul(model_pred, weight), torch.mul(target, weight)
 
 
 def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, device: torch.device) -> Tuple[torch.FloatTensor, int]:
