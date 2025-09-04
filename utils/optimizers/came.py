@@ -51,16 +51,11 @@ class CAME(torch.optim.Optimizer):
     def supports_flat_params(self):
         return False
 
-
-    def _get_options(self, param_shape):
-        factored = len(param_shape) >= 2
-        return factored
-
-    def _rms(self, tensor):
-        return tensor.norm(2) / (tensor.numel() ** 0.5)
+    def _rms(self, tensor, alpha=1):
+        return tensor.norm(2).div_((tensor.numel() ** 0.5) * alpha)
 
     def _approx_sq_grad(self, exp_avg_sq_row, exp_avg_sq_col):
-        r_factor = (exp_avg_sq_row / exp_avg_sq_row.mean(dim=-1, keepdim=True)).rsqrt_().unsqueeze(-1)
+        r_factor = torch.div(exp_avg_sq_row, exp_avg_sq_row.mean(dim=-1, keepdim=True)).rsqrt_().unsqueeze(-1)
         c_factor = exp_avg_sq_col.unsqueeze(-2).rsqrt()
         return torch.mul(r_factor, c_factor)
 
@@ -86,7 +81,7 @@ class CAME(torch.optim.Optimizer):
                 state = self.state[p]
                 grad_shape = grad.shape
 
-                factored = self._get_options(grad_shape)
+                factored = len(grad_shape) >= 2
                 # State Initialization
                 if len(state) == 0:
                     state["step"] = 0
@@ -110,12 +105,8 @@ class CAME(torch.optim.Optimizer):
                     exp_avg_sq_row = state["exp_avg_sq_row"]
                     exp_avg_sq_col = state["exp_avg_sq_col"]
 
-                    exp_avg_sq_row.mul_(group["betas"][1]).add_(
-                        update.mean(dim=-1), alpha=1.0 - group["betas"][1]
-                    )
-                    exp_avg_sq_col.mul_(group["betas"][1]).add_(
-                        update.mean(dim=-2), alpha=1.0 - group["betas"][1]
-                    )
+                    exp_avg_sq_row.mul_(group["betas"][1]).add_(update.mean(dim=-1), alpha=1.0 - group["betas"][1])
+                    exp_avg_sq_col.mul_(group["betas"][1]).add_(update.mean(dim=-2), alpha=1.0 - group["betas"][1])
 
                     # Approximation of exponential moving average of square of gradient
                     update = self._approx_sq_grad(exp_avg_sq_row, exp_avg_sq_col)
@@ -126,9 +117,7 @@ class CAME(torch.optim.Optimizer):
                     exp_avg_sq.mul_(group["betas"][1]).add_(update, alpha=1.0 - group["betas"][1])
                     update = exp_avg_sq.rsqrt().mul_(grad)
 
-                update.div_(
-                    (self._rms(update) / group["clip_threshold"]).clamp_(min=1.0)
-                )
+                update.div_(self._rms(update, alpha=group["clip_threshold"]).clamp_(min=1.0))
 
                 exp_avg = state["exp_avg"]
                 exp_avg.mul_(group["betas"][0]).add_(update, alpha=1 - group["betas"][0])
@@ -141,12 +130,8 @@ class CAME(torch.optim.Optimizer):
                     exp_avg_res_row = state["exp_avg_res_row"]
                     exp_avg_res_col = state["exp_avg_res_col"]
 
-                    exp_avg_res_row.mul_(group["betas"][2]).add_(
-                        res.mean(dim=-1), alpha=1.0 - group["betas"][2]
-                    )
-                    exp_avg_res_col.mul_(group["betas"][2]).add_(
-                        res.mean(dim=-2), alpha=1.0 - group["betas"][2]
-                    )
+                    exp_avg_res_row.mul_(group["betas"][2]).add_(res.mean(dim=-1), alpha=1.0 - group["betas"][2])
+                    exp_avg_res_col.mul_(group["betas"][2]).add_(res.mean(dim=-2), alpha=1.0 - group["betas"][2])
 
                     # Approximation of exponential moving average of instability
                     res_approx = self._approx_sq_grad(exp_avg_res_row, exp_avg_res_col)
