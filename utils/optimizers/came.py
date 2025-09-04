@@ -2,6 +2,8 @@ import torch
 import torch.optim
 
 from .stochastic import copy_stochastic_
+from utils.sdnq.dequantizer import SDNQTensor
+
 
 class CAME(torch.optim.Optimizer):
     """Implements CAME algorithm.
@@ -29,6 +31,9 @@ class CAME(torch.optim.Optimizer):
         betas=(0.9, 0.999, 0.9999),
         weight_decay=0.0,
         bf16_stochastic_round=False,
+        use_quantized_buffers=False,
+        quantized_buffers_dtype="int8",
+        use_stochastic_quantization=True,
     ):
         assert lr > 0.
         assert all([0. <= beta <= 1. for beta in betas])
@@ -40,6 +45,9 @@ class CAME(torch.optim.Optimizer):
             betas=betas,
             weight_decay=weight_decay,
             bf16_stochastic_round=bf16_stochastic_round,
+            use_quantized_buffers=use_quantized_buffers,
+            quantized_buffers_dtype=quantized_buffers_dtype,
+            use_stochastic_quantization=use_stochastic_quantization,
         )
         super(CAME, self).__init__(params, defaults)
 
@@ -87,7 +95,11 @@ class CAME(torch.optim.Optimizer):
                     state["step"] = 0
                     state["RMS"] = 0
 
-                    state["exp_avg"] = torch.zeros_like(grad)
+                    if group["use_quantized_buffers"]:
+                        state["exp_avg"] = SDNQTensor.from_float(torch.zeros_like(grad).add_(torch.finfo(grad.dtype).eps), qtype=group["quantized_buffers_dtype"], sr=group["use_stochastic_quantization"])
+                    else:
+                        state["exp_avg"] = torch.zeros_like(grad)
+
                     if factored:
                         state["exp_avg_sq_row"] = torch.zeros(grad_shape[:-1], dtype=grad.dtype, device=grad.deivce)
                         state["exp_avg_sq_col"] = torch.zeros(grad_shape[:-2] + grad_shape[-1:], dtype=grad.dtype, device=grad.deivce)
