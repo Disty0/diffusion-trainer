@@ -25,8 +25,8 @@ def get_flowmatch_inputs(
         u = torch.normal(sampler_config["logit_mean"], sampler_config["logit_std"], shape, device=device, dtype=torch.float32).sigmoid_()
     elif sampler_config["weighting_scheme"] == "mode":
         u = torch.rand(shape, device=device, dtype=torch.float32)
-        # u = 1 - u - mode_scale * (torch.cos(math.pi * u / 2) ** 2 - 1 + u)
-        u = 1 - u.sub_((torch.cos(u.mul(torch.pi / 2)).square_().add_(-1).add_(u)).mul_(sampler_config["mode_scale"]))
+        # u = 1 - u - mode_scale * (torch.cos(torch.pi * u / 2) ** 2 - 1 + u)
+        u = (1 - u).sub_((torch.cos(u.mul(torch.pi / 2)).square_().add_(-1).add_(u)).mul_(sampler_config["mode_scale"]))
     else:
         raise NotImplementedError(f'weighting_scheme type {sampler_config["weighting_scheme"]} is not implemented')
 
