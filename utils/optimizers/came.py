@@ -112,7 +112,7 @@ class CAME(torch.optim.Optimizer):
                 state["step"] += 1
                 state["RMS"] = self._rms(p)
 
-                update = (grad**2) + group["eps"][0]
+                update = torch.square(grad).add_(group["eps"][0])
                 if factored:
                     exp_avg_sq_row = state["exp_avg_sq_row"]
                     exp_avg_sq_col = state["exp_avg_sq_col"]
@@ -136,7 +136,7 @@ class CAME(torch.optim.Optimizer):
 
                 # Confidence-guided strategy
                 # Calculation of instability
-                res = (update - exp_avg)**2 + group["eps"][1]
+                res = torch.sub(update, exp_avg).square_().add_(group["eps"][1])
 
                 if factored:
                     exp_avg_res_row = state["exp_avg_res_row"]
