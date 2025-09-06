@@ -21,7 +21,7 @@ def get_flowmatch_inputs(
     if sampler_config["weighting_scheme"] == "uniform":
         # uniform range is larger than 1.0 to hit the timestep 1000 more
         u = torch.empty(shape, device=device, dtype=torch.float32).uniform_(0.0, 1.0056)
-    elif sampler_config["weighting_scheme"] == "logit_normal":
+    elif sampler_config["weighting_scheme"] in {"logit_normal", "lognorm"}:
         u = torch.normal(sampler_config["logit_mean"], sampler_config["logit_std"], shape, device=device, dtype=torch.float32).sigmoid_()
     elif sampler_config["weighting_scheme"] == "mode":
         u = torch.rand(shape, device=device, dtype=torch.float32)

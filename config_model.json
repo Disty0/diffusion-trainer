@@ -4,8 +4,8 @@
     "embed_type": "token",
     "prediction_type": "flow",
     "sampler_config": {
-        "weighting_scheme": "uniform",
-        "shift": 3.0,
+        "weighting_scheme": "lognorm",
+        "shift": 0.0,
         "logit_mean": 0.0,
         "logit_std": 1.0,
         "mode_scale": 1.29
