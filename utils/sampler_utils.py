@@ -35,7 +35,8 @@ def get_flowmatch_inputs(
         u = torch.amax(u, dim=0)
 
     if sampler_config["shift"] != 0:
-        u = (u * sampler_config["shift"]) / (1 + (sampler_config["shift"] - 1) * u)
+        # u = (u * shift) / (1 + (shift - 1) * u)
+        u = torch.mul(u, sampler_config["shift"]).div_(u.mul_((sampler_config["shift"] - 1)).add_(1))
 
     u = u.clamp_(1/num_train_timesteps,1.0)
     timesteps = torch.mul(u, num_train_timesteps)
