@@ -9,7 +9,7 @@ from .dequantizer import SDNQTensor
 def apply_sdnq_to_module(model, config: dict, modules_to_not_convert: List[str] = []):
     dtype = config["quantized_matmul_dtype"]
     use_grad_ckpt = config["gradient_checkpointing"]
-    use_quantized_matmul = ["use_quantized_matmul"]
+    use_quantized_matmul = config["use_quantized_matmul"]
     use_static_quantization = config["use_static_quantization"]
     use_sr = config["use_stochastic_quantization"]
     quantized_forward = None

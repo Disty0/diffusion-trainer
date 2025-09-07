@@ -6,11 +6,11 @@ from ...dequantizer import dequantize_symmetric # noqa: TID252
 
 def quantized_linear_backward(grad_output: torch.FloatTensor, input: torch.FloatTensor, weight: torch.Tensor, scale: torch.FloatTensor, bias: torch.FloatTensor, do_grad_input: bool = True, do_grad_weight: bool = True, do_grad_bias: bool = True) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
     grad_input = grad_weight = grad_bias = None
-    grad_output = grad_output.flatten(0,-2).contiguous()
+    grad_output = grad_output.flatten(0,-2)
     if do_grad_input:
-        grad_input = torch.mm(grad_output, dequantize_symmetric(weight, scale)).view(input.shape)
+        grad_input = torch.mm(grad_output, dequantize_symmetric(weight, scale, dtype=grad_output.dtype)).view(input.shape)
     if do_grad_weight:
-        grad_weight = torch.mm(grad_output.t().contiguous(), input.flatten(0,-2).contiguous())
+        grad_weight = torch.mm(grad_output.t(), input.flatten(0,-2))
     if do_grad_bias and bias is not None:
         grad_bias = grad_output.sum(dim=0)
     return grad_input, grad_weight, grad_bias
