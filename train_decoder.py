@@ -199,6 +199,7 @@ def main():
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
         get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
     accelerator.wait_for_everyone()
+    accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
     with open(config["dataset_index"], "r") as f:
         epoch_batch = json.load(f)
 
@@ -428,6 +429,7 @@ def main():
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
                 get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
             accelerator.wait_for_everyone()
+            accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
             with open(config["dataset_index"], "r") as f:
                 epoch_batch = json.load(f)
             dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
