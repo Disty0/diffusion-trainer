@@ -22,34 +22,25 @@ class CAME(torch.optim.Optimizer):
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
     """
 
-    def __init__(
-        self,
-        params,
-        lr=None,
-        eps=(1e-30, 1e-16),
-        clip_threshold=1.0,
-        betas=(0.9, 0.999, 0.9999),
-        weight_decay=0.0,
-        bf16_stochastic_round=False,
-        use_quantized_buffers=False,
-        quantized_buffers_dtype="int8",
-        use_stochastic_quantization=True,
-    ):
-        assert lr > 0.
-        assert all([0. <= beta <= 1. for beta in betas])
-
-        defaults = dict(
-            lr=lr,
-            eps=eps,
-            clip_threshold=clip_threshold,
-            betas=betas,
-            weight_decay=weight_decay,
-            bf16_stochastic_round=bf16_stochastic_round,
-            use_quantized_buffers=use_quantized_buffers,
-            quantized_buffers_dtype=quantized_buffers_dtype,
-            use_stochastic_quantization=use_stochastic_quantization,
-        )
-        super(CAME, self).__init__(params, defaults)
+    def __init__(self, params, **kwargs):
+        if isinstance(params, list) and isinstance(params[0], torch.nn.Parameter):
+            kwargs["params"] = params
+            param_groups = [kwargs,]
+        else:
+            param_groups = params
+        for group in param_groups:
+            # defaults
+            group["lr"] = group.get("lr", 1e-4)
+            group["eps"] = group.get("eps", (1e-30, 1e-16))
+            group["betas"] = group.get("betas", (0.9, 0.999, 0.9999))
+            group["weight_decay"] = group.get("weight_decay", 0.0)
+            group["clip_threshold"] = group.get("clip_threshold", 1.0)
+            group["bf16_stochastic_round"] = group.get("bf16_stochastic_round", True)
+            group["use_quantized_buffers"] = group.get("use_quantized_buffers", False)
+            group["quantized_buffers_dtype"] = group.get("quantized_buffers_dtype", "int8")
+            group["use_stochastic_quantization"] = group.get("use_stochastic_quantization", True)
+            assert set(group.keys()) == set(["params", "lr", "eps", "betas", "weight_decay", "clip_threshold", "bf16_stochastic_round", "use_quantized_buffers", "quantized_buffers_dtype", "use_stochastic_quantization"])
+        super().__init__(param_groups, dict())
 
     @property
     def supports_memory_efficient_fp16(self):
