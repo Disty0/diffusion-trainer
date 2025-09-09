@@ -101,11 +101,11 @@ class CAME(torch.optim.Optimizer):
                         state["exp_avg"] = torch.zeros_like(grad)
 
                     if factored:
-                        state["exp_avg_sq_row"] = torch.zeros(grad_shape[:-1], dtype=grad.dtype, device=grad.deivce)
-                        state["exp_avg_sq_col"] = torch.zeros(grad_shape[:-2] + grad_shape[-1:], dtype=grad.dtype, device=grad.deivce)
+                        state["exp_avg_sq_row"] = torch.zeros(grad_shape[:-1], dtype=grad.dtype, device=grad.device)
+                        state["exp_avg_sq_col"] = torch.zeros(grad_shape[:-2] + grad_shape[-1:], dtype=grad.dtype, device=grad.device)
 
-                        state["exp_avg_res_row"] = torch.zeros(grad_shape[:-1], dtype=grad.dtype, device=grad.deivce)
-                        state["exp_avg_res_col"] = torch.zeros(grad_shape[:-2] + grad_shape[-1:], dtype=grad.dtype, device=grad.deivce)
+                        state["exp_avg_res_row"] = torch.zeros(grad_shape[:-1], dtype=grad.dtype, device=grad.device)
+                        state["exp_avg_res_col"] = torch.zeros(grad_shape[:-2] + grad_shape[-1:], dtype=grad.dtype, device=grad.device)
                     else:
                         state["exp_avg_sq"] = torch.zeros_like(grad)
 
