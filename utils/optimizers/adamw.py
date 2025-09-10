@@ -22,7 +22,7 @@ class AdamW(torch.optim.Optimizer):
             group["use_quantized_buffers"] = group.get("use_quantized_buffers", False)
             group["quantized_buffers_dtype"] = group.get("quantized_buffers_dtype", "int8")
             group["use_stochastic_quantization"] = group.get("use_stochastic_quantization", True)
-            assert set(group.keys()) == set(["params", "lr", "betas", "eps", "weight_decay", "bf16_stochastic_round", "use_quantized_buffers", "quantized_buffers_dtype", "use_stochastic_quantization"])
+            assert set(group.keys()) == set(["params", "lr", "eps", "betas", "weight_decay", "bf16_stochastic_round", "use_quantized_buffers", "quantized_buffers_dtype", "use_stochastic_quantization"])
         super().__init__(param_groups, dict())
 
     @torch.no_grad()
