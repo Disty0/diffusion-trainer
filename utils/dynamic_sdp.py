@@ -56,7 +56,7 @@ def find_sdpa_slice_sizes(query_shape: Tuple[int], key_shape: Tuple[int], query_
 
 sdpa_pre_dyanmic_atten = torch.nn.functional.scaled_dot_product_attention
 @wraps(sdpa_pre_dyanmic_atten)
-def dynamic_scaled_dot_product_attention(query: torch.FloatTensor, key: torch.FloatTensor, value: torch.FloatTensor, attn_mask: Optional[torch.FloatTensor] = None, dropout_p: float = 0.0, is_causal: bool = False, scale: float = None, enable_gqa: bool = False, **kwargs) -> torch.FloatTensor:
+def dynamic_scaled_dot_product_attention(query: torch.FloatTensor, key: torch.FloatTensor, value: torch.FloatTensor, attn_mask: Optional[torch.FloatTensor] = None, dropout_p: float = 0.0, is_causal: bool = False, scale: Optional[float] = None, enable_gqa: bool = False, **kwargs) -> torch.FloatTensor:
     is_unsqueezed = False
     if query.dim() == 3:
         query = query.unsqueeze(0)
