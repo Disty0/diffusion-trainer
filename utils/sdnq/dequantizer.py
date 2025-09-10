@@ -250,7 +250,7 @@ def sdnq_mul(func, x, y):
     if isinstance(other, SDNQTensor):
         other = other.dequantize()
     if func == torch.ops.aten.mul.Scalar or isinstance(other, (int,float)) or other.shape == input.scale.shape or other.numel() == 1:
-        return SDNQTensor(input.quant_data, torch.mul(input.scale, other), input.return_dtype, qtype=input.qtype, sr=input.sr)
+        return dequantize_symmetric_compiled(input.quant_data, torch.mul(input.scale, other), dtype=input.return_dtype)
     else:
         return input.dequantize().mul_(other)
 
@@ -278,15 +278,18 @@ def sdnq_mul_(func, x, y):
 @register_op([torch.ops.aten.div.Tensor, torch.ops.aten.div.Scalar])
 def sdnq_div(func, x, y):
     if isinstance(x, SDNQTensor):
+        sdnq_first = True
         input = x
         other = y
     else:
+        sdnq_first = False
         input = y
         other = x
     if isinstance(other, SDNQTensor):
         other = other.dequantize()
     if func == torch.ops.aten.div.Scalar or isinstance(other, (int,float)) or other.shape == input.scale.shape or other.numel() == 1:
-        return SDNQTensor(input.quant_data, torch.div(input.scale, other), input.return_dtype, qtype=input.qtype, sr=input.sr)
+        scale = torch.div(input.scale, other) if sdnq_first else torch.div(other, input.scale)
+        return dequantize_symmetric_compiled(input.quant_data, scale, dtype=input.return_dtype)
     else:
         return input.dequantize().div_(other)
 
