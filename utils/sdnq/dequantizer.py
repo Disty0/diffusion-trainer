@@ -155,6 +155,7 @@ def register_op(ops: List[torch._ops.OpOverload]):
     torch.ops.aten.addcdiv.default,
     torch.ops.aten.lerp.Tensor,
     torch.ops.aten.lerp.Scalar,
+    torch.ops.aten.sqrt.default,
     torch.ops.aten.linalg_vector_norm.default,
 ])
 def sdnq_generic_func(func, *args, **kwargs):
@@ -171,6 +172,7 @@ def sdnq_generic_func(func, *args, **kwargs):
     torch.ops.aten.addcdiv_.default,
     torch.ops.aten.lerp_.Tensor,
     torch.ops.aten.lerp_.Scalar,
+    torch.ops.aten.sqrt_.default,
 ])
 def sdnq_generic_func_(func, *args, **kwargs):
     input = args[0]
