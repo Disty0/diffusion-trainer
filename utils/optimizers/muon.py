@@ -73,24 +73,34 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                                 state["v_buffer"] = SDNQTensor.from_float(torch.zeros_like(p).add_(torch.finfo(p.dtype).eps), qtype=group["quantized_buffers_dtype"], sr=group["use_stochastic_quantization"])
                             else:
                                 state["v_buffer"] = torch.zeros_like(p)
+
                     state["step"] += 1
                     update = muon_update(
                         p.grad,
                         state["momentum_buffer"],
                         state["v_buffer"] if group["adaptive"] else None,
                         state["step"],
-                        group["betas"],
                         group["eps"],
+                        group["betas"],
                         ns_steps=group["ns_steps"],
                         nesterov=group["nesterov"],
                         zeropower_dtype=group["zeropower_dtype"],
                         use_quantized_matmul=group["use_quantized_matmul"],
                         quantized_matmul_dtype=group["quantized_matmul_dtype"],
                     )
+
                     if group["adaptive"]:
-                        alpha = -group["lr"] * 0.2 * max(update.size(-2), update.size(-1))**0.5
+                        alpha = -group["lr"] * (0.2 * update.numel()**0.5) / update.norm().add_(group["eps"])
                     else:
-                        alpha = -group["lr"] * max(1, update.size(-2) / update.size(-1))**0.5
+                        output_shape = update.shape[0]
+                        if update.ndim > 2:
+                            input_shape = 1
+                            for shape in update.shape[1:]:
+                                input_shape *= shape
+                        else:
+                            input_shape = update.shape[1]
+                        alpha = -group["lr"] * max(1, output_shape / input_shape)**0.5
+
                     if group["bf16_stochastic_round"]:
                         p_fp32 = p.to(torch.float32)
                         if group["weight_decay"] != 0:
@@ -110,6 +120,7 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                         state["exp_avg"] = torch.zeros_like(p)
                         state["exp_avg_sq"] = torch.zeros_like(p)
                         state["step"] = 0
+
                     state["step"] += 1
                     update = adam_update(
                         p.grad,
@@ -119,6 +130,7 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                         group["betas"],
                         group["eps"]
                     )
+
                     if group["bf16_stochastic_round"]:
                         p_fp32 = p.to(torch.float32)
                         if group["weight_decay"] != 0:
@@ -147,8 +159,8 @@ def muon_update(
     momentum_buffer: torch.FloatTensor,
     v_buffer: Optional[torch.FloatTensor],
     step: int,
-    betas: Tuple[float, float],
     eps: float,
+    betas: Tuple[float, float],
     ns_steps: int = 5,
     nesterov: bool = True,
     zeropower_dtype: torch.dtype = torch.bfloat16,
@@ -159,6 +171,7 @@ def muon_update(
     reshape_grad = (grad.ndim > 2)
     momentum_buffer.lerp_(grad, 1 - beta)
     grad = grad.lerp_(momentum_buffer, beta) if nesterov else momentum_buffer
+
     if reshape_grad: # for the case of conv filters
         grad_shape = grad.shape
         grad = grad.flatten(1, -1)
@@ -173,11 +186,11 @@ def muon_update(
         grad = zeropower_via_newtonschulz5(grad, steps=ns_steps, dtype=zeropower_dtype)
     if reshape_grad:
         grad = grad.unflatten(-1, grad_shape[1:])
+
     if v_buffer is not None:
-        v_buffer.mul_(beta2).addcmul_(grad, grad, value=(1 - beta2))
+        v_buffer.lerp_(grad.square(), 1 - beta2)
         v_hat = v_buffer / (1 - beta2 ** step)
-        grad.div_(v_hat.view_as(grad).sqrt_().add_(eps))
-        grad.mul_(min(grad.shape)**0.5 / (grad.norm().add_(eps)))
+        grad.div_(v_hat.sqrt_().add_(eps))
     return grad
 
 
@@ -194,7 +207,7 @@ def zeropower_via_newtonschulz5(G: torch.FloatTensor, steps: int, dtype: torch.d
     assert G.ndim == 2
     a, b, c = (3.4445, -4.7750,  2.0315)
     X = G.to(dtype=dtype)
-    if G.size(-2) > G.size(-1):
+    if G.shape[0] > G.shape[1]:
         X = X.mT
 
     # Ensure spectral norm is at most 1
@@ -207,7 +220,7 @@ def zeropower_via_newtonschulz5(G: torch.FloatTensor, steps: int, dtype: torch.d
         #X = (a * X) + (B @ X)
         X = torch.addmm(X, B, X, beta=a)
 
-    if G.size(-2) > G.size(-1):
+    if G.shape[0] > G.shape[1]:
         X = X.mT
     return X.to(dtype=G.dtype)
 
@@ -216,7 +229,7 @@ def zeropower_via_newtonschulz5_int8_matmul(G: torch.FloatTensor, steps: int, dt
     assert G.ndim == 2
     a, b, c = (3.4445, -4.7750,  2.0315)
     X = G.to(dtype=dtype)
-    if G.size(-2) > G.size(-1):
+    if G.shape[0] > G.shape[1]:
         X = X.mT
 
     # Ensure spectral norm is at most 1
@@ -227,7 +240,7 @@ def zeropower_via_newtonschulz5_int8_matmul(G: torch.FloatTensor, steps: int, dt
         B = int8_matmul_dynamic((A*c), A, (A*b), do_input_reshape=False)
         X = int8_matmul_dynamic(B, X, (X*a), do_input_reshape=False)
 
-    if G.size(-2) > G.size(-1):
+    if G.shape[0] > G.shape[1]:
         X = X.mT
     return X.to(dtype=G.dtype)
 
@@ -236,7 +249,7 @@ def zeropower_via_newtonschulz5_fp8_matmul(G: torch.FloatTensor, steps: int, dty
     assert G.ndim == 2
     a, b, c = (3.4445, -4.7750,  2.0315)
     X = G.to(dtype=dtype)
-    if G.size(-2) > G.size(-1):
+    if G.shape[0] > G.shape[1]:
         X = X.mT
 
     # Ensure spectral norm is at most 1
@@ -247,7 +260,7 @@ def zeropower_via_newtonschulz5_fp8_matmul(G: torch.FloatTensor, steps: int, dty
         B = fp8_matmul_dynamic((A*c), A, None, do_input_reshape=False).add_(A, alpha=b)
         X = fp8_matmul_dynamic(B, X, None, do_input_reshape=False).add_(X, alpha=a)
 
-    if G.size(-2) > G.size(-1):
+    if G.shape[0] > G.shape[1]:
         X = X.mT
     return X.to(dtype=G.dtype)
 
