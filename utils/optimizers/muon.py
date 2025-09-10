@@ -90,7 +90,7 @@ class MuonWithAuxAdam(torch.optim.Optimizer):
                     )
 
                     if group["adaptive"]:
-                        alpha = -group["lr"] * (0.2 * update.numel()**0.5) / update.norm().add_(group["eps"])
+                        alpha = -group["lr"] * (0.2 * update.numel()**0.5) / update.norm(2).add_(group["eps"])
                     else:
                         output_shape = update.shape[0]
                         if update.ndim > 2:
