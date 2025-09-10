@@ -96,7 +96,7 @@ def get_batches(batch_size: int, dataset_paths: List[Tuple[str, str, int]], data
         json.dump(epoch_batch, f)
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description='Train a model with a given config')
     parser.add_argument('config_path', type=str)
     args = parser.parse_args()
@@ -141,11 +141,11 @@ def main():
         dynamo_backend=config["dynamo_backend"],
     )
 
-    def unwrap_model(model):
+    def unwrap_model(model: torch.nn.Module) -> torch.nn.Module:
         model = accelerator.unwrap_model(model)
         return model._orig_mod if isinstance(model, torch._dynamo.eval_frame.OptimizedModule) else model
 
-    def save_model_hook(models, weights, output_dir):
+    def save_model_hook(models: List[torch.nn.Module], weights: List[Dict[str, torch.Tensor]], output_dir: str) -> None:
         if accelerator.is_main_process:
             for i, model in enumerate(models):
                 if isinstance(unwrap_model(model), latent_utils.get_latent_model_class(config["model_type"])):
@@ -154,7 +154,7 @@ def main():
                     raise ValueError(f"Wrong model supplied: {type(model)=}.")
                 weights.pop()
 
-    def load_model_hook(models, input_dir):
+    def load_model_hook(models: List[torch.nn.Module], input_dir: str) -> None:
         for _ in range(len(models)):
             model = models.pop()
             if isinstance(unwrap_model(model), latent_utils.get_latent_model_class(config["model_type"])):
@@ -165,7 +165,7 @@ def main():
                 raise ValueError(f"Unsupported model found: {type(model)=}")
             del load_model
 
-    def fused_optimizer_hook(parameter):
+    def fused_optimizer_hook(parameter: torch.nn.Parameter) -> None:
         if config["log_grad_stats"]:
             global grad_max, grad_mean, grad_mean_count
             param_grad_abs = parameter.grad.abs()

@@ -17,7 +17,7 @@ from .models.raiflow_utils import run_raiflow_model_training
 print_filler = "--------------------------------------------------"
 
 
-def get_optimizer(config, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
+def get_optimizer(config: dict, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
     optimizer = config["optimizer"]
     if optimizer.lower() in {"adamw_sdnq", "adamw_bf16"}:
         from utils.optimizers.adamw import AdamW
@@ -67,7 +67,7 @@ def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRSch
     return getattr(lr_scheduler_base, lr_scheduler)(optimizer, **kwargs)
 
 
-def get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_hook):
+def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator: Accelerator, fused_optimizer_hook: Callable) -> Tuple[Optimizer, LRScheduler]:
     if config["override_sensitive_keys"]:
         sensitive_keys = config["sensitive_keys"]
     else:

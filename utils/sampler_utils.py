@@ -53,7 +53,7 @@ def get_flowmatch_inputs(
     return noisy_model_input, timesteps, target, sigmas, sigmas_next, noise
 
 
-def get_loss_weighting(loss_weighting, model_pred, target, sigmas):
+def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, target: torch.FloatTensor, sigmas: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
     if loss_weighting == "none":
         return model_pred, target
     elif loss_weighting == "sigma_sqrt_clamp":
