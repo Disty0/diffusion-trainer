@@ -11,7 +11,7 @@ from utils.sdnq_training.layers.linear.linear_fp8_dynamic import fp8_matmul_dyna
 
 class Muon(torch.optim.Optimizer):
     def __init__(self, params, **kwargs):
-        if isinstance(params, list) and isinstance(params[0], torch.nn.Parameter):
+        if isinstance(params, torch.nn.Parameter) or (isinstance(params, list) and isinstance(params[0], torch.nn.Parameter)):
             kwargs["params"] = params
             param_groups = [kwargs,]
         else:

@@ -8,7 +8,7 @@ from utils.sdnq_training import SDNQTensor
 
 class AdamW(torch.optim.Optimizer):
     def __init__(self, params, **kwargs):
-        if isinstance(params, list) and isinstance(params[0], torch.nn.Parameter):
+        if isinstance(params, torch.nn.Parameter) or (isinstance(params, list) and isinstance(params[0], torch.nn.Parameter)):
             kwargs["params"] = params
             param_groups = [kwargs,]
         else:
