@@ -2,7 +2,7 @@ import torch
 import torch.optim
 
 from .stochastic import copy_stochastic_
-from utils.sdnq.dequantizer import SDNQTensor
+from utils.sdnq_training.dequantizer import SDNQTensor
 
 
 class CAME(torch.optim.Optimizer):

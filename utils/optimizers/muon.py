@@ -3,9 +3,9 @@ from typing import Tuple, Optional
 import torch
 from .stochastic import copy_stochastic_
 
-from utils.sdnq.layers.linear.linear_int8_dynamic import int8_matmul_dynamic
-from utils.sdnq.layers.linear.linear_fp8_dynamic import fp8_matmul_dynamic
-from utils.sdnq.dequantizer import SDNQTensor
+from utils.sdnq_training.layers.linear.linear_int8_dynamic import int8_matmul_dynamic
+from utils.sdnq_training.layers.linear.linear_fp8_dynamic import fp8_matmul_dynamic
+from utils.sdnq_training.dequantizer import SDNQTensor
 
 
 class Muon(torch.optim.Optimizer):
