@@ -19,19 +19,7 @@ print_filler = "--------------------------------------------------"
 
 def get_optimizer(config: dict, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
     optimizer = config["optimizer"]
-    if optimizer.lower() in {"adamw_sdnq", "adamw_bf16"}:
-        from utils.optimizers.adamw import AdamW
-        optimizer_class = AdamW
-    elif optimizer.lower() == "adafactor_bf16":
-        from utils.optimizers.adafactor_bf16 import AdafactorBF16
-        optimizer_class = AdafactorBF16
-    elif optimizer.lower() == "came":
-        from utils.optimizers.came import CAME
-        optimizer_class = CAME
-    elif optimizer.lower() == "muon":
-        from utils.optimizers.muon import Muon
-        optimizer_class = Muon
-    elif "." in optimizer:
+    if "." in optimizer:
         optimizer_base, optimizer = optimizer.rsplit(".", maxsplit=1)
         optimizer_base = importlib.import_module(optimizer_base)
         optimizer_class = getattr(optimizer_base, optimizer)
@@ -167,7 +155,7 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
     if not is_ema and (config["use_quantized_matmul"] or config["use_static_quantization"]):
-        from .sdnq_training import apply_sdnq_to_module
+        from sdnq_training import apply_sdnq_to_module
         modules_to_not_convert = []
         if getattr(diffusion_model, "_keep_in_fp32_modules", None) is not None:
             modules_to_not_convert.extend(diffusion_model._keep_in_fp32_modules)
