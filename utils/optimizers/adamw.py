@@ -1,8 +1,9 @@
 from typing import Tuple
 
 import torch
+
 from .stochastic import copy_stochastic_
-from utils.sdnq_training.dequantizer import SDNQTensor
+from utils.sdnq_training import SDNQTensor
 
 
 class AdamW(torch.optim.Optimizer):
