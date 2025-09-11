@@ -173,7 +173,15 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
             modules_to_not_convert.extend(diffusion_model._keep_in_fp32_modules)
         if getattr(diffusion_model, "_skip_layerwise_casting_patterns", None) is not None:
             modules_to_not_convert.extend(diffusion_model._skip_layerwise_casting_patterns)
-        diffusion_model = apply_sdnq_to_module(diffusion_model, config, modules_to_not_convert=modules_to_not_convert)
+        diffusion_model = apply_sdnq_to_module(
+            diffusion_model,
+            weights_dtype=config["quantized_matmul_dtype"],
+            use_grad_ckpt=config["gradient_checkpointing"],
+            use_quantized_matmul=config["use_quantized_matmul"],
+            use_static_quantization=config["use_static_quantization"],
+            use_stochastic_quantization=config["use_stochastic_quantization"],
+            modules_to_not_convert=modules_to_not_convert,
+        )
     if device.type != "cpu":
         getattr(torch, device.type).empty_cache()
     return diffusion_model, processor
