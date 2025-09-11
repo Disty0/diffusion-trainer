@@ -29,8 +29,8 @@ def get_optimizer(config: dict, parameters: Iterator[Parameter], **kwargs) -> Op
         from utils.optimizers.came import CAME
         optimizer_class = CAME
     elif optimizer.lower() == "muon":
-        from utils.optimizers.muon import MuonWithAuxAdam
-        optimizer_class = MuonWithAuxAdam
+        from utils.optimizers.muon import Muon
+        optimizer_class = Muon
     elif "." in optimizer:
         optimizer_base, optimizer = optimizer.rsplit(".", maxsplit=1)
         optimizer_base = importlib.import_module(optimizer_base)

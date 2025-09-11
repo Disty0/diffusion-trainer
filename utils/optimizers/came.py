@@ -10,16 +10,15 @@ class CAME(torch.optim.Optimizer):
     This implementation is based on:
     `CAME: Confidence-guided Adaptive Memory Efficient Optimization`
     Args:
-        params (iterable): iterable of parameters to optimize or dicts defining
-            parameter groups
+        params (iterable): iterable of parameters to optimize or dicts defining parameter groups
         lr (float, optional): external learning rate (default: None)
         eps (tuple[float, float]): regularization constants for square gradient
             and instability respectively (default: (1e-30, 1e-16))
-        clip_threshold (float): threshold of root-mean-square of
-            final gradient update (default: 1.0)
         betas (tuple[float, float, float]): coefficient used for computing running averages of
-        update, square gradient and instability (default: (0.9, 0.999, 0.9999)))
+            update, square gradient and instability (default: (0.9, 0.999, 0.9999)))
         weight_decay (float, optional): weight decay (L2 penalty) (default: 0)
+        clip_threshold (float): threshold of root-mean-square of final gradient update (default: 1.0)
+        bf16_stochastic_round (bool): enable or disable BF16 stochastic rounding
     """
 
     def __init__(self, params, **kwargs):

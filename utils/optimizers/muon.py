@@ -8,10 +8,7 @@ from utils.sdnq.layers.linear.linear_fp8_dynamic import fp8_matmul_dynamic
 from utils.sdnq.dequantizer import SDNQTensor
 
 
-class MuonWithAuxAdam(torch.optim.Optimizer):
-    """
-    Non-distributed variant of MuonWithAuxAdam.
-    """
+class Muon(torch.optim.Optimizer):
     def __init__(self, params, **kwargs):
         if isinstance(params, list) and isinstance(params[0], torch.nn.Parameter):
             kwargs["params"] = params
