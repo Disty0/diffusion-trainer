@@ -18,8 +18,8 @@
     "optimizer_args": {
         "use_muon": true, "adaptive": false,
         "weight_decay": 0.01, "betas": [0.9, 0.95],
-        "bf16_stochastic_round": false, "zeropower_dtype": "bfloat16",
-        "use_quantized_matmul": false, "quantized_matmul_dtype": "int8",
+        "bf16_stochastic_round": false, "zeropower_dtype": "float32",
+        "use_quantized_matmul": true, "quantized_matmul_dtype": "int8",
         "use_quantized_buffers": true, "quantized_buffers_dtype": "int8",
         "use_stochastic_quantization": true
     },
