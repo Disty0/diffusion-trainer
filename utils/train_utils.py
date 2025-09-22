@@ -164,6 +164,7 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
         diffusion_model = apply_sdnq_to_module(
             diffusion_model,
             weights_dtype=config["quantized_matmul_dtype"],
+            group_size=config["static_quantization_group_size"],
             use_grad_ckpt=config["gradient_checkpointing"],
             use_quantized_matmul=config["use_quantized_matmul"],
             use_static_quantization=config["use_static_quantization"],
