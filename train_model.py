@@ -306,6 +306,7 @@ def main() -> None:
         disable=not accelerator.is_local_main_process,
     )
 
+    global grad_max, grad_mean, grad_mean_count, clipped_grad_mean, clipped_grad_mean_count, grad_norm, grad_norm_count
     total_empty_embeds_count = 0
     total_nan_embeds_count = 0
     total_self_correct_count = 0
