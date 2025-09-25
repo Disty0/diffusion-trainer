@@ -122,17 +122,16 @@ class EMAModel:
         self.cur_decay_value = decay
         one_minus_decay = 1 - decay
 
+        is_deepspeed_zero3_enabled = transformers.integrations.deepspeed.is_deepspeed_zero3_enabled()
         context_manager = contextlib.nullcontext()
 
         if self.foreach:
-            if transformers.integrations.deepspeed.is_deepspeed_zero3_enabled():
+            if is_deepspeed_zero3_enabled:
                 context_manager = deepspeed.zero.GatheredParameters(parameters, modifier_rank=None)
 
             with context_manager:
                 params_grad = [param for param in parameters if param.requires_grad]
-                s_params_grad = [
-                    s_param for s_param, param in zip(self.shadow_params, parameters) if param.requires_grad
-                ]
+                s_params_grad = [s_param for s_param, param in zip(self.shadow_params, parameters) if param.requires_grad]
 
                 if len(params_grad) < len(parameters):
                     torch._foreach_copy_(
@@ -141,16 +140,15 @@ class EMAModel:
                         non_blocking=True,
                     )
 
-                torch._foreach_add_(s_params_grad, torch._foreach_sub(params_grad, s_params_grad), alpha=one_minus_decay)
-
+                torch._foreach_lerp_(s_params_grad, params_grad, one_minus_decay)
         else:
             for s_param, param in zip(self.shadow_params, parameters):
-                if transformers.integrations.deepspeed.is_deepspeed_zero3_enabled():
+                if is_deepspeed_zero3_enabled:
                     context_manager = deepspeed.zero.GatheredParameters(param, modifier_rank=None)
 
                 with context_manager:
                     if param.requires_grad:
-                        s_param.add_(torch.sub(param, s_param), alpha=one_minus_decay)
+                        s_param.lerp_(param.to(dtype=s_param.dtype), one_minus_decay)
                     else:
                         s_param.copy_(param)
 
