@@ -4,8 +4,8 @@ from functools import cache, wraps
 import os
 import torch
 
-dynamic_attention_trigger_rate = float(os.environ.get('DYNAMIC_ATTENTION_TRIGGER_RATE', 1))
-dynamic_attention_slice_rate = float(os.environ.get('DYNAMIC_ATTENTION_SLICE_RATE', 0.5))
+dynamic_attention_trigger_rate = float(os.environ.get("DYNAMIC_ATTENTION_TRIGGER_RATE", "1"))
+dynamic_attention_slice_rate = float(os.environ.get("DYNAMIC_ATTENTION_SLICE_RATE", "0.5"))
 
 
 # Find something divisible with the input_tokens

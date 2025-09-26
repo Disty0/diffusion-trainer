@@ -79,21 +79,21 @@ def write_embeds(
 @torch.no_grad()
 def main():
     print("\n" + print_filler)
-    parser = argparse.ArgumentParser(description='Create embed cache')
-    parser.add_argument('model_path', type=str)
-    parser.add_argument('dataset_path', type=str)
-    parser.add_argument('out_path', type=str)
-    parser.add_argument('--model_type', default="sd3", type=str)
-    parser.add_argument('--device', default="auto", type=str)
-    parser.add_argument('--dtype', default="bfloat16", type=str)
-    parser.add_argument('--save_dtype', default="bfloat16", type=str)
-    parser.add_argument('--dynamo_backend', default="no", type=str)
-    parser.add_argument('--batch_size', default=4, type=int)
-    parser.add_argument('--save_queue_lenght', default=4096, type=int)
-    parser.add_argument('--max_save_workers', default=12, type=int)
-    parser.add_argument('--gc_steps', default=2048, type=int)
-    parser.add_argument('--text_ext', default=".txt", type=str)
-    parser.add_argument('--tunableop', default=False, action='store_true')
+    parser = argparse.ArgumentParser(description="Create embed cache")
+    parser.add_argument("model_path", type=str)
+    parser.add_argument("dataset_path", type=str)
+    parser.add_argument("out_path", type=str)
+    parser.add_argument("--model_type", default="sd3", type=str)
+    parser.add_argument("--device", default="auto", type=str)
+    parser.add_argument("--dtype", default="bfloat16", type=str)
+    parser.add_argument("--save_dtype", default="bfloat16", type=str)
+    parser.add_argument("--dynamo_backend", default="no", type=str)
+    parser.add_argument("--batch_size", default=4, type=int)
+    parser.add_argument("--save_queue_lenght", default=4096, type=int)
+    parser.add_argument("--max_save_workers", default=12, type=int)
+    parser.add_argument("--gc_steps", default=2048, type=int)
+    parser.add_argument("--text_ext", default=".txt", type=str)
+    parser.add_argument("--tunableop", default=False, action="store_true")
     args = parser.parse_args()
 
     if args.dataset_path[-1] == "/":
@@ -116,7 +116,7 @@ def main():
         except Exception as e:
             print(f"Failed to enable Flash Atten for ROCm: {e}")
 
-    torch.set_float32_matmul_precision('high')
+    torch.set_float32_matmul_precision("high")
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
@@ -165,5 +165,5 @@ def main():
     exit_handler(cache_backend)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

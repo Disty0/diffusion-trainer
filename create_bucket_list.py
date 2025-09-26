@@ -56,11 +56,11 @@ def write_bucket_list(dataset_path: str, target_size: int, res_steps: int) -> No
         json.dump(res_map, f)
 
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Create a bucket list with a given dataset path')
-    parser.add_argument('dataset_path', type=str)
-    parser.add_argument('--pixel_count', default=1048576, type=int)
-    parser.add_argument('--res_steps', default=64, type=int)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Create a bucket list with a given dataset path")
+    parser.add_argument("dataset_path", type=str)
+    parser.add_argument("--pixel_count", default=1048576, type=int)
+    parser.add_argument("--res_steps", default=64, type=int)
     args = parser.parse_args()
 
     if args.dataset_path[-1] == "/":

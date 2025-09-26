@@ -103,34 +103,34 @@ def write_latents(
 @torch.no_grad()
 def main():
     print("\n" + print_filler)
-    parser = argparse.ArgumentParser(description='Create latent cache')
+    parser = argparse.ArgumentParser(description="Create latent cache")
 
-    parser.add_argument('model_path', type=str)
-    parser.add_argument('dataset_path', type=str)
-    parser.add_argument('out_path', type=str)
-    parser.add_argument('--model_type', default="sd3", type=str)
+    parser.add_argument("model_path", type=str)
+    parser.add_argument("dataset_path", type=str)
+    parser.add_argument("out_path", type=str)
+    parser.add_argument("--model_type", default="sd3", type=str)
 
-    parser.add_argument('--device', default="auto", type=str)
-    parser.add_argument('--dtype', default="float16", type=str)
-    parser.add_argument('--save_dtype', default="float16", type=str)
-    parser.add_argument('--batch_size', default=4, type=int)
+    parser.add_argument("--device", default="auto", type=str)
+    parser.add_argument("--dtype", default="float16", type=str)
+    parser.add_argument("--save_dtype", default="float16", type=str)
+    parser.add_argument("--batch_size", default=4, type=int)
 
-    parser.add_argument('--gc_steps', default=2048, type=int)
-    parser.add_argument('--dynamo_backend', default="no", type=str)
-    parser.add_argument('--tunableop', default=False, action='store_true')
+    parser.add_argument("--gc_steps", default=2048, type=int)
+    parser.add_argument("--dynamo_backend", default="no", type=str)
+    parser.add_argument("--tunableop", default=False, action="store_true")
 
-    parser.add_argument('--save_images', default=False, action='store_true')
-    parser.add_argument('--save_images_path', default="cropped_images", type=str)
-    parser.add_argument('--save_images_ext', default=".jxl", type=str)
-    parser.add_argument('--save_images_lossless', default=True, action='store_true')
-    parser.add_argument('--save_images_quality', default=100, type=int)
+    parser.add_argument("--save_images", default=False, action="store_true")
+    parser.add_argument("--save_images_path", default="cropped_images", type=str)
+    parser.add_argument("--save_images_ext", default=".jxl", type=str)
+    parser.add_argument("--save_images_lossless", default=True, action="store_true")
+    parser.add_argument("--save_images_quality", default=100, type=int)
 
-    parser.add_argument('--load_queue_lenght', default=32, type=int)
-    parser.add_argument('--save_queue_lenght', default=4096, type=int)
-    parser.add_argument('--save_image_queue_lenght', default=4096, type=int)
-    parser.add_argument('--max_load_workers', default=4, type=int)
-    parser.add_argument('--max_save_workers', default=8, type=int)
-    parser.add_argument('--max_save_image_workers', default=4, type=int)
+    parser.add_argument("--load_queue_lenght", default=32, type=int)
+    parser.add_argument("--save_queue_lenght", default=4096, type=int)
+    parser.add_argument("--save_image_queue_lenght", default=4096, type=int)
+    parser.add_argument("--max_load_workers", default=4, type=int)
+    parser.add_argument("--max_save_workers", default=8, type=int)
+    parser.add_argument("--max_save_image_workers", default=4, type=int)
 
     args = parser.parse_args()
 
@@ -175,7 +175,7 @@ def main():
         except Exception as e:
             print(f"Failed to enable Flash Atten for ROCm: {e}")
 
-    torch.set_float32_matmul_precision('high')
+    torch.set_float32_matmul_precision("high")
     torch.backends.cuda.matmul.allow_tf32 = True
     torch.backends.cudnn.allow_tf32 = True
 
@@ -245,5 +245,5 @@ def main():
     exit_handler(image_backend, cache_backend, save_image_backend)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

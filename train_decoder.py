@@ -97,8 +97,8 @@ def get_batches(batch_size: int, dataset_paths: List[Tuple[str, str, int]], data
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description='Train a model with a given config')
-    parser.add_argument('config_path', type=str)
+    parser = argparse.ArgumentParser(description="Train a model with a given config")
+    parser.add_argument("config_path", type=str)
     args = parser.parse_args()
 
     with open(args.config_path, "r") as f:
@@ -110,9 +110,9 @@ def main() -> None:
         torch._dynamo.config.cache_size_limit = 64
 
     if config["allow_tf32"]:
-        torch.set_float32_matmul_precision('high')
+        torch.set_float32_matmul_precision("high")
     else:
-        torch.set_float32_matmul_precision('highest')
+        torch.set_float32_matmul_precision("highest")
     torch.backends.cuda.matmul.allow_tf32 = config["allow_tf32"]
     torch.backends.cudnn.allow_tf32 = config["allow_tf32"]
 
@@ -226,7 +226,7 @@ def main() -> None:
             if len(checkpoints) > 0:
                 resume_checkpoint = checkpoints[-1]
         else:
-            resume_checkpoint = config['resume_from']
+            resume_checkpoint = config["resume_from"]
         if resume_checkpoint is None:
             accelerator.print("No checkpoint found, starting a fresh training run")
         else:
@@ -458,5 +458,5 @@ def main() -> None:
     accelerator.end_training()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
