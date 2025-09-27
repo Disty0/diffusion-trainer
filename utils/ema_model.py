@@ -145,13 +145,11 @@ class EMAModel:
             for s_param, param in zip(self.shadow_params, parameters):
                 if is_deepspeed_zero3_enabled:
                     context_manager = deepspeed.zero.GatheredParameters(param, modifier_rank=None)
-
                 with context_manager:
                     if param.requires_grad:
-                        new_param = s_param.to(dtype=torch.float32).lerp_(param.to(dtype=torch.float32), one_minus_decay)
+                        s_param.copy_(s_param.to(dtype=torch.float32).lerp_(param.to(dtype=torch.float32), one_minus_decay))
                     else:
-                        new_param = param
-                    s_param.copy_(new_param)
+                        s_param.copy_(param)
 
     def copy_to(self, parameters: Iterable[torch.nn.Parameter]) -> None:
         """
