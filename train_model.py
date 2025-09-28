@@ -379,10 +379,9 @@ def main() -> None:
                                 ema_model.to(device=accelerator.device, non_blocking=config["offload_ema_non_blocking"])
                             ema_model.step(model.parameters())
                             if config["update_ema_on_cpu"]:
-                                model.to(device=accelerator.device, non_blocking=False)
-                                gc.collect()
+                                model.to(device=accelerator.device, non_blocking=config["offload_ema_non_blocking"])
                             elif config["offload_ema_to_cpu"]:
-                                ema_model.to(device="cpu", non_blocking=config["offload_ema_non_blocking"])
+                                ema_model.to(device="cpu", non_blocking=False)
                         accelerator.wait_for_everyone()
                     progress_bar.update(1)
                     current_step = current_step + 1

@@ -147,7 +147,7 @@ class EMAModel:
                     context_manager = deepspeed.zero.GatheredParameters(param, modifier_rank=None)
                 with context_manager:
                     if param.requires_grad:
-                        s_param.copy_(s_param.to(dtype=torch.float32).lerp_(param.to(dtype=torch.float32), one_minus_decay))
+                        s_param.lerp_(param.to(dtype=s_param.dtype), one_minus_decay)
                     else:
                         s_param.copy_(param)
 
