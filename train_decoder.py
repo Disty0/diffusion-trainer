@@ -250,7 +250,7 @@ def main() -> None:
         else:
             accelerator.print(print_filler)
             orig_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, "no")
-            ema_model = EMAModel(orig_model.parameters(), model_cls=latent_utils.get_latent_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
+            ema_model = EMAModel(orig_model.parameters(), model_cls=latent_utils.get_latent_model_class(config["model_type"]), model_config=orig_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
             orig_model = orig_model.to("meta")
             orig_model = None
             del orig_model

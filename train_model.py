@@ -293,7 +293,7 @@ def main() -> None:
         else:
             accelerator.print(print_filler)
             orig_model, _ = train_utils.get_diffusion_model(config, "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, is_ema=True)
-            ema_model = EMAModel(orig_model.parameters(), model_cls=train_utils.get_model_class(config["model_type"]), model_config=ema_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
+            ema_model = EMAModel(orig_model.parameters(), model_cls=train_utils.get_model_class(config["model_type"]), model_config=orig_model.config, foreach=config["use_foreach_ema"], decay=config["ema_decay"])
             orig_model = orig_model.to("meta")
             orig_model = None
             del orig_model
