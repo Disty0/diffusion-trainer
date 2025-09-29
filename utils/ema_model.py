@@ -73,6 +73,9 @@ class EMAModel:
         model = model_cls.from_pretrained(path)
 
         ema_model = cls(model.parameters(), model_cls=model_cls, model_config=model.config, foreach=foreach)
+        model = model.to("meta")
+        model = None
+        del model
 
         ema_model.load_state_dict(ema_kwargs)
         return ema_model
