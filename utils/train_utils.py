@@ -1,3 +1,4 @@
+import re
 import copy
 import importlib
 
@@ -15,6 +16,23 @@ from .models.sd3_utils import run_sd3_model_training
 from .models.raiflow_utils import run_raiflow_model_training
 
 print_filler = "--------------------------------------------------"
+
+
+def check_param_name_in(param_name: str, param_list: List[str]) -> bool:
+    split_param_name = param_name.split(".")
+    for param in param_list:
+        if param.startswith("."):
+            if param_name.startswith(param[1:]):
+                return True
+            else:
+                continue
+        if (
+            param_name == param
+            or param in split_param_name
+            or ("*" in param and re.match(param.replace(".*", "\\.*").replace("*", ".*"), param_name))
+        ):
+            return True
+    return False
 
 
 def get_optimizer(config: dict, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
@@ -85,8 +103,7 @@ def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator:
     sensitive_param_count = 0
 
     for param_name, param in model.named_parameters():
-        split_param_name = param_name.split(".")
-        if param_name in sensitive_keys or any(name in split_param_name for name in sensitive_keys):
+        if check_param_name_in(param_name, sensitive_keys):
             sensitive_param_list.append(param)
             sensitive_param_count += param.numel()
         else:
