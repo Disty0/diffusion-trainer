@@ -12,7 +12,7 @@
     },
     "loss_weighting": "none",
     "latent_corrections": "none",
-    "sensitive_keys": [],
+    "sensitive_keys": ["refiner_transformer_blocks", "joint_transformer_blocks.0.*", "joint_transformer_blocks.1.*"],
     "override_sensitive_keys": false,
     "optimizer": "sdnq.optim.Adafactor",
     "optimizer_args": {"weight_decay": 0.01, "bf16_stochastic_round": false, "use_cautious": false , "clip_threshold": [1.0, 1e-3, 1.0]},
@@ -26,7 +26,7 @@
         "args": [{"start_factor": 0.01, "end_factor": 1, "total_iters": 32}, {"T_max": 10240000, "eta_min": 4e-7}]
     },
     "epochs": 100,
-    "learning_rate": 4e-3,
+    "learning_rate": 1e-2,
     "learning_rate_sensitive": 4e-3,
     "max_grad_norm": 0.0,
     "skip_grad_norm": 0.0,

@@ -1,3 +1,5 @@
+from typing import Callable, Iterator, List, Optional, Tuple, Union
+
 import re
 import copy
 import importlib
@@ -5,7 +7,6 @@ import importlib
 import torch
 import diffusers
 
-from typing import Callable, Iterator, List, Optional, Tuple, Union
 from diffusers.models.modeling_utils import ModelMixin
 from torch.optim.lr_scheduler import LRScheduler
 from torch.optim.optimizer import Optimizer
@@ -74,22 +75,9 @@ def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRSch
 
 
 def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator: Accelerator, fused_optimizer_hook: Callable) -> Tuple[Optimizer, LRScheduler]:
-    if config["override_sensitive_keys"]:
-        sensitive_keys = config["sensitive_keys"]
-    else:
-        sensitive_keys = [
-            "latent_embedder", "unembedder", "text_embedder", "token_embedding", "bias",
-            "norm_unembed", "norm_ff", "norm_attn", "norm_attn_context", "norm",
-            "norm_cross_attn","norm_q", "norm_k", "norm_added_q", "norm_added_k",
-            "scale_attn_context", "scale_cross_attn", "scale_attn", "scale_ff",
-            "shift_latent", "shift_latent_out", "shift_in", "shift_out",
-            "scale_latent", "scale_latent_out", "scale_in", "scale_out",
-            "scale_joint_hidden_states", "scale_context_hidden_states",
-            "scale_cond_hidden_states", "scale_refiner_hidden_states",
-        ]
-        sensitive_keys.extend(config["sensitive_keys"])
-        if hasattr(model, "_skip_layerwise_casting_patterns"):
-            sensitive_keys.extend(model._skip_layerwise_casting_patterns)
+    sensitive_keys = config["sensitive_keys"]
+    if not config["override_sensitive_keys"] and hasattr(model, "_skip_layerwise_casting_patterns"):
+        sensitive_keys.extend(model._skip_layerwise_casting_patterns)
 
     optimizer_args = config["optimizer_args"].copy()
     optimizer_args["lr"] = torch.tensor(config["learning_rate"])
@@ -103,7 +91,7 @@ def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator:
     sensitive_param_count = 0
 
     for param_name, param in model.named_parameters():
-        if check_param_name_in(param_name, sensitive_keys):
+        if param.ndim == 1 or check_param_name_in(param_name, sensitive_keys):
             sensitive_param_list.append(param)
             sensitive_param_count += param.numel()
         else:
@@ -173,11 +161,12 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
     if not is_ema and (config["use_quantized_matmul"] or config["use_static_quantization"]):
         from sdnq.training import apply_sdnq_to_module
-        modules_to_not_convert = []
-        if getattr(diffusion_model, "_keep_in_fp32_modules", None) is not None:
-            modules_to_not_convert.extend(diffusion_model._keep_in_fp32_modules)
-        if getattr(diffusion_model, "_skip_layerwise_casting_patterns", None) is not None:
-            modules_to_not_convert.extend(diffusion_model._skip_layerwise_casting_patterns)
+        modules_to_not_convert = config["sensitive_keys"]
+        if not config["override_sensitive_keys"]:
+            if getattr(diffusion_model, "_keep_in_fp32_modules", None) is not None:
+                modules_to_not_convert.extend(diffusion_model._keep_in_fp32_modules)
+            if getattr(diffusion_model, "_skip_layerwise_casting_patterns", None) is not None:
+                modules_to_not_convert.extend(diffusion_model._skip_layerwise_casting_patterns)
         diffusion_model = apply_sdnq_to_module(
             diffusion_model,
             weights_dtype=config["quantized_weights_dtype"],
