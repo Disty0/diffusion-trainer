@@ -78,7 +78,8 @@ def run_raiflow_model_training(
             latents = []
             for i in range(len(latents_list)):
                 latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
-            latents = torch.stack(latents, dim=0).to(accelerator.device, dtype=torch.float32)
+            latents = torch.stack(latents, dim=0)
+            latents = latents.to(accelerator.device, dtype=torch.float32)
 
         if config["latent_type"] == "latent":
             if config["latent_corrections"] == "unscale":
@@ -98,7 +99,7 @@ def run_raiflow_model_training(
                 if random.randint(0,100) > config["dropout_rate"] * 100:
                     prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=embed_dtype))
                 else:
-                    prompt_embeds.append(torch.tensor(model.config.pad_token_id).expand(seq_len).to(accelerator.device, dtype=embed_dtype))
+                    prompt_embeds.append(torch.tensor(model.config.pad_token_id, device=accelerator.device, dtype=embed_dtype).expand(seq_len))
                     empty_embeds_count += 1
         else:
             embed_dim = embeds_list[0].shape[-1]
@@ -133,7 +134,8 @@ def run_raiflow_model_training(
                         ],
                         dim=0,
                     )
-        prompt_embeds = torch.stack(prompt_embeds, dim=0).to(accelerator.device, dtype=embed_dtype)
+        prompt_embeds = torch.stack(prompt_embeds, dim=0)
+        prompt_embeds = prompt_embeds.to(accelerator.device, dtype=embed_dtype)
 
         noisy_model_input, timesteps, target, sigmas, sigmas_next, noise = get_flowmatch_inputs(
             latents=latents,

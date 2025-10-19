@@ -118,7 +118,8 @@ def run_sd3_model_training(
         latents = []
         for i in range(len(latents_list)):
             latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
-        latents = torch.stack(latents).to(accelerator.device, dtype=torch.float32)
+        latents = torch.stack(latents)
+        latents = latents.to(accelerator.device, dtype=torch.float32)
 
         if config["latent_corrections"] == "unscale":
             # SD 3.5 VAE doesn't need scaling, it is already normally distributed and scaling them makes the avg std range become 1.25-2.0
@@ -147,8 +148,10 @@ def run_sd3_model_training(
                 prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=torch.float32))
                 pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=torch.float32))
                 empty_embeds_count += 1
-        prompt_embeds = torch.stack(prompt_embeds).to(accelerator.device, dtype=torch.float32)
-        pooled_embeds = torch.stack(pooled_embeds).to(accelerator.device, dtype=torch.float32)
+        prompt_embeds = torch.stack(prompt_embeds)
+        pooled_embeds = torch.stack(pooled_embeds)
+        prompt_embeds = prompt_embeds.to(accelerator.device, dtype=torch.float32)
+        pooled_embeds = pooled_embeds.to(accelerator.device, dtype=torch.float32)
 
         noisy_model_input, timesteps, target, sigmas, _, noise = get_flowmatch_inputs(
             latents=latents,
