@@ -16,6 +16,7 @@ def get_flowmatch_inputs(
     meanflow: bool = False,
     noise: Optional[torch.FloatTensor] = None,
 ) -> Tuple[torch.FloatTensor]:
+    latents = latents.to(dtype=torch.float32)
     shape = (2, latents.shape[0]) if meanflow else (latents.shape[0],)
 
     if sampler_config["weighting_scheme"] == "uniform":
@@ -36,7 +37,7 @@ def get_flowmatch_inputs(
 
     if sampler_config["shift"] != 0:
         # u = (u * shift) / (1 + (shift - 1) * u)
-        u = torch.mul(u, sampler_config["shift"]).div_(u.mul_((sampler_config["shift"] - 1)).add_(1))
+        u = torch.mul(u, sampler_config["shift"]).div_(u.mul_(sampler_config["shift"] - 1).add_(1))
 
     u = u.clamp_(1/num_train_timesteps,1.0)
     timesteps = torch.mul(u, num_train_timesteps)
@@ -47,7 +48,7 @@ def get_flowmatch_inputs(
     if noise is None:
         noise = torch.randn_like(latents, device=device, dtype=torch.float32)
     # noisy_model_input = ((1.0 - sigmas) * latents) + (sigmas * noise)
-    noisy_model_input = torch.addcmul(torch.mul(sigmas, noise), torch.sub(1.0, sigmas), latents)
+    noisy_model_input = torch.mul(sigmas, noise).addcmul_(torch.sub(1.0, sigmas), latents)
     target = noise - latents
 
     return noisy_model_input, timesteps, target, sigmas, sigmas_next, noise
@@ -63,7 +64,7 @@ def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, targe
     elif loss_weighting == "cosmap":
         # weighting = 2 / (torch.pi * (1 - (2 * sigmas) + 2 * sigmas**2))
         double_sigmas = 2 * sigmas
-        weight = (2 / torch.pi) / (1 - double_sigmas + (double_sigmas * sigmas))
+        weight = (2 / torch.pi) / torch.sub(1, double_sigmas).addcmul_(double_sigmas, sigmas)
     else:
         raise NotImplementedError(f'loss_weighting type {loss_weighting} is not implemented')
     return torch.mul(model_pred, weight), torch.mul(target, weight)
@@ -103,7 +104,7 @@ def get_self_corrected_targets(
     model_x0_pred = torch.addcmul(noisy_model_input.to(dtype=torch.float32), model_pred, -sigmas)
 
     # new_noisy_model_input = ((1.0 - sigmas) * model_x0_pred) + (sigmas * noise)
-    new_noisy_model_input = torch.addcmul(torch.mul(sigmas, noise), torch.sub(1.0, sigmas), model_x0_pred)
+    new_noisy_model_input = torch.mul(sigmas, noise).addcmul_(torch.sub(1.0, sigmas), model_x0_pred)
     # new_target = target + ((new_noisy_model_input - noisy_model_input) / sigmas)
     new_target = torch.addcdiv(target, torch.sub(new_noisy_model_input, noisy_model_input), sigmas)
 
