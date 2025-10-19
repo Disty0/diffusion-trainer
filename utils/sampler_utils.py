@@ -55,6 +55,7 @@ def get_flowmatch_inputs(
 
 
 def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, target: torch.FloatTensor, sigmas: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+    model_pred, target, sigmas = model_pred.to(dtype=torch.float32), target.to(dtype=torch.float32), sigmas.to(dtype=torch.float32)
     if loss_weighting == "none":
         return model_pred, target
     elif loss_weighting == "sigma_sqrt_clamp":
@@ -73,7 +74,8 @@ def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, targe
 def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, device: torch.device) -> Tuple[torch.FloatTensor, int]:
     masked_count = 0
     batch_size, channels, height, width = noisy_model_input.shape
-    unmask = torch.ones((height, width), device=device, dtype=torch.float32)
+    noisy_model_input = noisy_model_input.to(dtype=torch.float32)
+    unmask = torch.ones((height, width), device=device, dtype=torch.int8)
 
     mask = []
     for _ in range(batch_size):
@@ -81,11 +83,11 @@ def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, d
             mask.append(unmask)
         else:
             masked_count += 1
-            mask.append(torch.randint(random.randint(config["mask_low_rate"],0), random.randint(2,config["mask_high_rate"]), (height, width), device=device).to(dtype=torch.float32).clamp(0,1))
+            mask.append(torch.randint(random.randint(config["mask_low_rate"],0), random.randint(2,config["mask_high_rate"]), (height, width), device=device, dtype=torch.int8))
 
-    mask = torch.stack(mask, dim=0).unsqueeze(1).to(device, dtype=torch.float32)
-    mask = mask.repeat(1,channels,1,1)
-    noisy_model_input = ((noisy_model_input - 1) * mask) + 1 # mask with ones
+    mask = torch.stack(mask, dim=0)
+    mask = mask.clamp_(0,1).to(device, dtype=torch.bool).view(1,1,height,width)
+    noisy_model_input = torch.sub(noisy_model_input, 1).mul_(mask).add_(1) # mask with ones
 
     return noisy_model_input, masked_count
 
