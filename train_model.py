@@ -25,15 +25,9 @@ from utils.ema_model import EMAModel
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], empty_embed_path: str, latent_type: str = "latent", embed_type: str = "embed") -> Dict[str, List[str]]:
-    if embed_type == "embed":
-        embed_suffix = "_" + empty_embed_path.rsplit("empty_", maxsplit=1)[-1]
-    else:
-        embed_suffix = ".txt"
-        empty_embed_path = ""
+def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], empty_embed_path: str, latent_type: str, embed_suffix: str) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
-
     for latent_dataset, embed_datasets, repeat in dataset_paths:
         with open(os.path.join(latent_dataset, "bucket_list.json"), "r") as f:
             bucket = json.load(f)
@@ -47,7 +41,7 @@ def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], i
                         if embed_dataset == "empty_embed":
                             embed_path = empty_embed_path
                         elif latent_type == "latent":
-                            embed_path = os.path.join(embed_dataset, bucket[key][i][:-9]+"embed.pt")
+                            embed_path = os.path.join(embed_dataset, bucket[key][i].rsplit("_", maxsplit=2)[0] + embed_suffix)
                         else:
                             embed_path = os.path.join(embed_dataset, os.path.splitext(bucket[key][i])[0] + embed_suffix)
                         if not os.path.exists(latent_path):
@@ -81,8 +75,8 @@ def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], i
     return bucket_list
 
 
-def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str = "latent", embed_type: str = "embed") -> None:
-    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type=latent_type, embed_type=embed_type)
+def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str, embed_suffix: str) -> None:
+    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type, embed_suffix)
     print("Creating epoch batches")
     epoch_batch = []
     images_left_out_count = 0
@@ -148,11 +142,15 @@ def main() -> None:
         torch.nn.functional.scaled_dot_product_attention = dynamic_scaled_dot_product_attention
 
     os.makedirs(config["project_dir"], exist_ok=True)
-    empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
-    if config["embed_type"] == "token":
-        empty_embed = None
-    else:
+    if embed_type == "embed":
+        empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
+        embed_suffix = "_" + config["model_type"] + "_embed.pt"
         empty_embed = loader_utils.load_from_file(empty_embed_path)
+    else:
+        empty_embed_path = os.path.join("empty_embeds", "empty.txt")
+        embed_suffix = ".txt"
+        empty_embed = None
+
     first_epoch = 0
     current_epoch = 0
     current_step = 0
