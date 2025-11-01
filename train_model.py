@@ -221,7 +221,7 @@ def main() -> None:
 
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, latent_type=config["latent_type"], embed_type=config["embed_type"])
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix)
     accelerator.wait_for_everyone()
     accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
     with open(config["dataset_index"], "r") as f:
@@ -489,7 +489,7 @@ def main() -> None:
             del dataset, train_dataloader
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
-                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, latent_type=config["latent_type"], embed_type=config["embed_type"])
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix)
             accelerator.wait_for_everyone()
             accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
             with open(config["dataset_index"], "r") as f:
