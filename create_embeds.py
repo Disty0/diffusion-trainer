@@ -42,6 +42,7 @@ def get_paths(dataset_path: str, out_path: str, model_type: str, text_ext: str) 
 
 def get_batches(batch_size: str, dataset_path: str, out_path: str, model_type: str, text_ext: str) -> Tuple[List[List[str]], List[List[str]]]:
     texts, paths = get_paths(dataset_path, out_path, model_type, text_ext)
+    print("Loading batches")
 
     text_batches = []
     embed_pathes = []
@@ -49,7 +50,7 @@ def get_batches(batch_size: str, dataset_path: str, out_path: str, model_type: s
     paths_left_out = total_len % batch_size
     if total_len > 0:
         if total_len > batch_size:
-            for i in range(int((total_len - paths_left_out) / batch_size)):
+            for i in tqdm(range(int((total_len - paths_left_out) / batch_size))):
                 text_batches.append(texts[i*batch_size:(i+1)*batch_size])
                 embed_pathes.append(paths[i*batch_size:(i+1)*batch_size])
             if paths_left_out > 0:
