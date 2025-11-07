@@ -124,11 +124,19 @@ def main() -> None:
         torch._dynamo.config.cache_size_limit = 64
 
     if config["allow_tf32"]:
+        torch.backends.fp32_precision = "tf32"
+        torch.backends.cuda.matmul.fp32_precision = "tf32"
+        torch.backends.cudnn.fp32_precision = "tf32"
+        torch.backends.cudnn.conv.fp32_precision = "tf32"
+        torch.backends.cudnn.rnn.fp32_precision = "tf32"
         torch.set_float32_matmul_precision("high")
     else:
+        torch.backends.fp32_precision = "ieee"
+        torch.backends.cuda.matmul.fp32_precision = "ieee"
+        torch.backends.cudnn.fp32_precision = "ieee"
+        torch.backends.cudnn.conv.fp32_precision = "ieee"
+        torch.backends.cudnn.rnn.fp32_precision = "ieee"
         torch.set_float32_matmul_precision("highest")
-    torch.backends.cuda.matmul.allow_tf32 = config["allow_tf32"]
-    torch.backends.cudnn.allow_tf32 = config["allow_tf32"]
 
     torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = config["allow_reduced_precision"]
     torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction = config["allow_reduced_precision"]
