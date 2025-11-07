@@ -24,7 +24,7 @@ from utils.ema_model import EMAModel
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, str, int]], image_ext: str) -> Dict[str, List[str]]:
+def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
     for dataset in dataset_paths:
