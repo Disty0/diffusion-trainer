@@ -27,23 +27,37 @@ print_filler = "--------------------------------------------------"
 def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
+    dataset_progress_bar = tqdm(total=len(dataset_paths))
+    dataset_progress_bar.set_description("Loading datasets")
+    bucket_progress_bar = tqdm()
+    bucket_progress_bar.set_description("Loading buckets")
+    image_progress_bar = tqdm()
+    image_progress_bar.set_description("Loading images")
     for dataset in dataset_paths:
+        dataset_progress_bar.set_postfix(current=dataset["path"])
         bucket_list_path = dataset["bucket_list"]
         if not os.path.exists(bucket_list_path):
             bucket_list_path = os.path.join(dataset["path"], bucket_list_path)
         with open(bucket_list_path, "r") as f:
             bucket = json.load(f)
+        bucket_progress_bar.reset(total=len(bucket.keys()))
         for key in bucket.keys():
+            bucket_len = len(bucket[key])
+            bucket_progress_bar.set_postfix(current=key)
+            image_progress_bar.set_postfix(current=key)
+            image_progress_bar.reset(total=bucket_len)
             if key not in bucket_list.keys():
                 bucket_list[key] = []
-            for i in range(len(bucket[key])):
-                for _ in range(dataset["repeats"]):
-                    latent_path = os.path.join(dataset["path"], bucket[key][i])
-                    image_path = os.path.join(dataset["images"], bucket[key][i][:-9]+"image"+image_ext)
-                    if os.path.exists(latent_path) and os.path.exists(image_path):
-                        bucket_list[key].append((latent_path, image_path))
-                    else:
-                        print(f"File not found: {bucket[key][i]}")
+            for i in range(bucket_len):
+                latent_path = os.path.join(dataset["path"], bucket[key][i])
+                image_path = os.path.join(dataset["images"], bucket[key][i][:-9]+"image"+image_ext)
+                if os.path.exists(latent_path) and os.path.exists(image_path):
+                    bucket_list[key].extend([(latent_path, image_path)]*dataset["repeats"])
+                else:
+                    print(f"File not found: {bucket[key][i]}")
+                image_progress_bar.update(1)
+            bucket_progress_bar.update(1)
+        dataset_progress_bar.update(1)
 
     keys_to_remove = []
     total_image_count = 0
