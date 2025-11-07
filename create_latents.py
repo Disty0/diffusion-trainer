@@ -180,7 +180,6 @@ def main():
     torch.backends.cudnn.fp32_precision = "tf32"
     torch.backends.cudnn.conv.fp32_precision = "tf32"
     torch.backends.cudnn.rnn.fp32_precision = "tf32"
-    torch.set_float32_matmul_precision("high")
 
     torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = True
     torch.backends.cuda.matmul.allow_bf16_reduced_precision_reduction = True
