@@ -27,17 +27,19 @@ print_filler = "--------------------------------------------------"
 def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, str, int]], image_ext: str) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
-
-    for latent_dataset, image_dataset, repeat in dataset_paths:
-        with open(os.path.join(latent_dataset, "bucket_list.json"), "r") as f:
+    for dataset in dataset_paths:
+        bucket_list_path = dataset["bucket_list"]
+        if not os.path.exists(bucket_list_path):
+            bucket_list_path = os.path.join(dataset["path"], bucket_list_path)
+        with open(bucket_list_path, "r") as f:
             bucket = json.load(f)
         for key in bucket.keys():
             if key not in bucket_list.keys():
                 bucket_list[key] = []
             for i in range(len(bucket[key])):
-                for _ in range(repeat):
-                    latent_path = os.path.join(latent_dataset, bucket[key][i])
-                    image_path = os.path.join(image_dataset, bucket[key][i][:-9]+"image"+image_ext)
+                for _ in range(dataset["repeats"]):
+                    latent_path = os.path.join(dataset["path"], bucket[key][i])
+                    image_path = os.path.join(dataset["images"], bucket[key][i][:-9]+"image"+image_ext)
                     if os.path.exists(latent_path) and os.path.exists(image_path):
                         bucket_list[key].append((latent_path, image_path))
                     else:

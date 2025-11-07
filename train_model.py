@@ -25,19 +25,22 @@ from utils.ema_model import EMAModel
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], empty_embed_path: str, latent_type: str, embed_suffix: str) -> Dict[str, List[str]]:
+def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path: str, latent_type: str, embed_suffix: str) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
-    for latent_dataset, embed_datasets, repeat in dataset_paths:
-        with open(os.path.join(latent_dataset, "bucket_list.json"), "r") as f:
+    for dataset in dataset_paths:
+        bucket_list_path = dataset["bucket_list"]
+        if not os.path.exists(bucket_list_path):
+            bucket_list_path = os.path.join(dataset["path"], bucket_list_path)
+        with open(bucket_list_path, "r") as f:
             bucket = json.load(f)
         for key in bucket.keys():
             if key not in bucket_list.keys():
                 bucket_list[key] = []
             for i in range(len(bucket[key])):
-                for _ in range(repeat):
-                    for embed_dataset in embed_datasets:
-                        latent_path = os.path.join(latent_dataset, bucket[key][i])
+                for _ in range(dataset["repeats"]):
+                    for embed_dataset in dataset["text_embeds"]:
+                        latent_path = os.path.join(dataset["path"], bucket[key][i])
                         if embed_dataset == "empty_embed":
                             embed_path = empty_embed_path
                         elif latent_type == "latent":
@@ -148,7 +151,7 @@ def main() -> None:
         torch.nn.functional.scaled_dot_product_attention = dynamic_scaled_dot_product_attention
 
     os.makedirs(config["project_dir"], exist_ok=True)
-    if embed_type == "embed":
+    if config["embed_type"] == "embed":
         empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
         embed_suffix = "_" + config["model_type"] + "_embed.pt"
         empty_embed = loader_utils.load_from_file(empty_embed_path)

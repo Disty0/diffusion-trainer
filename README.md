@@ -13,9 +13,3 @@ To create a latent + embed dataset from images and text files:
 
 Running `train_model.py` will create a `dataset_index.json` file.  
 If you do any change to the dataset or the batch size, then remove this file before running `train_model.py`.  
-
-Example dataset_paths config:  
-`["path_to_the_latent_dataset", ["path_to_the_embed_dataset"], repeats]`  
-
-You can use multiple embed datasets with a single latent dataset as long as the folder structure and the filenames are the same:  
-`["path_to_the_latent_dataset", ["path_to_the_embed_dataset_one", "path_to_the_embed_dataset_two"], repeats]`

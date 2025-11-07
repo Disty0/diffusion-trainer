@@ -54,6 +54,11 @@
     "model_path": "/mnt/DataSSD/AI/models/test/sd3/32_sb-3.6B_raifu_plus",
     "image_ext": ".jxl",
     "dataset_paths": [
-        ["/mnt/DataSSD/AI/anime_image_dataset/vae/danbooru-best-png-latent", "/mnt/DataSSD/AI/anime_image_dataset/vae/danbooru-best-png-cropped", 1]
+        {
+            "path": "/mnt/DataSSD/AI/anime_image_dataset/vae/danbooru-best-png-latent",
+            "bucket_list": "bucket_list.json",
+            "images": "/mnt/DataSSD/AI/anime_image_dataset/vae/danbooru-best-png-cropped",
+            "repeats": 1
+        }
     ]
 }

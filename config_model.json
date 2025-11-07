@@ -36,7 +36,7 @@
     "do_nan_embed_check": false,
     "loss_type": "mse",
     "loss_reduction": "mean",
-    "dropout_rate": 0.1,
+    "dropout_rate": 0.0,
     "mask_rate": 0.0,
     "mask_high_rate": 8,
     "mask_low_rate": -2,
@@ -85,8 +85,53 @@
     "project_dir": "/mnt/DataSSD/AI/models/RaiFlow/train_model",
     "model_path": "/mnt/DataSSD/AI/models/RaiFlow/RaiFlow",
     "dataset_paths": [
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/danbooru-jxl", ["/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/captions/danbooru-wd", "/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/captions/danbooru-florence2"], 1],
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/pixiv-jxl", ["/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/captions/pixiv-wd", "/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/captions/pixiv-florence2"], 1],
-        ["/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/vncg-jxl", ["/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/captions/vncg-wd", "/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/captions/vncg-florence2"], 1]
+        {
+            "path": "/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/danbooru-jxl",
+            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/metadata/bucket_list-512px.json",
+            "text_embeds": [
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/danbooru/danbooru-florence2",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/danbooru/danbooru-wd",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/danbooru/danbooru-wd-medium",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/danbooru/danbooru-wd-short",
+                    "empty_embed"
+                ],
+            "repeats": 1
+        },
+        {
+            "path": "/mnt/DataSSD/AI/anime_image_dataset/dataset/anime-pictures/anime-pictures-jxl",
+            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/anime-pictures/metadata/bucket_list-512px.json",
+            "text_embeds": [
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/anime-pictures/anime-pictures-florence2",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/anime-pictures/anime-pictures-wd",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/anime-pictures/anime-pictures-wd-medium",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/anime-pictures/anime-pictures-wd-short",
+                    "empty_embed"
+                ],
+            "repeats": 1
+        },
+        {
+            "path": "/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/pixiv-jxl",
+            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/metadata/bucket_list-512px.json",
+            "text_embeds": [
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/pixiv/pixiv-florence2",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/pixiv/pixiv-wd",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/pixiv/pixiv-wd-medium",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/pixiv/pixiv-wd-short",
+                    "empty_embed"
+                ],
+            "repeats": 1
+        },
+        {
+            "path": "/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/vncg-jxl",
+            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/metadata/bucket_list-512px.json",
+            "text_embeds": [
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/vncg/vncg-florence2",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/vncg/vncg-wd",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/vncg/vncg-wd-medium",
+                    "/mnt/DataSSD/AI/anime_image_dataset/captions/vncg/vncg-wd-short",
+                    "empty_embed"
+                ],
+            "repeats": 1
+        }
     ]
 }
