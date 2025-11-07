@@ -21,40 +21,74 @@ from utils import loader_utils, embed_utils
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(model_type: str, dataset_path: str, out_path: str) -> Dict[str, List[str]]:
+def get_bucket_list(model_type: str, dataset_path: str, out_path: str, bucket_list_path: str) -> Dict[str, List[str]]:
     print(print_filler)
     print("Creating bucket list")
+
     total_image_count = 0
     images_to_encode = 0
-    new_bucket_list = {}
     bucket_list = {}
-    with open(os.path.join(dataset_path, "bucket_list.json"), "r") as f:
+    latent_bucket_list = {}
+
+    bucket_progress_bar = tqdm()
+    bucket_progress_bar.set_description("Loading buckets")
+    image_progress_bar = tqdm()
+    image_progress_bar.set_description("Loading images")
+
+    if not os.path.exists(bucket_list_path):
+        bucket_list_path = os.path.join(dataset_path, bucket_list_path)
+    with open(bucket_list_path, "r") as f:
         bucket = json.load(f)
+
+    bucket_progress_bar.reset(total=len(bucket.keys()))
+
     for key in bucket.keys():
+        current_bucket_list = []
+        current_latent_bucket_list = []
         if key not in bucket_list.keys():
             bucket_list[key] = []
-            new_bucket_list[key] = []
-        for i in range(len(bucket[key])):
-            embed_path = os.path.splitext(bucket[key][i])[0] + "_" + model_type + "_embed.pt"
+            latent_bucket_list[key] = []
+
+        bucket_progress_bar.set_postfix(current=key)
+        image_progress_bar.set_postfix(current=key)
+        image_progress_bar.reset(total=len(bucket[key]))
+
+        for file_name in bucket[key]:
+            embed_path = os.path.splitext(file_name)[0] + "_" + model_type + "_embed.pt"
             embed_path_full = os.path.join(out_path, embed_path)
             if not os.path.exists(embed_path_full) or os.path.getsize(embed_path_full) == 0:
-                bucket_list[key].append(os.path.join(dataset_path, bucket[key][i]))
+                current_bucket_list.append(os.path.join(dataset_path, file_name))
                 images_to_encode = images_to_encode + 1
-            new_bucket_list[key].append(embed_path)
+            current_latent_bucket_list.append(embed_path)
             total_image_count = total_image_count + 1
+            image_progress_bar.update(1)
+        bucket_list[key].extend(current_bucket_list)
+        latent_bucket_list.extend(current_latent_bucket_list)
+        bucket_progress_bar.update(1)
+
+    bucket_progress_bar.close()
+    image_progress_bar.close()
+
     os.makedirs(out_path, exist_ok=True)
     with open(os.path.join(out_path, "bucket_list.json"), "w") as f:
-        json.dump(new_bucket_list, f)
+        json.dump(latent_bucket_list, f)
+
     print(f"Found {total_image_count} images")
     print(f"Found {images_to_encode} images to encode")
     print(print_filler)
+
     return bucket_list
 
 
-def get_batches(batch_size: int, model_type: str, dataset_path: str, out_path: str) -> List[Tuple[List[str], str]]:
-    bucket_list = get_bucket_list(model_type, dataset_path, out_path)
+def get_batches(batch_size: int, model_type: str, dataset_path: str, out_path: str, bucket_list_path: str) -> List[Tuple[List[str], str]]:
+    bucket_list = get_bucket_list(model_type, dataset_path, out_path, bucket_list_path)
     epoch_batch = []
+
+    bucket_progress_bar = tqdm(total=len(bucket_list.keys()))
+    bucket_progress_bar.set_description("Loading batches")
+
     for key, bucket in bucket_list.items():
+        bucket_progress_bar.set_postfix(current=key)
         bucket_len = len(bucket)
         if bucket_len > 0:
             if bucket_len > batch_size:
@@ -66,6 +100,9 @@ def get_batches(batch_size: int, model_type: str, dataset_path: str, out_path: s
             else:
                 epoch_batch.append((bucket, key))
         print(f"Images to encode in the bucket {key}: {bucket_len}")
+        bucket_progress_bar.update(1)
+
+    bucket_progress_bar.close()
     return epoch_batch
 
 def write_embeds(
@@ -106,6 +143,7 @@ def main():
     parser.add_argument("model_path", type=str)
     parser.add_argument("dataset_path", type=str)
     parser.add_argument("out_path", type=str)
+    parser.add_argument("--bucket_list", default="bucket_list.json", type=str)
     parser.add_argument("--model_type", default="raiflow", type=str)
     parser.add_argument("--text_prompt", default="<|vision_start|><|image_pad|><|vision_end|>", type=str)
 
@@ -197,7 +235,7 @@ def main():
     print(print_filler)
     embed_encoder = embed_utils.get_embed_encoder(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
 
-    epoch_batches = get_batches(args.batch_size, args.model_type, args.dataset_path, args.out_path)
+    epoch_batches = get_batches(args.batch_size, args.model_type, args.dataset_path, args.out_path, args.bucket_list_path)
     epoch_len = len(epoch_batches)
     cache_backend = loader_utils.SaveBackend(model_type=args.model_type, save_dtype=save_dtype, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     image_backend = loader_utils.ImageBackend(epoch_batches, load_queue_lenght=args.load_queue_lenght, max_load_workers=args.max_load_workers)

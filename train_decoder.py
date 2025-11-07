@@ -27,46 +27,70 @@ print_filler = "--------------------------------------------------"
 def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
+
     dataset_progress_bar = tqdm(total=len(dataset_paths))
     dataset_progress_bar.set_description("Loading datasets")
     bucket_progress_bar = tqdm()
     bucket_progress_bar.set_description("Loading buckets")
     image_progress_bar = tqdm()
     image_progress_bar.set_description("Loading images")
+
     for dataset in dataset_paths:
         dataset_progress_bar.set_postfix(current=dataset["path"])
+
         bucket_list_path = dataset["bucket_list"]
         if not os.path.exists(bucket_list_path):
             bucket_list_path = os.path.join(dataset["path"], bucket_list_path)
         with open(bucket_list_path, "r") as f:
             bucket = json.load(f)
+
         bucket_progress_bar.reset(total=len(bucket.keys()))
+
         for key in bucket.keys():
-            bucket_len = len(bucket[key])
-            bucket_progress_bar.set_postfix(current=key)
-            image_progress_bar.set_postfix(current=key)
-            image_progress_bar.reset(total=bucket_len)
+            current_bucket_list = []
             if key not in bucket_list.keys():
                 bucket_list[key] = []
-            for i in range(bucket_len):
-                latent_path = os.path.join(dataset["path"], bucket[key][i])
-                image_path = os.path.join(dataset["images"], bucket[key][i][:-9]+"image"+image_ext)
-                if os.path.exists(latent_path) and os.path.exists(image_path):
-                    bucket_list[key].extend([(latent_path, image_path)]*dataset["repeats"])
+
+            bucket_progress_bar.set_postfix(current=key)
+            image_progress_bar.set_postfix(current=key)
+            image_progress_bar.reset(total=len(bucket[key]))
+
+            for file_name in bucket[key]:
+                latent_path = os.path.join(dataset["path"], file_name)
+                image_path = os.path.join(dataset["images"], file_name[:-9]+"image"+image_ext)
+                if not os.path.exists(latent_path):
+                    print(f"Latent file not found: {latent_path}")
+                elif not os.path.exists(image_path):
+                    print(f"Image file not found: {image_path}")
                 else:
-                    print(f"File not found: {bucket[key][i]}")
+                    current_bucket_list.extend([(latent_path, image_path)]*dataset["repeats"])
                 image_progress_bar.update(1)
+
+            bucket_list[key].extend(current_bucket_list)
             bucket_progress_bar.update(1)
         dataset_progress_bar.update(1)
 
+    dataset_progress_bar.close()
+    bucket_progress_bar.close()
+    image_progress_bar.close()
+
     keys_to_remove = []
     total_image_count = 0
+    
+    bucket_progress_bar = tqdm(total=len(bucket_list.keys()))
+    bucket_progress_bar.set_description("Processing buckets")
+    
     for key in bucket_list.keys():
-        if len(bucket_list[key]) < batch_size:
+        bucket_progress_bar.set_postfix(current=key)
+        bucket_len = len(bucket_list[key])
+        if bucket_len < batch_size:
             keys_to_remove.append(key)
         else:
             random.shuffle(bucket_list[key])
-            total_image_count = total_image_count + len(bucket_list[key])
+            total_image_count = total_image_count + bucket_len
+        bucket_progress_bar.update(1)
+    
+    bucket_progress_bar.close()
 
     removed_image_count = 0
     for key in keys_to_remove:
@@ -86,19 +110,27 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str) 
 def get_batches(batch_size: int, dataset_paths: List[Tuple[str, str, int]], dataset_index: str, image_ext: str) -> None:
     bucket_list = get_bucket_list(batch_size, dataset_paths, image_ext)
     print("Creating epoch batches")
+
     epoch_batch = []
     images_left_out_count = 0
 
+    bucket_progress_bar = tqdm(total=len(bucket_list.keys()))
+    bucket_progress_bar.set_description("Loading batches")
+
     for key, bucket in bucket_list.items():
+        bucket_progress_bar.set_postfix(current=key)
         random.shuffle(bucket)
         bucket_len = len(bucket)
         images_left_out = bucket_len % batch_size
         images_left_out_count= images_left_out_count + images_left_out
         for i in range(int((bucket_len - images_left_out) / batch_size)):
-            epoch_batch.append(bucket[i*batch_size:(i+1)*batch_size])
+            epoch_batch.append((bucket[i*batch_size:(i+1)*batch_size], key))
         print(print_filler)
         print(f"Images left out from bucket {key}: {images_left_out}")
         print(f"Images left in the bucket {key}: {bucket_len - images_left_out}")
+        bucket_progress_bar.update(1)
+
+    bucket_progress_bar.close()
 
     print(print_filler)
     print(f"Images that got left out from the epoch: {images_left_out_count}")

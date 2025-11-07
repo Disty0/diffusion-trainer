@@ -81,7 +81,8 @@ class LatentsAndEmbedsDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         latents = []
         embeds = []
-        for batch in self.batches[index]:
+        # resolution = self.batches[index][1]
+        for batch in self.batches[index][0]:
             latents.append(load_from_file(batch[0]))
             embeds.append(load_from_file(batch[1]))
         return (latents, embeds)
@@ -99,7 +100,8 @@ class LatentsAndImagesDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         latents = []
         image_tensors = []
-        for batch in self.batches[index]:
+        # resolution = self.batches[index][1]
+        for batch in self.batches[index][0]:
             latents.append(load_from_file(batch[0]))
             with Image.open(batch[1]) as image:
                 image_tensors.append(self.image_processor.preprocess(image)[0])
@@ -144,7 +146,7 @@ class ImagesAndTokensDataset(Dataset):
             else:
                 with open(batch[1], "r") as file:
                     text = file.read()
-                if text[-1] == "\n":
+                if text and text[-1] == "\n":
                     text = text[:-1]
             embeds.append(text)
         embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
@@ -211,7 +213,7 @@ class DCTsAndTokensDataset(Dataset):
             else:
                 with open(batch[1], "r") as file:
                     text = file.read()
-                if text[-1] == "\n":
+                if text and text[-1] == "\n":
                     text = text[:-1]
             embeds.append(text)
         embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
