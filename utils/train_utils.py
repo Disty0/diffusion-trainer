@@ -91,7 +91,7 @@ def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator:
     sensitive_param_count = 0
 
     for param_name, param in model.named_parameters():
-        if param.ndim == 1 or check_param_name_in(param_name, sensitive_keys):
+        if (param.ndim == 1 and not config["override_sensitive_keys"]) or check_param_name_in(param_name, sensitive_keys):
             sensitive_param_list.append(param)
             sensitive_param_count += param.numel()
         else:
