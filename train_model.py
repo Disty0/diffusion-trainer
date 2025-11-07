@@ -40,19 +40,20 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path
             for i in range(len(bucket[key])):
                 for _ in range(dataset["repeats"]):
                     for embed_dataset in dataset["text_embeds"]:
-                        latent_path = os.path.join(dataset["path"], bucket[key][i])
-                        if embed_dataset == "empty_embed":
-                            embed_path = empty_embed_path
-                        elif latent_type == "latent":
-                            embed_path = os.path.join(embed_dataset, bucket[key][i].rsplit("_", maxsplit=2)[0] + embed_suffix)
-                        else:
-                            embed_path = os.path.join(embed_dataset, os.path.splitext(bucket[key][i])[0] + embed_suffix)
-                        if not os.path.exists(latent_path):
-                            print(f"Latent file not found: {bucket[key][i]}")
-                        elif not os.path.exists(embed_path):
-                            print(f"Embed file not found: {embed_path}")
-                        else:
-                            bucket_list[key].append((latent_path, embed_path))
+                        for _ in range(embed_dataset["repeats"]):
+                            latent_path = os.path.join(dataset["path"], bucket[key][i])
+                            if embed_dataset["path"] == "empty_embed":
+                                embed_path = empty_embed_path
+                            elif latent_type == "latent":
+                                embed_path = os.path.join(embed_dataset["path"], bucket[key][i].rsplit("_", maxsplit=2)[0] + embed_suffix)
+                            else:
+                                embed_path = os.path.join(embed_dataset["path"], os.path.splitext(bucket[key][i])[0] + embed_suffix)
+                            if not os.path.exists(latent_path):
+                                print(f"Latent file not found: {bucket[key][i]}")
+                            elif not os.path.exists(embed_path):
+                                print(f"Embed file not found: {embed_path}")
+                            else:
+                                bucket_list[key].append((latent_path, embed_path))
 
     keys_to_remove = []
     total_image_count = 0
