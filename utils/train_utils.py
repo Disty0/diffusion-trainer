@@ -36,7 +36,7 @@ def check_param_name_in(param_name: str, param_list: List[str]) -> bool:
     return False
 
 
-def get_optimizer(config: dict, parameters: Iterator[Parameter], **kwargs) -> Optimizer:
+def get_optimizer(config: dict, parameters: Iterator[Parameter], accelerator: Accelerator, **kwargs) -> Optimizer:
     optimizer = config["optimizer"]
     if "." in optimizer:
         optimizer_base, optimizer = optimizer.rsplit(".", maxsplit=1)
@@ -47,12 +47,20 @@ def get_optimizer(config: dict, parameters: Iterator[Parameter], **kwargs) -> Op
 
     if config["optimizer_cpu_offload"]:
         from torchao.optim import CPUOffloadOptimizer
-        return CPUOffloadOptimizer(parameters, optimizer_class, offload_gradients=config["optimizer_offload_gradients"], **kwargs)
+        optimizer = CPUOffloadOptimizer(parameters, optimizer_class, offload_gradients=config["optimizer_offload_gradients"], **kwargs)
     else:
-        return optimizer_class(parameters, **kwargs)
+        optimizer = optimizer_class(parameters, **kwargs)
+
+    step_supports_amp_scaling = getattr(optimizer, "_step_supports_amp_scaling", False)
+    optimizer = accelerator.prepare(optimizer)
+    if step_supports_amp_scaling:
+        optimizer._step_supports_amp_scaling = step_supports_amp_scaling
+
+    return optimizer
 
 
-def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRScheduler:
+def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, accelerator: Accelerator, prepare_accelerator: bool = True, **kwargs) -> LRScheduler:
+    args = []
     if lr_scheduler in {"SequentialLR", "torch.optim.lr_scheduler.SequentialLR"}:
         base_lrs = [group["lr"].clone() if isinstance(group["lr"], torch.Tensor) else group["lr"] for group in optimizer.param_groups]
         lr_schedulers = kwargs.pop("schedulers")
@@ -62,16 +70,21 @@ def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, **kwargs) -> LRSch
         for scheduler_name, scheduler_args in zip(lr_schedulers, lr_schedulers_args):
             if scheduler_count != 0 and scheduler_args.get("last_epoch", None) is None:
                 scheduler_args["last_epoch"] = 0
-            lr_schedulers_list.append(get_lr_scheduler(scheduler_name, optimizer, **scheduler_args))
+            lr_schedulers_list.append(get_lr_scheduler(scheduler_name, optimizer, accelerator, prepare_accelerator=False, **scheduler_args))
             lr_schedulers_list[-1].base_lrs: list[float, torch.FloatTensor] = base_lrs
             scheduler_count += 1
-        return torch.optim.lr_scheduler.SequentialLR(optimizer, lr_schedulers_list, **kwargs)
+        args = [lr_schedulers_list]
+        lr_scheduler_base = torch.optim.lr_scheduler
+        lr_scheduler = "SequentialLR"
     elif "." in lr_scheduler:
         lr_scheduler_base, lr_scheduler = lr_scheduler.rsplit(".", maxsplit=1)
         lr_scheduler_base = importlib.import_module(lr_scheduler_base)
     else:
         lr_scheduler_base = torch.optim.lr_scheduler
-    return getattr(lr_scheduler_base, lr_scheduler)(optimizer, **kwargs)
+    scheduler = getattr(lr_scheduler_base, lr_scheduler)(optimizer, *args, **kwargs)
+    if prepare_accelerator:
+        scheduler = accelerator.prepare(scheduler)
+    return scheduler
 
 
 def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator: Accelerator, fused_optimizer_hook: Callable) -> Tuple[Optimizer, LRScheduler]:
@@ -111,13 +124,13 @@ def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator:
     if config["fused_optimizer"]:
         optimizer_dict = {}
         for param in param_list:
-            optimizer = accelerator.prepare(get_optimizer(config, [param], **optimizer_args))
-            lr_scheduler = accelerator.prepare(get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))
+            optimizer = get_optimizer(config, [param], accelerator, **optimizer_args)
+            lr_scheduler = get_lr_scheduler(config["lr_scheduler"], optimizer, accelerator, **config["lr_scheduler_args"])
             optimizer_dict[param] = [optimizer, lr_scheduler]
             param.register_post_accumulate_grad_hook(fused_optimizer_hook)
         for param in sensitive_param_list:
-            optimizer = accelerator.prepare(get_optimizer(config, [param], **optimizer_args_sensitive))
-            lr_scheduler = accelerator.prepare(get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"]))
+            optimizer = get_optimizer(config, [param], accelerator, **optimizer_args_sensitive)
+            lr_scheduler = get_lr_scheduler(config["lr_scheduler"], optimizer, accelerator, **config["lr_scheduler_args"])
             optimizer_dict[param] = [optimizer, lr_scheduler]
             param.register_post_accumulate_grad_hook(fused_optimizer_hook)
         return optimizer_dict, None
@@ -125,13 +138,12 @@ def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator:
         if sensitive_param_list_len > 0 and param_list_len > 0:
             optimizer_args["params"] = param_list
             optimizer_args_sensitive["params"] = sensitive_param_list
-            optimizer = get_optimizer(config, [optimizer_args, optimizer_args_sensitive])
+            optimizer = get_optimizer(config, [optimizer_args, optimizer_args_sensitive], accelerator)
         elif param_list_len > 0:
-            optimizer = get_optimizer(config, param_list, **optimizer_args)
+            optimizer = get_optimizer(config, param_list, accelerator, **optimizer_args)
         else:
-            optimizer = get_optimizer(config, sensitive_param_list, **optimizer_args_sensitive)
-        lr_scheduler = get_lr_scheduler(config["lr_scheduler"], optimizer, **config["lr_scheduler_args"])
-        optimizer, lr_scheduler = accelerator.prepare(optimizer, lr_scheduler)
+            optimizer = get_optimizer(config, sensitive_param_list, accelerator, **optimizer_args_sensitive)
+        lr_scheduler = get_lr_scheduler(config["lr_scheduler"], optimizer, accelerator, **config["lr_scheduler_args"])
         return optimizer, lr_scheduler
 
 

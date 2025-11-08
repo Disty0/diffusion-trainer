@@ -238,25 +238,32 @@ def main() -> None:
             del load_model
 
     def fused_optimizer_hook(parameter: torch.nn.Parameter) -> None:
+        global grad_scaler
         if config["log_grad_stats"]:
             global grad_max, grad_mean, grad_mean_count
             param_grad_abs = parameter.grad.abs()
             grad_max = max(grad_max, param_grad_abs.max().item())
             grad_mean += param_grad_abs.mean().item()
             grad_mean_count += 1
-        if accelerator.sync_gradients and config["max_grad_clip"] > 0:
-            # this is **very** slow with fp16
-            accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
-            if config["log_grad_stats"]:
-                global clipped_grad_mean, clipped_grad_mean_count
-                clipped_grad_mean += parameter.grad.abs().mean().item()
-                clipped_grad_mean_count += 1
-        if accelerator.sync_gradients and config["max_grad_norm"] > 0:
-            # this is **very** slow with fp16 and norming per parameter isn't ideal
-            global grad_norm, grad_norm_count
-            grad_norm += accelerator.clip_grad_norm_(parameter, config["max_grad_norm"])
-            grad_norm_count += 1
-        optimizer[parameter][0].step()
+        if accelerator.sync_gradients:
+            if grad_scaler is not None and (config["max_grad_clip"] > 0 or config["max_grad_norm"] > 0):
+                grad_scaler.unscale_(optimizer[parameter][0])
+            if config["max_grad_clip"] > 0:
+                # this is **very** slow with fp16
+                accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
+                if config["log_grad_stats"]:
+                    global clipped_grad_mean, clipped_grad_mean_count
+                    clipped_grad_mean += parameter.grad.abs().mean().item()
+                    clipped_grad_mean_count += 1
+            if config["max_grad_norm"] > 0:
+                # this is **very** slow with fp16 and norming per parameter isn't ideal
+                global grad_norm, grad_norm_count
+                grad_norm += accelerator.clip_grad_norm_(parameter, config["max_grad_norm"])
+                grad_norm_count += 1
+        if grad_scaler is not None:
+            grad_scaler.step(optimizer[parameter][0])
+        else:
+            optimizer[parameter][0].step()
         optimizer[parameter][1].step()
         optimizer[parameter][0].zero_grad()
 
@@ -285,6 +292,14 @@ def main() -> None:
     model = accelerator.prepare(model)
 
     optimizer, lr_scheduler = train_utils.get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_hook)
+
+    global grad_scaler
+    if config["use_grad_scaler"]:
+        from utils.grad_scaler import GradScaler
+        grad_scaler = GradScaler(accelerator.device.type)
+        grad_scaler = accelerator.prepare(grad_scaler)
+    else:
+        grad_scaler = None
 
     if config["latent_type"] == "latent":
         dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
@@ -374,14 +389,20 @@ def main() -> None:
     loss_func = train_utils.get_loss_func(config)
     model.train()
     getattr(torch, accelerator.device.type).empty_cache()
+
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
-                last_loss = loss
+                last_loss = loss.detach()
                 loss, model_pred, target, log_dict = train_utils.run_model(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
-                accelerator.backward(loss)
+                if grad_scaler is not None:
+                    accelerator.backward(grad_scaler.scale(loss))
+                else:
+                    accelerator.backward(loss)
                 if not config["fused_optimizer"]:
                     if accelerator.sync_gradients:
+                        if grad_scaler is not None and (config["max_grad_clip"] > 0 or config["max_grad_norm"] > 0):
+                            grad_scaler.unscale_(optimizer)
                         if config["log_grad_stats"]:
                             for parameter in model.parameters():
                                 if hasattr(parameter, "grad") and parameter.grad is not None:
@@ -403,9 +424,16 @@ def main() -> None:
                                 loss = last_loss
                                 skip_grad_norm_count += 1
                                 optimizer.zero_grad(set_to_none=True)
-                    optimizer.step()
+                    if grad_scaler is not None:
+                        grad_scaler.step(optimizer)
+                        grad_scaler.update()
+                    else:
+                        optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
+                else:
+                    if grad_scaler is not None:
+                        grad_scaler.update()
 
                 if log_dict.get("timesteps", None) is not None:
                     timesteps_list.extend(log_dict["timesteps"].to("cpu", dtype=torch.float32).detach().tolist())

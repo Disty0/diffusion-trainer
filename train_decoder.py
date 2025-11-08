@@ -220,25 +220,32 @@ def main() -> None:
             del load_model
 
     def fused_optimizer_hook(parameter: torch.nn.Parameter) -> None:
+        global grad_scaler
         if config["log_grad_stats"]:
             global grad_max, grad_mean, grad_mean_count
             param_grad_abs = parameter.grad.abs()
             grad_max = max(grad_max, param_grad_abs.max().item())
             grad_mean += param_grad_abs.mean().item()
             grad_mean_count += 1
-        if accelerator.sync_gradients and config["max_grad_clip"] > 0:
-            # this is **very** slow with fp16
-            accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
-            if config["log_grad_stats"]:
-                global clipped_grad_mean, clipped_grad_mean_count
-                clipped_grad_mean += parameter.grad.abs().mean().item()
-                clipped_grad_mean_count += 1
-        if accelerator.sync_gradients and config["max_grad_norm"] > 0:
-            # this is **very** slow with fp16 and norming per parameter isn't ideal
-            global grad_norm, grad_norm_count
-            grad_norm += accelerator.clip_grad_norm_(parameter, config["max_grad_norm"])
-            grad_norm_count += 1
-        optimizer[parameter][0].step()
+        if accelerator.sync_gradients:
+            if grad_scaler is not None and (config["max_grad_clip"] > 0 or config["max_grad_norm"] > 0):
+                grad_scaler.unscale_(optimizer[parameter][0])
+            if config["max_grad_clip"] > 0:
+                # this is **very** slow with fp16
+                accelerator.clip_grad_value_(parameter, config["max_grad_clip"])
+                if config["log_grad_stats"]:
+                    global clipped_grad_mean, clipped_grad_mean_count
+                    clipped_grad_mean += parameter.grad.abs().mean().item()
+                    clipped_grad_mean_count += 1
+            if config["max_grad_norm"] > 0:
+                # this is **very** slow with fp16 and norming per parameter isn't ideal
+                global grad_norm, grad_norm_count
+                grad_norm += accelerator.clip_grad_norm_(parameter, config["max_grad_norm"])
+                grad_norm_count += 1
+        if grad_scaler is not None:
+            grad_scaler.step(optimizer[parameter][0])
+        else:
+            optimizer[parameter][0].step()
         optimizer[parameter][1].step()
         optimizer[parameter][0].zero_grad()
 
@@ -266,6 +273,14 @@ def main() -> None:
     model = accelerator.prepare(model)
 
     optimizer, lr_scheduler = train_utils.get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_hook)
+
+    global grad_scaler
+    if config["use_grad_scaler"]:
+        from utils.grad_scaler import GradScaler
+        grad_scaler = GradScaler(accelerator.device.type)
+        grad_scaler = accelerator.prepare(grad_scaler)
+    else:
+        grad_scaler = None
 
     dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
@@ -320,14 +335,17 @@ def main() -> None:
         disable=not accelerator.is_local_main_process,
     )
 
-    grad_norm = 0
+    global grad_max, grad_mean, grad_mean_count, clipped_grad_mean, clipped_grad_mean_count, grad_norm, grad_norm_count
+    grad_norm = torch.tensor(0.0, dtype=dtype, device=accelerator.device)
     grad_mean = 0
     clipped_grad_mean = 0
     grad_norm_count = 0
+    skip_grad_norm_count = 0
     grad_mean_count = 0
     clipped_grad_mean_count = 0
     grad_max = 0
-    grad_max = 0
+    loss = torch.tensor(1.0, dtype=dtype, device=accelerator.device)
+    loss_func = train_utils.get_loss_func(config)
     if hasattr(model, "decoder") and hasattr(model, "encoder"):
         model.eval()
         model.requires_grad_(False)
@@ -351,19 +369,20 @@ def main() -> None:
                     image_tensors.append(image_tensors_list[i].to(accelerator.device, dtype=torch.float32))
                 image_tensors = torch.stack(image_tensors).to(accelerator.device, dtype=torch.float32)
             with accelerator.accumulate(model):
+                last_loss = loss.detach()
                 model_pred = latent_utils.decode_latents(model, image_processor, latents, config["model_type"], accelerator.device, return_image=False, mixed_precision=config["mixed_precision"])
-                if config["loss_type"] == "mae":
-                    loss = torch.nn.functional.l1_loss(model_pred, image_tensors, reduction=config["loss_reduction"])
-                elif config["loss_type"] == "mse":
-                    loss = torch.nn.functional.mse_loss(model_pred, image_tensors, reduction=config["loss_reduction"])
+                loss = loss_func(model_pred, image_tensors, reduction=config["loss_reduction"])
+                if grad_scaler is not None:
+                    accelerator.backward(grad_scaler.scale(loss))
                 else:
-                    loss = getattr(torch.nn.functional, config["loss_type"])(model_pred, image_tensors, reduction=config["loss_reduction"])
-                accelerator.backward(loss)
+                    accelerator.backward(loss)
                 if not config["fused_optimizer"]:
                     if accelerator.sync_gradients:
+                        if grad_scaler is not None and (config["max_grad_clip"] > 0 or config["max_grad_norm"] > 0):
+                            grad_scaler.unscale_(optimizer)
                         if config["log_grad_stats"]:
                             for parameter in model.parameters():
-                                if hasattr(parameter, "grad"):
+                                if hasattr(parameter, "grad") and parameter.grad is not None:
                                     param_grad_abs = parameter.grad.abs()
                                     grad_max = max(grad_max, param_grad_abs.max().item())
                                     grad_mean += param_grad_abs.mean().item()
@@ -372,15 +391,26 @@ def main() -> None:
                             accelerator.clip_grad_value_(model.parameters(), config["max_grad_clip"])
                             if config["log_grad_stats"]:
                                 for parameter in model.parameters():
-                                    if hasattr(parameter, "grad"):
+                                    if hasattr(parameter, "grad") and parameter.grad is not None:
                                         clipped_grad_mean += parameter.grad.abs().mean().item()
                                         clipped_grad_mean_count += 1
                         if config["max_grad_norm"] > 0:
                             grad_norm += accelerator.clip_grad_norm_(model.parameters(), config["max_grad_norm"])
                             grad_norm_count += 1
-                    optimizer.step()
+                            if grad_norm.isnan() or (config["skip_grad_norm"] > 0 and current_step > config["skip_grad_norm_steps"] and (grad_norm / grad_norm_count) > config["skip_grad_norm"]):
+                                loss = last_loss
+                                skip_grad_norm_count += 1
+                                optimizer.zero_grad(set_to_none=True)
+                    if grad_scaler is not None:
+                        grad_scaler.step(optimizer)
+                        grad_scaler.update()
+                    else:
+                        optimizer.step()
                     lr_scheduler.step()
                     optimizer.zero_grad()
+                else:
+                    if grad_scaler is not None:
+                        grad_scaler.update()
 
                 if accelerator.sync_gradients:
                     if config["ema_update_steps"] > 0 and current_step % config["ema_update_steps"] == 0:
@@ -393,10 +423,9 @@ def main() -> None:
                                 ema_model.to(device=accelerator.device, non_blocking=config["offload_ema_non_blocking"])
                             ema_model.step(model.parameters())
                             if config["update_ema_on_cpu"]:
-                                model.to(device=accelerator.device, non_blocking=False)
+                                model.to(device=accelerator.device, non_blocking=config["offload_ema_non_blocking"])
                             elif config["offload_ema_to_cpu"]:
-                                ema_model.to(device="cpu", non_blocking=config["offload_ema_non_blocking"])
-                                gc.collect()
+                                ema_model.to(device="cpu", non_blocking=False)
                         accelerator.wait_for_everyone()
                     progress_bar.update(1)
                     current_step = current_step + 1
@@ -464,9 +493,11 @@ def main() -> None:
                             clipped_grad_mean = 0
                             clipped_grad_mean_count = 0
                     if grad_norm_count > 0:
-                        logs["grad_norm"] = grad_norm / grad_norm_count
-                        grad_norm = 0
+                        logs["grad_norm"] = (grad_norm / grad_norm_count).item()
+                        grad_norm = torch.tensor(0.0, dtype=dtype, device=accelerator.device)
                         grad_norm_count = 0
+                    if skip_grad_norm_count > 0:
+                        logs["skip_grad_norm_count"] = skip_grad_norm_count
                     if accelerator.is_main_process:
                         if config["ema_update_steps"] > 0:
                             logs["ema_decay"] = ema_model.get_decay(ema_model.optimization_step)
@@ -495,6 +526,7 @@ def main() -> None:
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
             train_dataloader = accelerator.prepare(train_dataloader)
 
+    progress_bar.close()
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         model = unwrap_model(model)
