@@ -346,6 +346,7 @@ def main() -> None:
     grad_max = 0
     loss = torch.tensor(1.0, dtype=dtype, device=accelerator.device)
     loss_func = train_utils.get_loss_func(config)
+
     if hasattr(model, "decoder") and hasattr(model, "encoder"):
         model.eval()
         model.requires_grad_(False)
@@ -355,7 +356,10 @@ def main() -> None:
         model.decoder.requires_grad_(True)
     else:
         model.train()
-    getattr(torch, accelerator.device.type).empty_cache()
+
+    gc.collect()
+    if accelerator.device.type != "cpu":
+        getattr(torch, accelerator.device.type).empty_cache()
 
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents_list, image_tensors_list) in enumerate(train_dataloader):
@@ -507,7 +511,8 @@ def main() -> None:
 
                     if current_step == start_step + 1 or (config["gc_steps"] != 0 and current_step % config["gc_steps"] == 0):
                         gc.collect()
-                        getattr(torch, accelerator.device.type).empty_cache()
+                        if accelerator.device.type != "cpu":
+                            getattr(torch, accelerator.device.type).empty_cache()
 
         current_epoch = current_epoch + 1
         accelerator.print("\n" + print_filler)

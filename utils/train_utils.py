@@ -1,5 +1,6 @@
 from typing import Callable, Iterator, List, Optional, Tuple, Union
 
+import gc
 import copy
 import importlib
 
@@ -179,7 +180,9 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
             modules_to_not_convert=modules_to_not_convert,
             modules_dtype_dict=modules_dtype_dict,
         )
+
     diffusion_model = diffusion_model.to(device)
+    gc.collect()
     if device.type != "cpu":
         getattr(torch, device.type).empty_cache()
     return diffusion_model, processor
