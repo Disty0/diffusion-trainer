@@ -47,8 +47,9 @@ def get_flowmatch_inputs(
 
     if noise is None:
         noise = torch.randn_like(latents, device=device, dtype=torch.float32)
+
     # noisy_model_input = ((1.0 - sigmas) * latents) + (sigmas * noise)
-    noisy_model_input = torch.mul(sigmas, noise).addcmul_(torch.sub(1.0, sigmas), latents)
+    noisy_model_input = latents.lerp(noise, sigmas)
     target = noise - latents
 
     return noisy_model_input, timesteps, target, sigmas, sigmas_next, noise
@@ -106,7 +107,7 @@ def get_self_corrected_targets(
     model_x0_pred = torch.addcmul(noisy_model_input.to(dtype=torch.float32), model_pred, -sigmas)
 
     # new_noisy_model_input = ((1.0 - sigmas) * model_x0_pred) + (sigmas * noise)
-    new_noisy_model_input = torch.mul(sigmas, noise).addcmul_(torch.sub(1.0, sigmas), model_x0_pred)
+    new_noisy_model_input = model_x0_pred.lerp(noise, sigmas)
     # new_target = target + ((new_noisy_model_input - noisy_model_input) / sigmas)
     new_target = torch.addcdiv(target, torch.sub(new_noisy_model_input, noisy_model_input), sigmas)
 
