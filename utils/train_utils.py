@@ -1,6 +1,5 @@
 from typing import Callable, Iterator, List, Optional, Tuple, Union
 
-import re
 import copy
 import importlib
 
@@ -13,27 +12,12 @@ from torch.optim.optimizer import Optimizer
 from torch.nn.parameter import Parameter
 from accelerate import Accelerator
 
+from sdnq.quantizer import check_param_name_in, add_module_skip_keys
+
 from .models.sd3_utils import run_sd3_model_training
 from .models.raiflow_utils import run_raiflow_model_training
 
 print_filler = "--------------------------------------------------"
-
-
-def check_param_name_in(param_name: str, param_list: List[str]) -> bool:
-    split_param_name = param_name.split(".")
-    for param in param_list:
-        if param.startswith("."):
-            if param_name.startswith(param[1:]):
-                return True
-            else:
-                continue
-        if (
-            param_name == param
-            or param in split_param_name
-            or ("*" in param and re.match(param.replace(".*", "\\.*").replace("*", ".*"), param_name))
-        ):
-            return True
-    return False
 
 
 def get_optimizer(config: dict, parameters: Iterator[Parameter], accelerator: Accelerator, **kwargs) -> Optimizer:
@@ -89,8 +73,8 @@ def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, accelerator: Accel
 
 def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator: Accelerator, fused_optimizer_hook: Callable) -> Tuple[Optimizer, LRScheduler]:
     sensitive_keys = config["sensitive_keys"]
-    if not config["override_sensitive_keys"] and hasattr(model, "_skip_layerwise_casting_patterns"):
-        sensitive_keys.extend(model._skip_layerwise_casting_patterns)
+    if not config["override_sensitive_keys"]:
+        model, sensitive_keys, _ = add_module_skip_keys(model, sensitive_keys, None)
 
     optimizer_args = config["optimizer_args"].copy()
     optimizer_args["lr"] = torch.tensor(config["learning_rate"])
@@ -159,27 +143,25 @@ def get_loss_func(config: dict) -> Callable:
 def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, is_ema: bool = False) -> Tuple[ModelMixin]:
     device = torch.device(device)
     if config["model_type"] == "sd3":
-        pipe = diffusers.AutoPipelineForText2Image.from_pretrained(config["model_path"], vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
-        diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
-        diffusion_model.requires_grad_(True)
+        pipe = diffusers.AutoPipelineForText2Image.from_pretrained(config["model_path"], torch_dtype=dtype, vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None)
         processor = copy.deepcopy(pipe.image_processor)
+        diffusion_model = pipe.transformer
     elif config["model_type"] == "raiflow":
         from raiflow import RaiFlowPipeline
         pipe = RaiFlowPipeline.from_pretrained(config["model_path"], torch_dtype=dtype)
-        diffusion_model = pipe.transformer.to(device, dtype=dtype).train()
-        diffusion_model.requires_grad_(True)
         processor = copy.deepcopy(pipe.image_encoder)
+        diffusion_model = pipe.transformer
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
+
+    diffusion_model.train()
+    diffusion_model.requires_grad_(True)
+
     if not is_ema and (config["use_quantized_matmul"] or config["use_static_quantization"]):
-        from sdnq.training import apply_sdnq_to_module
-        modules_to_not_convert = config["sensitive_keys"]
-        if not config["override_sensitive_keys"]:
-            if getattr(diffusion_model, "_keep_in_fp32_modules", None) is not None:
-                modules_to_not_convert.extend(diffusion_model._keep_in_fp32_modules)
-            if getattr(diffusion_model, "_skip_layerwise_casting_patterns", None) is not None:
-                modules_to_not_convert.extend(diffusion_model._skip_layerwise_casting_patterns)
-        diffusion_model = apply_sdnq_to_module(
+        from sdnq.training import sdnq_post_load_quant
+        modules_to_not_convert = config["sensitive_keys"].copy()
+        modules_dtype_dict = config["modules_dtype_dict"].copy()
+        diffusion_model = sdnq_post_load_quant(
             diffusion_model,
             weights_dtype=config["quantized_weights_dtype"],
             quantized_matmul_dtype=config["quantized_matmul_dtype"],
@@ -190,8 +172,14 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
             use_quantized_matmul=config["use_quantized_matmul"],
             use_static_quantization=config["use_static_quantization"],
             use_stochastic_quantization=config["use_stochastic_quantization"],
+            non_blocking=config["offload_ema_non_blocking"],
+            add_skip_keys=bool(not config["override_sensitive_keys"]),
+            quantization_device=device,
+            return_device=device,
             modules_to_not_convert=modules_to_not_convert,
+            modules_dtype_dict=modules_dtype_dict,
         )
+    diffusion_model = diffusion_model.to(device)
     if device.type != "cpu":
         getattr(torch, device.type).empty_cache()
     return diffusion_model, processor
