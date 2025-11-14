@@ -145,11 +145,8 @@ def run_raiflow_model_training(
             meanflow=bool(config["prediction_type"] == "meanflow"),
         )
 
-        if config["mixed_precision"] == "no":
-            noisy_model_input = noisy_model_input.to(dtype=model.dtype)
-            sigmas = sigmas.to(dtype=model.dtype)
-            if config["embed_type"] != "token":
-                prompt_embeds = prompt_embeds.to(dtype=model.dtype)
+        if config["mixed_precision"] == "no" and config["embed_type"] != "token":
+            prompt_embeds = prompt_embeds.to(dtype=model.dtype)
 
         if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
             with accelerator.autocast():
@@ -157,28 +154,23 @@ def run_raiflow_model_training(
                     hidden_states=noisy_model_input,
                     encoder_hidden_states=prompt_embeds,
                     timestep=sigmas,
+                    scale_timesteps=False,
                     return_dict=False,
                 )[0].to(dtype=torch.float32)
 
-            noisy_model_input = noisy_model_input.to(dtype=torch.float32)
             noisy_model_input, target, self_correct_count = get_self_corrected_targets(
                 noisy_model_input=noisy_model_input,
                 target=target,
-                sigmas=sigmas.to(torch.float32),
+                sigmas=sigmas,
                 noise=noise,
                 model_pred=model_pred,
                 x0_pred=False,
             )
-
-            if config["mixed_precision"] == "no":
-                noisy_model_input = noisy_model_input.to(dtype=model.dtype)
         else:
             self_correct_count = None
 
         if config["mask_rate"] > 0:
             noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
-            if config["mixed_precision"] == "no":
-                noisy_model_input = noisy_model_input.to(dtype=model.dtype)
         else:
             masked_count = None
 
@@ -188,6 +180,7 @@ def run_raiflow_model_training(
                 hidden_states=noisy_model_input,
                 encoder_hidden_states=prompt_embeds,
                 timestep=sigmas,
+                scale_timesteps=False,
                 return_dict=False,
             )[0]
     elif config["prediction_type"] == "meanflow":
@@ -203,7 +196,7 @@ def run_raiflow_model_training(
     else:
         raise RuntimeError(f'Prediction type {config["prediction_type"]} is not implemented for {config["model_type"]}')
 
-    model_pred = model_pred.to(dtype=torch.float32)
+    assert model_pred.dtype == torch.float32
     target = target.to(dtype=torch.float32).detach()
 
     model_pred, target = get_loss_weighting(loss_weighting=config["loss_weighting"], model_pred=model_pred, target=target, sigmas=sigmas)
