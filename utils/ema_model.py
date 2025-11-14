@@ -68,9 +68,9 @@ class EMAModel:
         self.model_config = model_config
 
     @classmethod
-    def from_pretrained(cls, path, model_cls, foreach=False) -> "EMAModel":
+    def from_pretrained(cls, path, model_cls, foreach=False, torch_dtype=torch.float32) -> "EMAModel":
         _, ema_kwargs = model_cls.from_config(path, return_unused_kwargs=True)
-        model = model_cls.from_pretrained(path)
+        model = model_cls.from_pretrained(path, torch_dtype=torch_dtype)
 
         ema_model = cls(model.parameters(), model_cls=model_cls, model_config=model.config, foreach=foreach)
         model = model.to("meta")

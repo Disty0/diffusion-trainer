@@ -314,8 +314,8 @@ def main() -> None:
         if resume_checkpoint is not None:
             accelerator.print(f"Resuming EMA from: {resume_checkpoint}")
             accelerator.print(print_filler)
-            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
-            ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
+            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"], torch_dtype=ema_dtype)
+            ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device)
         else:
             accelerator.print(print_filler)
             orig_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, "no")
@@ -519,9 +519,12 @@ def main() -> None:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
                 get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
             accelerator.wait_for_everyone()
+
             accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
             with open(config["dataset_index"], "r") as f:
                 epoch_batch = json.load(f)
+
+            accelerator.print('Setting up dataset loader: LatentsAndImagesDataset')
             dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
             train_dataloader = accelerator.prepare(train_dataloader)

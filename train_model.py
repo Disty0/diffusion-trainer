@@ -350,8 +350,8 @@ def main() -> None:
         if resume_checkpoint is not None:
             accelerator.print(f"Resuming EMA from: {resume_checkpoint}")
             accelerator.print(print_filler)
-            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], resume_checkpoint, "diffusion_ema_model"), train_utils.get_model_class(config["model_type"]), foreach=config["use_foreach_ema"])
-            ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, dtype=ema_dtype)
+            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], resume_checkpoint, "diffusion_ema_model"), train_utils.get_model_class(config["model_type"]), foreach=config["use_foreach_ema"], torch_dtype=ema_dtype)
+            ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device)
         else:
             accelerator.print(print_filler)
             orig_model, _ = train_utils.get_diffusion_model(config, "cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device, ema_dtype, is_ema=True)
@@ -568,9 +568,12 @@ def main() -> None:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
                 get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix)
             accelerator.wait_for_everyone()
+
             accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
             with open(config["dataset_index"], "r") as f:
                 epoch_batch = json.load(f)
+
+            accelerator.print(f'Setting up dataset loader: {config["latent_type"]}')
             if config["latent_type"] == "latent":
                 dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
             elif config["latent_type"] == "image":
