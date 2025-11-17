@@ -47,7 +47,7 @@
     "use_quantized_matmul": true,
     "use_static_quantization": true,
     "use_svd_quantization": false,
-    "use_stochastic_quantization": true,
+    "use_stochastic_rounding": true,
     "quantized_matmul_dtype": "int8",
     "quantized_weights_dtype": "uint8",
     "quantized_weights_group_size": 32,
