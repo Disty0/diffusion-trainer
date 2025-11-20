@@ -22,7 +22,7 @@ def main(model_path, out_path, dtype=None):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="Create a bucket list with a given dataset path")
+    parser = argparse.ArgumentParser(description="Dequantize SDNQ Training models")
     parser.add_argument("model_path", type=str)
     parser.add_argument("out_path", type=str)
     parser.add_argument("--dtype", default="none", type=str)

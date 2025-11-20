@@ -59,6 +59,8 @@ def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, targe
     model_pred, target, sigmas = model_pred.to(dtype=torch.float32), target.to(dtype=torch.float32), sigmas.to(dtype=torch.float32)
     if loss_weighting == "none":
         return model_pred, target
+    elif loss_weighting == "sigma_pi":
+        weight = sigmas * (torch.pi/2)
     elif loss_weighting == "sigma_sqrt_clamp":
         weight = sigmas.sqrt().clamp(min=0.1, max=None)
     elif loss_weighting == "sigma_sqrt":
