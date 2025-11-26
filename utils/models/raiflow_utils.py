@@ -184,7 +184,7 @@ def run_raiflow_model_training(
                 scale_timesteps=False,
                 return_dict=False,
                 return_x0=True,
-            )[0]
+            )[0].to(dtype=torch.float32)
         model_pred = noise - model_pred
     elif config["prediction_type"] == "meanflow":
         with accelerator.autocast():
