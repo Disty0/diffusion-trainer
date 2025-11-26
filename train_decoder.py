@@ -259,17 +259,6 @@ def main() -> None:
     accelerator.print("Initializing the trainer")
     accelerator.print(print_filler)
 
-    batch_size = config["batch_size"]
-    if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
-        gc.collect()
-    accelerator.wait_for_everyone()
-
-    accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
-    with open(config["dataset_index"], "r") as f:
-        epoch_batch = json.load(f)
-    gc.collect()
-
     dtype = getattr(torch, config["weights_dtype"])
     print(f"Loading latent models with dtype {dtype} to device {accelerator.device}")
     accelerator.print(print_filler)
@@ -277,6 +266,7 @@ def main() -> None:
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()
     model = accelerator.prepare(model)
+    gc.collect()
 
     optimizer, lr_scheduler = train_utils.get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_hook)
 
@@ -288,9 +278,25 @@ def main() -> None:
     else:
         grad_scaler = None
 
+    batch_size = config["batch_size"]
+    if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
+        gc.collect()
+    accelerator.wait_for_everyone()
+
+    accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
+    with open(config["dataset_index"], "r") as f:
+        epoch_batch = json.load(f)
+    gc.collect()
+
     dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
+    del epoch_batch
+    gc.collect()
+
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
     train_dataloader = accelerator.prepare(train_dataloader)
+    del dataset
+    gc.collect()
 
     resume_checkpoint = None
     if config.get("resume_from", "") and config["resume_from"] != "none":
@@ -527,7 +533,8 @@ def main() -> None:
         accelerator.print(f"Starting epoch {current_epoch}")
         accelerator.print(f"Current steps done: {current_step}")
         if config["reshuffle"]:
-            del dataset, train_dataloader
+            del train_dataloader
+            gc.collect()
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
                 get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
@@ -541,8 +548,13 @@ def main() -> None:
 
             accelerator.print('Setting up dataset loader: LatentsAndImagesDataset')
             dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
+            del epoch_batch
+            gc.collect()
+
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
             train_dataloader = accelerator.prepare(train_dataloader)
+            del dataset
+            gc.collect()
 
     progress_bar.close()
     accelerator.wait_for_everyone()
