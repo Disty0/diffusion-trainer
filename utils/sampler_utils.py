@@ -57,8 +57,10 @@ def get_flowmatch_inputs(
 
 def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, target: torch.FloatTensor, sigmas: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
     model_pred, target, sigmas = model_pred.to(dtype=torch.float32), target.to(dtype=torch.float32), sigmas.to(dtype=torch.float32)
-    if loss_weighting == "none":
+    if loss_weighting in {None, "none"}:
         return model_pred, target
+    elif loss_weighting == "sigma":
+        weight = sigmas
     elif loss_weighting == "sigma_pi":
         weight = sigmas * (torch.pi/2)
     elif loss_weighting == "sigma_sqrt_clamp":
@@ -105,8 +107,9 @@ def get_self_corrected_targets(
 ) -> Tuple[torch.FloatTensor, torch.FloatTensor, int]:
     if x0_pred:
         model_x0_pred = model_pred
-    #model_x0_pred = noisy_model_input.to(dtype=torch.float32) - (model_pred * sigmas)
-    model_x0_pred = torch.addcmul(noisy_model_input.to(dtype=torch.float32), model_pred, -sigmas)
+    else:
+        #model_x0_pred = noisy_model_input.to(dtype=torch.float32) - (model_pred * sigmas)
+        model_x0_pred = torch.addcmul(noisy_model_input.to(dtype=torch.float32), model_pred, -sigmas)
 
     # new_noisy_model_input = ((1.0 - sigmas) * model_x0_pred) + (sigmas * noise)
     new_noisy_model_input = model_x0_pred.lerp(noise, sigmas)

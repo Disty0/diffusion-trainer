@@ -156,6 +156,7 @@ def run_raiflow_model_training(
                     timestep=sigmas,
                     scale_timesteps=False,
                     return_dict=False,
+                    return_x0=True,
                 )[0].to(dtype=torch.float32)
 
             noisy_model_input, target, self_correct_count = get_self_corrected_targets(
@@ -164,7 +165,7 @@ def run_raiflow_model_training(
                 sigmas=sigmas,
                 noise=noise,
                 model_pred=model_pred,
-                x0_pred=False,
+                x0_pred=True,
             )
         else:
             self_correct_count = None
@@ -182,7 +183,9 @@ def run_raiflow_model_training(
                 timestep=sigmas,
                 scale_timesteps=False,
                 return_dict=False,
+                return_x0=True,
             )[0]
+        model_pred = noise - model_pred
     elif config["prediction_type"] == "meanflow":
         with accelerator.autocast():
             model_pred, jvp_out = torch.autograd.functional.jvp(
