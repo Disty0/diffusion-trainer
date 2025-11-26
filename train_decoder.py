@@ -43,6 +43,7 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str) 
             bucket_list_path = os.path.join(dataset["path"], bucket_list_path)
         with open(bucket_list_path, "r") as f:
             bucket = json.load(f)
+        gc.collect()
 
         bucket_progress_bar.reset(total=len(bucket.keys()))
 
@@ -151,6 +152,7 @@ def main() -> None:
 
     with open(args.config_path, "r") as f:
         config = json.load(f)
+    gc.collect()
 
     if config["tunableop"]:
         torch.cuda.tunable.enable(val=True)
@@ -259,10 +261,13 @@ def main() -> None:
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
         get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
+        gc.collect()
     accelerator.wait_for_everyone()
+
     accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
     with open(config["dataset_index"], "r") as f:
         epoch_batch = json.load(f)
+    gc.collect()
 
     dtype = getattr(torch, config["weights_dtype"])
     print(f"Loading latent models with dtype {dtype} to device {accelerator.device}")
@@ -523,11 +528,13 @@ def main() -> None:
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
                 get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
+                gc.collect()
             accelerator.wait_for_everyone()
 
             accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
             with open(config["dataset_index"], "r") as f:
                 epoch_batch = json.load(f)
+            gc.collect()
 
             accelerator.print('Setting up dataset loader: LatentsAndImagesDataset')
             dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
