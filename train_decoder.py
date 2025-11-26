@@ -320,7 +320,7 @@ def main() -> None:
         if resume_checkpoint is not None:
             accelerator.print(f"Resuming EMA from: {resume_checkpoint}")
             accelerator.print(print_filler)
-            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "diffusion_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"], torch_dtype=ema_dtype)
+            ema_model = EMAModel.from_pretrained(os.path.join(config["project_dir"], config["resume_from"], "decoder_ema_model"), latent_utils.get_latent_model_class(config["model_type"]), foreach=config["use_foreach_ema"], torch_dtype=ema_dtype)
             ema_model.to("cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device)
         else:
             accelerator.print(print_filler)
@@ -465,14 +465,16 @@ def main() -> None:
                                 gc.collect()
                                 accelerator.print(f"Saving EMA state to {save_path}")
                                 save_ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu", ema_dtype, "no")
-                                save_ema_model_state_dict = ema_model.state_dict()
-                                save_ema_model_state_dict.pop("shadow_params", None)
-                                save_ema_model.register_to_config(**save_ema_model_state_dict)
                                 ema_model.copy_to(save_ema_model.parameters())
-                                save_ema_model.save_pretrained(os.path.join(save_path, "diffusion_ema_model"))
+                                save_ema_model.save_pretrained(os.path.join(save_path, "decoder_ema_model"))
                                 save_ema_model = save_ema_model.to("meta")
                                 save_ema_model = None
                                 del save_ema_model
+                                save_ema_model_state_dict = ema_model.state_dict()
+                                save_ema_model_state_dict.pop("shadow_params", None)
+                                with open(os.path.join(save_path, "decoder_ema_model", "ema_state.json"), "w") as f:
+                                    json.dump(save_ema_model_state_dict, f)
+                                del save_ema_model_state_dict
                             gc.collect()
                             accelerator.print(f"\nSaved states to {save_path}")
                             accelerator.print(print_filler)
@@ -554,14 +556,16 @@ def main() -> None:
             gc.collect()
             accelerator.print(f"Saving EMA state to {save_path}")
             save_ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu", ema_dtype, "no")
-            save_ema_model_state_dict = ema_model.state_dict()
-            save_ema_model_state_dict.pop("shadow_params", None)
-            save_ema_model.register_to_config(**save_ema_model_state_dict)
             ema_model.copy_to(save_ema_model.parameters())
-            save_ema_model.save_pretrained(os.path.join(save_path, "diffusion_ema_model"))
+            save_ema_model.save_pretrained(os.path.join(save_path, "decoder_ema_model"))
             save_ema_model = save_ema_model.to("meta")
             save_ema_model = None
             del save_ema_model
+            save_ema_model_state_dict = ema_model.state_dict()
+            save_ema_model_state_dict.pop("shadow_params", None)
+            with open(os.path.join(save_path, "decoder_ema_model", "ema_state.json"), "w") as f:
+                json.dump(save_ema_model_state_dict, f)
+            del save_ema_model_state_dict
         gc.collect()
         accelerator.print(f"\nSaved states to {save_path}")
     accelerator.end_training()

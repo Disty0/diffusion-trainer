@@ -1,9 +1,12 @@
 from typing import Any, Dict, Iterable, Optional, Union
 
+import os
+import json
 import copy
 import contextlib
 import torch
 import transformers
+from accelerate import init_empty_weights
 
 if transformers.integrations.deepspeed.is_deepspeed_zero3_enabled():
     import deepspeed
@@ -67,17 +70,21 @@ class EMAModel:
         self.model_cls = model_cls
         self.model_config = model_config
 
+        for param in self.shadow_params:
+            param.data = param.clone()
+
     @classmethod
     def from_pretrained(cls, path, model_cls, foreach=False, torch_dtype=torch.float32) -> "EMAModel":
-        _, ema_kwargs = model_cls.from_config(path, return_unused_kwargs=True)
         model = model_cls.from_pretrained(path, torch_dtype=torch_dtype)
-
         ema_model = cls(model.parameters(), model_cls=model_cls, model_config=model.config, foreach=foreach)
         model = model.to("meta")
         model = None
         del model
 
-        ema_model.load_state_dict(ema_kwargs)
+        ema_state_path = os.path.join(path, "ema_state.json")
+        if os.path.exists(ema_state_path):
+            with open(ema_state_path, "r") as f:
+                ema_model.load_state_dict(json.load(f))
         return ema_model
 
     def save_pretrained(self, path):
@@ -87,13 +94,19 @@ class EMAModel:
         if self.model_config is None:
             raise ValueError("`save_pretrained` can only be used if `model_config` was defined at __init__.")
 
-        model = self.model_cls.from_config(self.model_config)
         state_dict = self.state_dict()
         state_dict.pop("shadow_params", None)
+        with open(os.path.join(path, "ema_state.json"), "w") as f:
+            json.dump(state_dict, f)
+        del state_dict
 
-        model.register_to_config(**state_dict)
+        with init_empty_weights():
+            model = self.model_cls.from_config(self.model_config)
         self.copy_to(model.parameters())
         model.save_pretrained(path)
+        model = model.to("meta")
+        model = None
+        del model
 
     def get_decay(self, optimization_step: int) -> float:
         """
