@@ -150,6 +150,7 @@ def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]]
 
     random.shuffle(epoch_batch)
     os.makedirs(os.path.dirname(dataset_index), exist_ok=True)
+    print(f"Saving dataset index to: {dataset_index}")
     with open(dataset_index, "w") as f:
         json.dump(epoch_batch, f)
 
