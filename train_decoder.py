@@ -158,7 +158,7 @@ def main() -> None:
     if config["tunableop"]:
         torch.cuda.tunable.enable(val=True)
     if config["dynamo_backend"] != "no":
-        torch._dynamo.config.cache_size_limit = 64
+        torch._dynamo.config.cache_size_limit = max(torch._dynamo.config.cache_size_limit, 64)
 
     if config["allow_tf32"]:
         torch.backends.fp32_precision = "tf32"
