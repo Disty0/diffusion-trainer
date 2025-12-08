@@ -4,20 +4,20 @@
     "embed_type": "token",
     "prediction_type": "flow",
     "sampler_config": {
-        "weighting_scheme": "lognorm",
-        "shift": 0.0,
+        "weighting_scheme": "uniform",
+        "shift": 2.5,
         "logit_mean": 0.0,
         "logit_std": 1.0,
         "mode_scale": 1.29
     },
     "loss_weighting": "none",
     "latent_corrections": "none",
-    "sensitive_keys": ["refiner_transformer_blocks", "joint_transformer_blocks.0.*", "joint_transformer_blocks.1.*"],
+    "sensitive_keys": [],
     "override_sensitive_keys": false,
     "optimizer": "sdnq.optim.Adafactor",
     "optimizer_args": {"weight_decay": 0.01},
     "optimizer_args_sensitive": {"weight_decay": 0.0},
-    "fused_optimizer": false,
+    "fused_optimizer": true,
     "optimizer_cpu_offload": false,
     "optimizer_offload_gradients": false,
     "lr_scheduler": "SequentialLR",
@@ -41,7 +41,7 @@
     "mask_high_rate": 8,
     "mask_low_rate": -2,
     "self_correct_rate": 0.0,
-    "batch_size": 16,
+    "batch_size": 32,
     "gradient_accumulation_steps": 1,
     "gradient_checkpointing": true,
     "use_quantized_matmul": true,
@@ -49,7 +49,7 @@
     "use_svd_quantization": false,
     "use_stochastic_rounding": true,
     "quantized_matmul_dtype": "int8",
-    "quantized_weights_dtype": "uint8",
+    "quantized_weights_dtype": "uint16",
     "quantized_weights_group_size": 32,
     "quantized_weights_svd_rank": 32,
     "modules_dtype_dict": {},
@@ -76,20 +76,20 @@
     "gc_steps": 64,
     "checkpoint_save_steps": 256,
     "checkpoints_limit": 20,
-    "max_load_workers": 4,
+    "max_load_workers": 2,
     "load_queue_lenght": 64,
     "reshuffle": true,
     "encode_dcts_with_cpu": true,
     "log_with": "wandb",
     "project_name": "raiflow-mini",
     "resume_from": "latest",
-    "dataset_index": "cache/dataset_index_512_16.json",
+    "dataset_index": "cache/dataset_index_256_32.json",
     "project_dir": "/mnt/DataSSD/AI/models/RaiFlow/train_model",
     "model_path": "/mnt/DataSSD/AI/models/RaiFlow/RaiFlow",
     "dataset_paths": [
         {
             "path": "/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/danbooru-jxl",
-            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/metadata/bucket_list-512px.json",
+            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/danbooru/metadata/bucket_list-256px.json",
             "text_embeds": [
                     {"path": "/mnt/DataSSD/AI/anime_image_dataset/captions/danbooru/danbooru-florence2", "repeats": 3},
                     {"path": "/mnt/DataSSD/AI/anime_image_dataset/captions/danbooru/danbooru-wd", "repeats": 2},
@@ -101,7 +101,7 @@
         },
         {
             "path": "/mnt/DataSSD/AI/anime_image_dataset/dataset/anime-pictures/anime-pictures-jxl",
-            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/anime-pictures/metadata/bucket_list-512px.json",
+            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/anime-pictures/metadata/bucket_list-256px.json",
             "text_embeds": [
                     {"path": "/mnt/DataSSD/AI/anime_image_dataset/captions/anime-pictures/anime-pictures-florence2", "repeats": 3},
                     {"path": "/mnt/DataSSD/AI/anime_image_dataset/captions/anime-pictures/anime-pictures-wd", "repeats": 2},
@@ -113,7 +113,7 @@
         },
         {
             "path": "/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/pixiv-jxl",
-            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/metadata/bucket_list-512px.json",
+            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/pixiv/metadata/bucket_list-256px.json",
             "text_embeds": [
                     {"path": "/mnt/DataSSD/AI/anime_image_dataset/captions/pixiv/pixiv-florence2", "repeats": 3},
                     {"path": "/mnt/DataSSD/AI/anime_image_dataset/captions/pixiv/pixiv-wd", "repeats": 2},
@@ -125,7 +125,7 @@
         },
         {
             "path": "/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/vncg-jxl",
-            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/metadata/bucket_list-512px.json",
+            "bucket_list": "/mnt/DataSSD/AI/anime_image_dataset/dataset/vncg/metadata/bucket_list-256px.json",
             "text_embeds": [
                     {"path": "/mnt/DataSSD/AI/anime_image_dataset/captions/vncg/vncg-qwen3", "repeats": 2},
                     {"path": "/mnt/DataSSD/AI/anime_image_dataset/captions/vncg/vncg-florence2", "repeats": 2},
