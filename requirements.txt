@@ -10,4 +10,4 @@ tqdm==4.67.1
 imagesize==1.4.1
 wandb==0.23.1
 torchao==0.14.1
-sdnq==0.1.1
+sdnq==0.1.2
