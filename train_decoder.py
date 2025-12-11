@@ -155,10 +155,15 @@ def main() -> None:
         config = json.load(f)
     gc.collect()
 
-    if config["tunableop"]:
-        torch.cuda.tunable.enable(val=True)
+    torch.cuda.tunable.enable(config["tunableop"])
     if config["dynamo_backend"] != "no":
         torch._dynamo.config.cache_size_limit = max(torch._dynamo.config.cache_size_limit, 64)
+
+    if config["cudnn_enabled"] == "default":
+        if torch.cuda.is_available() and torch.version.hip:
+            torch.backends.cudnn.enabled = False    
+    else:
+        torch.backends.cudnn.enabled = config["cudnn_enabled"]
 
     if config["allow_tf32"]:
         torch.backends.fp32_precision = "tf32"
