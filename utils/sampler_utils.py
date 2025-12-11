@@ -20,8 +20,7 @@ def get_flowmatch_inputs(
     shape = (2, latents.shape[0]) if meanflow else (latents.shape[0],)
 
     if sampler_config["weighting_scheme"] == "uniform":
-        # uniform range is larger than 1.0 to hit the timestep 1000 more
-        u = torch.empty(shape, device=device, dtype=torch.float32).uniform_(0.0, 1.0056)
+        u = torch.empty(shape, device=device, dtype=torch.float32).uniform_(0.0, 1.0)
     elif sampler_config["weighting_scheme"] in {"logit_normal", "lognorm"}:
         u = torch.normal(sampler_config["logit_mean"], sampler_config["logit_std"], shape, device=device, dtype=torch.float32).sigmoid_()
     elif sampler_config["weighting_scheme"] == "mode":
@@ -38,6 +37,8 @@ def get_flowmatch_inputs(
     if sampler_config["shift"] != 0:
         # u = (u * shift) / (1 + (shift - 1) * u)
         u = torch.mul(u, sampler_config["shift"]).div_(u.mul_(sampler_config["shift"] - 1).add_(1))
+    if sampler_config["timestep_bias"] != 0:
+        u = u.add_(sampler_config["timestep_bias"]/num_train_timesteps)
 
     u = u.clamp_(1/num_train_timesteps,1.0)
     timesteps = torch.mul(u, num_train_timesteps)

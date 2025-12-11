@@ -4,11 +4,12 @@
     "embed_type": "token",
     "prediction_type": "flow",
     "sampler_config": {
-        "weighting_scheme": "uniform",
-        "shift": 2.5,
-        "logit_mean": 0.0,
-        "logit_std": 1.0,
-        "mode_scale": 1.29
+        "weighting_scheme": "mode",
+        "logit_mean": -0.2,
+        "logit_std": 1.5,
+        "mode_scale": 0.64,
+        "timestep_bias": 0.5,
+        "shift": 2.5
     },
     "loss_weighting": "none",
     "latent_corrections": "none",
