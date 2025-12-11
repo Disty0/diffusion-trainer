@@ -24,7 +24,7 @@
     "weights_dtype": "float32",
     "mixed_precision": "fp16",
     "dynamo_backend": "no",
-    "cudnn_enabled": "default",
+    "cudnn_enabled": true,
     "tunableop": false,
     "allow_tf32": true,
     "allow_reduced_precision": true,
