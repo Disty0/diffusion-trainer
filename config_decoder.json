@@ -25,7 +25,7 @@
     "mixed_precision": "fp16",
     "dynamo_backend": "no",
     "cudnn_enabled": true,
-    "tunableop": false,
+    "tunableop": "default",
     "allow_tf32": true,
     "allow_reduced_precision": true,
     "flash_sdp": true,
