@@ -253,6 +253,10 @@ def main() -> None:
             optimizer[parameter][0].step()
         optimizer[parameter][1].step()
         optimizer[parameter][0].zero_grad()
+        if accelerator.sync_gradients:
+            if parameter.grad is not None:
+                parameter.grad = parameter.grad.to("meta")
+            parameter.grad = None
 
     accelerator.register_save_state_pre_hook(save_model_hook)
     accelerator.register_load_state_pre_hook(load_model_hook)
