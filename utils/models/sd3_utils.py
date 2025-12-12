@@ -115,11 +115,14 @@ def run_sd3_model_training(
     loss_func: callable,
 ) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
     with torch.no_grad():
-        latents = []
-        for i in range(len(latents_list)):
-            latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
-        latents = torch.stack(latents)
-        latents = latents.to(accelerator.device, dtype=torch.float32)
+        if isinstance(latents_list, torch.Tensor):
+            latents = latents_list.to(accelerator.device, dtype=torch.float32)
+        else:
+            latents = []
+            for i in range(len(latents_list)):
+                latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
+            latents = torch.stack(latents)
+            latents = latents.to(accelerator.device, dtype=torch.float32)
 
         if config["latent_corrections"] == "unscale":
             # SD 3.5 VAE doesn't need scaling, it is already normally distributed and scaling them makes the avg std range become 1.25-2.0

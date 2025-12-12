@@ -83,8 +83,9 @@ class LatentsAndEmbedsDataset(Dataset):
         embeds = []
         # resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            latents.append(load_from_file(batch[0]))
+            latents.append(load_from_file(batch[0]).to(dtype=torch.float32))
             embeds.append(load_from_file(batch[1]))
+        latents = torch.stack(latents)
         return (latents, embeds)
 
 
@@ -102,9 +103,11 @@ class LatentsAndImagesDataset(Dataset):
         image_tensors = []
         # resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            latents.append(load_from_file(batch[0]))
+            latents.append(load_from_file(batch[0]).to(dtype=torch.float32))
             with Image.open(batch[1]) as image:
                 image_tensors.append(self.image_processor.preprocess(image)[0])
+        latents = torch.stack(latents)
+        image_tensors = torch.stack(image_tensors)
         return (latents, image_tensors)
 
 
@@ -121,8 +124,10 @@ class ImagesAndEmbedsDataset(Dataset):
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            images.append(load_image_from_file(batch[0], resolution))
+            with load_image_from_file(batch[0], resolution) as image:
+                images.append(torch.from_numpy(np.asarray(image).copy()))
             embeds.append(load_from_file(batch[1]))
+        images = torch.stack(images)
         return (images, embeds)
 
 
@@ -140,7 +145,8 @@ class ImagesAndTokensDataset(Dataset):
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            images.append(load_image_from_file(batch[0], resolution))
+            with load_image_from_file(batch[0], resolution) as image:
+                images.append(torch.from_numpy(np.asarray(image).copy()))
             if batch[1] == "":
                 text = ""
             else:
@@ -150,6 +156,7 @@ class ImagesAndTokensDataset(Dataset):
                     text = text[:-1]
             embeds.append(text)
         embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
+        images = torch.stack(images)
         return (images, embeds)
 
 
@@ -166,10 +173,10 @@ class ImageTensorsAndEmbedsDataset(Dataset):
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            image_tensor = torch.from_numpy(np.asarray(load_image_from_file(batch[0], resolution)).copy()).permute(2,0,1)
-            image_tensor = ((image_tensor.float() / 127.5) - 1) # -1 to 1 range
-            images.append(image_tensor)
+            with load_image_from_file(batch[0], resolution) as image:
+                images.append((torch.from_numpy(np.asarray(image).copy()).permute(2,0,1).to(dtype=torch.float32) / 127.5) - 1) # -1 to 1 range
             embeds.append(load_from_file(batch[1]))
+        images = torch.stack(images)
         return (images, embeds)
 
 
@@ -183,13 +190,15 @@ class DCTsAndEmbedsDataset(Dataset):
 
     @torch.no_grad()
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
-        images = []
+        dcts = []
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resolution), device="cpu")[0])
+            with load_image_from_file(batch[0], resolution) as image:
+                dcts.append(self.image_encoder.encode(image, device="cpu")[0])
             embeds.append(load_from_file(batch[1]))
-        return (images, embeds)
+        dcts = torch.stack(dcts)
+        return (dcts, embeds)
 
 
 class DCTsAndTokensDataset(Dataset):
@@ -203,11 +212,12 @@ class DCTsAndTokensDataset(Dataset):
 
     @torch.no_grad()
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
-        images = []
+        dcts = []
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            images.append(self.image_encoder.encode(load_image_from_file(batch[0], resolution), device="cpu")[0])
+            with load_image_from_file(batch[0], resolution) as image:
+                dcts.append(self.image_encoder.encode(image, device="cpu")[0])
             if batch[1] == "":
                 text = ""
             else:
@@ -217,7 +227,8 @@ class DCTsAndTokensDataset(Dataset):
                     text = text[:-1]
             embeds.append(text)
         embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
-        return (images, embeds)
+        dcts = torch.stack(dcts)
+        return (dcts, embeds)
 
 
 class SaveBackend():

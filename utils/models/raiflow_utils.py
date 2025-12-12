@@ -75,11 +75,14 @@ def run_raiflow_model_training(
         if config["latent_type"] == "jpeg" and not config["encode_dcts_with_cpu"]:
             latents = model_processor.encode(latents_list, device=accelerator.device).to(accelerator.device, dtype=torch.float32)
         else:
-            latents = []
-            for i in range(len(latents_list)):
-                latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
-            latents = torch.stack(latents, dim=0)
-            latents = latents.to(accelerator.device, dtype=torch.float32)
+            if isinstance(latents_list, torch.Tensor):
+                latents = latents_list.to(accelerator.device, dtype=torch.float32)
+            else:
+                latents = []
+                for i in range(len(latents_list)):
+                    latents.append(latents_list[i].to(accelerator.device, dtype=torch.float32))
+                latents = torch.stack(latents, dim=0)
+                latents = latents.to(accelerator.device, dtype=torch.float32)
 
         if config["latent_type"] == "latent":
             if config["latent_corrections"] == "unscale":
