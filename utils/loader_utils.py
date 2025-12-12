@@ -132,9 +132,11 @@ class ImagesAndEmbedsDataset(Dataset):
 
 
 class ImagesAndTokensDataset(Dataset):
-    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], tokenizer: PreTrainedTokenizer):
+    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], tokenizer: PreTrainedTokenizer, max_length: int = 1024, pad_to_multiple_of: int = 256):
         self.batches = batches
         self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.pad_to_multiple_of = pad_to_multiple_of
 
     def __len__(self) -> int:
         return len(self.batches)
@@ -155,7 +157,7 @@ class ImagesAndTokensDataset(Dataset):
                 if text and text[-1] == "\n":
                     text = text[:-1]
             embeds.append(text)
-        embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
+        embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=self.pad_to_multiple_of, max_length=self.max_length, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
         images = torch.stack(images)
         return (images, embeds)
 
@@ -202,10 +204,12 @@ class DCTsAndEmbedsDataset(Dataset):
 
 
 class DCTsAndTokensDataset(Dataset):
-    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], image_encoder: ImageProcessingMixin, tokenizer: PreTrainedTokenizer):
+    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], image_encoder: ImageProcessingMixin, tokenizer: PreTrainedTokenizer, max_length: int = 1024, pad_to_multiple_of: int = 256):
         self.batches = batches
         self.image_encoder = image_encoder
         self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.pad_to_multiple_of = pad_to_multiple_of
 
     def __len__(self) -> int:
         return len(self.batches)
@@ -226,7 +230,7 @@ class DCTsAndTokensDataset(Dataset):
                 if text and text[-1] == "\n":
                     text = text[:-1]
             embeds.append(text)
-        embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=1024, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
+        embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=self.pad_to_multiple_of, max_length=self.max_length, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
         dcts = torch.stack(dcts)
         return (dcts, embeds)
 

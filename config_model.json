@@ -3,6 +3,7 @@
     "latent_type": "jpeg",
     "embed_type": "token",
     "prediction_type": "flow",
+    "max_token_length": 512,
     "sampler_config": {
         "weighting_scheme": "mode",
         "logit_mean": -0.2,
