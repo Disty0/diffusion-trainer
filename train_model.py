@@ -399,7 +399,7 @@ def main() -> None:
     grad_mean_count = 0
     clipped_grad_mean_count = 0
     grad_max = 0
-    loss = torch.tensor(1.0, dtype=dtype, device=accelerator.device)
+    loss = 1.0
     loss_func = train_utils.get_loss_func(config)
 
     model.train()
@@ -410,12 +410,13 @@ def main() -> None:
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
-                last_loss = loss.detach()
-                loss, model_pred, target, log_dict = train_utils.run_model(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+                last_loss = loss
+                loss, log_dict = train_utils.run_model(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
                 if grad_scaler is not None:
                     accelerator.backward(grad_scaler.scale(loss))
                 else:
                     accelerator.backward(loss)
+                loss = loss.detach().item()
                 if not config["fused_optimizer"]:
                     if accelerator.sync_gradients:
                         if grad_scaler is not None and (config["max_grad_clip"] > 0 or config["max_grad_norm"] > 0):
@@ -521,7 +522,7 @@ def main() -> None:
                             accelerator.print(print_filler)
                         accelerator.wait_for_everyone()
 
-                    logs = {"loss": loss.detach().item(), "epoch": current_epoch}
+                    logs = {"loss": loss, "epoch": current_epoch}
                     if config["fused_optimizer"]:
                         last_lr = optimizer[list(optimizer.keys())[0]][1].get_last_lr()
                     else:

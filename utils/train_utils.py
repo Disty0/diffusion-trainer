@@ -15,6 +15,7 @@ from accelerate import Accelerator
 
 from sdnq.quantizer import check_param_name_in, add_module_skip_keys
 
+from .sampler_utils import get_loss_weighting
 from .models.sd3_utils import run_sd3_model_training
 from .models.raiflow_utils import run_raiflow_model_training
 
@@ -209,8 +210,18 @@ def run_model(
     loss_func: callable,
 ) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
     if config["model_type"] == "sd3":
-        return run_sd3_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+        model_pred, target, sigmas, log_dict = run_sd3_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
     elif config["model_type"] == "raiflow":
-        return run_raiflow_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+        model_pred, target, sigmas, log_dict = run_raiflow_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
+
+    model_pred = model_pred.to(dtype=torch.float32)
+    target = target.to(dtype=torch.float32).detach()
+    sigmas = sigmas.to(dtype=torch.float32)
+
+    model_pred, target = get_loss_weighting(loss_weighting=config["loss_weighting"], model_pred=model_pred, target=target, sigmas=sigmas)
+    loss = loss_func(model_pred, target, reduction=config["loss_reduction"])
+
+    del model_pred, target, sigmas
+    return loss, log_dict

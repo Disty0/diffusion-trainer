@@ -9,7 +9,7 @@ from transformers import PreTrainedModel, PreTrainedTokenizer
 from diffusers.image_processor import PipelineImageInput
 from accelerate import Accelerator
 
-from ..sampler_utils import get_meanflow_target, get_flowmatch_inputs, get_loss_weighting, get_self_corrected_targets, mask_noisy_model_input
+from ..sampler_utils import get_meanflow_target, get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
 
 def encode_raiflow_prompt(
@@ -189,7 +189,7 @@ def run_raiflow_model_training(
     elif config["prediction_type"] == "meanflow":
         with accelerator.autocast():
             model_pred, jvp_out = torch.autograd.functional.jvp(
-                lambda x, t, r: partial(model, encoder_hidden_states=prompt_embeds, return_dict=False)(x, t, r),
+                lambda x, t, r: partial(model, encoder_hidden_states=prompt_embeds, return_dict=False)(x, t, r), # noqa: F821
                 (noisy_model_input, sigmas, sigmas_next),
                 (target, torch.ones_like(sigmas), torch.zeros_like(sigmas_next)),
                 create_graph=True,
@@ -200,13 +200,9 @@ def run_raiflow_model_training(
         raise RuntimeError(f'Prediction type {config["prediction_type"]} is not implemented for {config["model_type"]}')
 
     assert model_pred.dtype == torch.float32
-    target = target.to(dtype=torch.float32).detach()
-
-    model_pred, target = get_loss_weighting(loss_weighting=config["loss_weighting"], model_pred=model_pred, target=target, sigmas=sigmas)
-    loss = loss_func(model_pred, target, reduction=config["loss_reduction"])
 
     log_dict = {
-        "timesteps": timesteps,
+        "timesteps": timesteps.detach(),
         "empty_embeds_count": empty_embeds_count,
         "nan_embeds_count": nan_embeds_count,
         "self_correct_count": self_correct_count,
@@ -214,4 +210,5 @@ def run_raiflow_model_training(
         "seq_len": prompt_embeds.shape[1],
     }
 
-    return loss, model_pred, target, log_dict
+    del latents, prompt_embeds, noisy_model_input, timesteps, sigmas_next, noise
+    return model_pred, target, sigmas, log_dict
