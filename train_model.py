@@ -323,13 +323,13 @@ def main() -> None:
         if config["encode_dcts_with_cpu"]:
             if config["embed_type"] == "token":
                 from transformers import AutoTokenizer
-                dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=model_processor, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
+                dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=model_processor, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"), max_length=config["max_token_length"])
             else:
                 dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=model_processor)
         else:
             if config["embed_type"] == "token":
                 from transformers import AutoTokenizer
-                dataset = loader_utils.ImagesAndTokensDataset(epoch_batch, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"))
+                dataset = loader_utils.ImagesAndTokensDataset(epoch_batch, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"), max_length=config["max_token_length"])
             else:
                 dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
     else:
