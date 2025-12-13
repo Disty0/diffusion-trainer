@@ -35,9 +35,9 @@ def load_image_from_file(image_path: str, target_size: str) -> Image.Image:
             target_size[0] = int(target_size[0])
             target_size[1] = int(target_size[1])
 
-        image = Image.open(image_path)
-        background = Image.new("RGBA", image.size, (255, 255, 255))
-        image = Image.alpha_composite(background, image.convert("RGBA")).convert("RGB")
+        with Image.open(image_path) as img:
+            background = Image.new("RGBA", img.size, (255, 255, 255))
+            image = Image.alpha_composite(background, img.convert("RGBA")).convert("RGB")
 
         orig_size = image.size
         new_size = [math.ceil(target_size[1] * orig_size[0] / orig_size[1]), math.ceil(target_size[0] * orig_size[1] / orig_size[0])]
