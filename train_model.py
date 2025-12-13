@@ -285,8 +285,14 @@ def main() -> None:
     accelerator.print(print_filler)
 
     dtype = getattr(torch, config["weights_dtype"])
-    print(f"Loading diffusion models with dtype {dtype} to device {accelerator.device}")
+
+    accelerator.print(f"Loading diffusion models with dtype {dtype} and mixed precision {config['mixed_precision']} to device {accelerator.device}")
+    if config["use_static_quantization"]:
+        accelerator.print(f"Using quantized weights with dtype {config['quantized_weights_dtype']} and group size {config['quantized_weights_group_size']}")
+    if config["use_quantized_matmul"]:
+        accelerator.print(f"Using quantized matmul with dtype {config['quantized_matmul_dtype']}")
     accelerator.print(print_filler)
+
     model, model_processor = train_utils.get_diffusion_model(config, accelerator.device, dtype)
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()

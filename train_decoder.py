@@ -266,8 +266,9 @@ def main() -> None:
     accelerator.print(print_filler)
 
     dtype = getattr(torch, config["weights_dtype"])
-    print(f"Loading latent models with dtype {dtype} to device {accelerator.device}")
+    accelerator.print(f"Loading latent models with dtype {dtype} and mixed precision {config['mixed_precision']} to device {accelerator.device}")
     accelerator.print(print_filler)
+
     model, image_processor = latent_utils.get_latent_model(config["model_type"], config["model_path"], accelerator.device, dtype, "no")
     if config["gradient_checkpointing"]:
         model.enable_gradient_checkpointing()
@@ -327,7 +328,7 @@ def main() -> None:
     if config["ema_update_steps"] > 0 and accelerator.is_main_process:
         ema_dtype = getattr(torch, config["ema_weights_dtype"])
         accelerator.print(print_filler)
-        print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
+        accelerator.print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
         accelerator.print(print_filler)
         if resume_checkpoint is not None:
             accelerator.print(f"Resuming EMA from: {resume_checkpoint}")

@@ -84,6 +84,11 @@ def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator:
     optimizer_args_sensitive = config["optimizer_args_sensitive"].copy()
     optimizer_args_sensitive["lr"] = torch.tensor(config["learning_rate_sensitive"])
 
+    accelerator.print(print_filler)
+    accelerator.print(f"Using optimizer: {config['optimizer']}")
+    accelerator.print(f"Using optimizer args: {optimizer_args}")
+    accelerator.print(f"Using optimizer args sensitive: {optimizer_args_sensitive}")
+
     param_list = []
     param_count = 0
     sensitive_param_list = []
