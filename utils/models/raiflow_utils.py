@@ -1,5 +1,4 @@
 from typing import List, Tuple, Optional, Union
-from functools import partial
 
 import random
 import torch
@@ -10,7 +9,7 @@ from diffusers.models.modeling_utils import ModelMixin
 from accelerate import Accelerator
 from PIL import Image
 
-from ..sampler_utils import get_meanflow_target, get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
+from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
 
 def get_raiflow_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
@@ -167,12 +166,11 @@ def run_raiflow_model_training(
         prompt_embeds = torch.stack(prompt_embeds, dim=0)
         prompt_embeds = prompt_embeds.to(accelerator.device, dtype=embed_dtype)
 
-        noisy_model_input, timesteps, target, sigmas, sigmas_next, noise = get_flowmatch_inputs(
+        noisy_model_input, timesteps, target, sigmas, noise = get_flowmatch_inputs(
             latents=latents,
             device=accelerator.device,
             sampler_config=config["sampler_config"],
             num_train_timesteps=model.config.num_train_timesteps,
-            meanflow=bool(config["prediction_type"] == "meanflow"),
         )
 
         if config["mixed_precision"] == "no" and config["embed_type"] != "token":
@@ -205,29 +203,16 @@ def run_raiflow_model_training(
         else:
             masked_count = None
 
-    if config["prediction_type"] == "flow":
-        with accelerator.autocast():
-            model_pred = model(
-                hidden_states=noisy_model_input,
-                encoder_hidden_states=prompt_embeds,
-                timestep=sigmas,
-                scale_timesteps=False,
-                return_dict=False,
-                return_x0=True,
-            )[0].to(dtype=torch.float32)
-        model_pred = noise - model_pred
-    elif config["prediction_type"] == "meanflow":
-        with accelerator.autocast():
-            model_pred, jvp_out = torch.autograd.functional.jvp(
-                lambda x, t, r: partial(model, encoder_hidden_states=prompt_embeds, return_dict=False)(x, t, r), # noqa: F821
-                (noisy_model_input, sigmas, sigmas_next),
-                (target, torch.ones_like(sigmas), torch.zeros_like(sigmas_next)),
-                create_graph=True,
-            )
-        model_pred, jvp_out = model_pred[0], jvp_out[0]
-        target = get_meanflow_target(target, sigmas, sigmas_next, jvp_out)
-    else:
-        raise RuntimeError(f'Prediction type {config["prediction_type"]} is not implemented for {config["model_type"]}')
+    with accelerator.autocast():
+        model_pred = model(
+            hidden_states=noisy_model_input,
+            encoder_hidden_states=prompt_embeds,
+            timestep=sigmas,
+            scale_timesteps=False,
+            return_dict=False,
+            return_x0=True,
+        )[0].to(dtype=torch.float32)
+    model_pred = noise - model_pred
 
     assert model_pred.dtype == torch.float32
 
@@ -240,5 +225,5 @@ def run_raiflow_model_training(
         "seq_len": prompt_embeds.shape[1],
     }
 
-    del latents, prompt_embeds, noisy_model_input, timesteps, sigmas_next, noise
+    del latents, prompt_embeds, noisy_model_input, timesteps, noise
     return model_pred, target, sigmas, log_dict

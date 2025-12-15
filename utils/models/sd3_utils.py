@@ -194,12 +194,11 @@ def run_sd3_model_training(
         prompt_embeds = prompt_embeds.to(accelerator.device, dtype=torch.float32)
         pooled_embeds = pooled_embeds.to(accelerator.device, dtype=torch.float32)
 
-        noisy_model_input, timesteps, target, sigmas, _, noise = get_flowmatch_inputs(
+        noisy_model_input, timesteps, target, sigmas, noise = get_flowmatch_inputs(
             latents=latents,
             device=accelerator.device,
             sampler_config=config["sampler_config"],
             num_train_timesteps=model_processor.config.num_train_timesteps,
-            meanflow=False,
         )
 
         if config["mixed_precision"] == "no":

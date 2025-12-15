@@ -3,21 +3,15 @@ import random
 import torch
 
 
-def get_meanflow_target(target: torch.FloatTensor, sigmas: torch.FloatTensor, sigmas_next: torch.FloatTensor, jvp_out: torch.FloatTensor) -> torch.FloatTensor:
-    with torch.no_grad():
-        return torch.addcmul(target.to(dtype=torch.float32), (sigmas_next.to(dtype=torch.float32) - sigmas.to(dtype=torch.float32)), jvp_out.to(dtype=torch.float32)).detach()
-
-
 def get_flowmatch_inputs(
     latents: torch.FloatTensor,
     device: torch.device,
     sampler_config: dict,
     num_train_timesteps: int = 1000,
-    meanflow: bool = False,
     noise: Optional[torch.FloatTensor] = None,
 ) -> Tuple[torch.FloatTensor]:
     latents = latents.to(dtype=torch.float32)
-    shape = (2, latents.shape[0]) if meanflow else (latents.shape[0],)
+    shape = (latents.shape[0],)
 
     if sampler_config["weighting_scheme"] == "uniform":
         u = torch.empty(shape, device=device, dtype=torch.float32).uniform_(0.0, 1.0)
@@ -30,10 +24,6 @@ def get_flowmatch_inputs(
     else:
         raise NotImplementedError(f'weighting_scheme type {sampler_config["weighting_scheme"]} is not implemented')
 
-    if meanflow:
-        sigmas_next = torch.amin(u, dim=0).clamp_(0, 1.0 - 1/num_train_timesteps).view(-1, 1, 1, 1)
-        u = torch.amax(u, dim=0)
-
     if sampler_config["shift"] != 0:
         # u = (u * shift) / (1 + (shift - 1) * u)
         u = torch.mul(u, sampler_config["shift"]).div_(u.mul_(sampler_config["shift"] - 1).add_(1))
@@ -43,8 +33,6 @@ def get_flowmatch_inputs(
     u = u.clamp_(1/num_train_timesteps,1.0)
     timesteps = torch.mul(u, num_train_timesteps)
     sigmas = u.view(-1, 1, 1, 1)
-    if not meanflow:
-        sigmas_next = sigmas
 
     if noise is None:
         noise = torch.randn_like(latents, device=device, dtype=torch.float32)
@@ -53,7 +41,7 @@ def get_flowmatch_inputs(
     noisy_model_input = latents.lerp(noise, sigmas)
     target = noise - latents
 
-    return noisy_model_input, timesteps, target, sigmas, sigmas_next, noise
+    return noisy_model_input, timesteps, target, sigmas, noise
 
 
 def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, target: torch.FloatTensor, sigmas: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
