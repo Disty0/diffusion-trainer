@@ -1,15 +1,38 @@
-import random
-import torch
-
 from typing import List, Tuple, Optional, Union
 from functools import partial
 
-from diffusers.models.modeling_utils import ModelMixin
-from transformers import PreTrainedModel, PreTrainedTokenizer
+import random
+import torch
+
+from transformers import PreTrainedModel, PreTrainedTokenizer, ImageProcessingMixin
 from diffusers.image_processor import PipelineImageInput
+from diffusers.models.modeling_utils import ModelMixin
 from accelerate import Accelerator
+from PIL import Image
 
 from ..sampler_utils import get_meanflow_target, get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
+
+
+def get_raiflow_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
+    from raiflow import RaiFlowPipeline
+    pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
+    latent_model = pipe.vae.to(device, dtype=dtype).eval()
+    latent_model.requires_grad_(False)
+    if dynamo_backend != "no":
+        latent_model = torch.compile(latent_model, backend=dynamo_backend)
+    image_processor = pipe.image_processor
+    return latent_model, image_processor
+
+
+def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+    from raiflow import RaiFlowPipeline
+    pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
+    text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
+    text_encoder.requires_grad_(False)
+    if dynamo_backend != "no":
+        text_encoder = torch.compile(text_encoder, backend=dynamo_backend)
+    tokenizer = pipe.tokenizer
+    return (text_encoder, tokenizer)
 
 
 def encode_raiflow_prompt(
@@ -59,6 +82,10 @@ def encode_raiflow_prompt(
         prompt_embeds_list.append(prompt_embeds[i, -count:])
 
     return prompt_embeds_list
+
+
+def encode_raiflow_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, texts: List[str], prompt_images: Optional[List[Image.Image]] = None) -> List[torch.FloatTensor]:
+    return encode_raiflow_prompt(embed_encoders[0], embed_encoders[1], prompt=texts, prompt_images=prompt_images, device=device)
 
 
 def run_raiflow_model_training(

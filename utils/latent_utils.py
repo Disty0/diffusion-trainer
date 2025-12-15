@@ -9,8 +9,10 @@ from diffusers.models.modeling_utils import ModelMixin
 
 def get_latent_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
     if model_type == "sd3":
+        from .models.sd3_utils import get_sd3_vae
         return get_sd3_vae(path, device, dtype, dynamo_backend)
     elif model_type == "raiflow":
+        from .models.raiflow_utils import get_raiflow_vae
         return get_raiflow_vae(path, device, dtype, dynamo_backend)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -93,24 +95,3 @@ def decode_vae_latents(
         return image_processor.postprocess(image_tensor, output_type="pil")
     else:
         return image_tensor.to(dtype=latent_model.dtype)
-
-
-def get_sd3_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
-    latent_model = pipe.vae.to(device, dtype=dtype).eval()
-    latent_model.requires_grad_(False)
-    if dynamo_backend != "no":
-        latent_model = torch.compile(latent_model, backend=dynamo_backend)
-    image_processor = pipe.image_processor
-    return latent_model, image_processor
-
-
-def get_raiflow_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    from raiflow import RaiFlowPipeline
-    pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
-    latent_model = pipe.vae.to(device, dtype=dtype).eval()
-    latent_model.requires_grad_(False)
-    if dynamo_backend != "no":
-        latent_model = torch.compile(latent_model, backend=dynamo_backend)
-    image_processor = pipe.image_processor
-    return latent_model, image_processor

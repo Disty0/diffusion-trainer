@@ -1,12 +1,42 @@
+from typing import List, Optional, Tuple, Union
+
 import random
 import torch
+import diffusers
 
-from typing import List, Optional, Tuple, Union
+from transformers import PreTrainedModel, PreTrainedTokenizer, ImageProcessingMixin
 from diffusers.models.modeling_utils import ModelMixin
-from transformers import PreTrainedModel, PreTrainedTokenizer
 from accelerate import Accelerator
 
 from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
+
+
+def get_sd3_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
+    latent_model = pipe.vae.to(device, dtype=dtype).eval()
+    latent_model.requires_grad_(False)
+    if dynamo_backend != "no":
+        latent_model = torch.compile(latent_model, backend=dynamo_backend)
+    image_processor = pipe.image_processor
+    return latent_model, image_processor
+
+
+def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
+    text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
+    text_encoder_2 = pipe.text_encoder_2.to(device, dtype=dtype).eval()
+    text_encoder_3 = pipe.text_encoder_3.to(device, dtype=dtype).eval()
+    text_encoder.requires_grad_(False)
+    text_encoder_2.requires_grad_(False)
+    text_encoder_3.requires_grad_(False)
+    if dynamo_backend != "no":
+        text_encoder = torch.compile(text_encoder, backend=dynamo_backend)
+        text_encoder_2 = torch.compile(text_encoder_2, backend=dynamo_backend)
+        text_encoder_3 = torch.compile(text_encoder_3, backend=dynamo_backend)
+    tokenizer = pipe.tokenizer
+    tokenizer_2 = pipe.tokenizer_2
+    tokenizer_3 = pipe.tokenizer_3
+    return ((text_encoder, text_encoder_2, text_encoder_3), (tokenizer, tokenizer_2, tokenizer_3))
 
 
 def _encode_sd3_prompt_with_t5(
@@ -102,6 +132,14 @@ def encode_sd3_prompt(
             prompt_embeds = torch.cat([clip_prompt_embeds, t5_prompt_embed], dim=-2)
 
         return prompt_embeds, pooled_prompt_embeds
+
+
+def encode_sd3_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], device: torch.device, texts: List[str]) -> List[List[torch.FloatTensor]]:
+    prompt_embeds, pooled_prompt_embeds = encode_sd3_prompt(embed_encoders[0], embed_encoders[1], texts, device=device, no_clip=True)
+    embeds = []
+    for i in range(len(prompt_embeds)):
+        embeds.append([prompt_embeds[i], pooled_prompt_embeds[i]])
+    return embeds
 
 
 def run_sd3_model_training(
