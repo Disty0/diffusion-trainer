@@ -165,10 +165,8 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
     diffusion_model.requires_grad_(True)
 
     if not is_ema and (config["use_quantized_matmul"] or config["use_static_quantization"]):
-        from sdnq.training import sdnq_post_load_quant
-        modules_to_not_convert = config["sensitive_keys"].copy()
-        modules_dtype_dict = config["modules_dtype_dict"].copy()
-        diffusion_model = sdnq_post_load_quant(
+        from sdnq.training import sdnq_training_post_load_quant
+        diffusion_model = sdnq_training_post_load_quant(
             diffusion_model,
             weights_dtype=config["quantized_weights_dtype"],
             quantized_matmul_dtype=config["quantized_matmul_dtype"],
@@ -183,8 +181,8 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
             add_skip_keys=bool(not config["override_sensitive_keys"]),
             quantization_device=device,
             return_device=device,
-            modules_to_not_convert=modules_to_not_convert,
-            modules_dtype_dict=modules_dtype_dict,
+            modules_to_not_convert=config["sensitive_keys"].copy(),
+            modules_dtype_dict=config["modules_dtype_dict"].copy(),
         )
 
     diffusion_model = diffusion_model.to(device)
