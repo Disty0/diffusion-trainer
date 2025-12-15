@@ -12,7 +12,6 @@
         "shift": 2.5
     },
     "loss_weighting": "none",
-    "latent_corrections": "none",
     "sensitive_keys": [],
     "override_sensitive_keys": false,
     "optimizer": "sdnq.optim.Muon",

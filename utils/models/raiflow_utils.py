@@ -110,14 +110,6 @@ def run_raiflow_model_training(
                 latents = torch.stack(latents, dim=0)
                 latents = latents.to(accelerator.device, dtype=torch.float32)
 
-        if config["latent_type"] == "latent":
-            if config["latent_corrections"] == "unscale":
-                latents = (latents / 0.3611) + 0.1159
-            elif config["latent_corrections"] != "none":
-                raise NotImplementedError(f'Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]}')
-        elif config["latent_corrections"] != "none":
-            raise NotImplementedError(f'Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]} when using latent type {config["latent_type"]}')
-
         prompt_embeds = []
         empty_embeds_count = 0
         nan_embeds_count = 0

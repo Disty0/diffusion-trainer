@@ -162,16 +162,6 @@ def run_sd3_model_training(
             latents = torch.stack(latents)
             latents = latents.to(accelerator.device, dtype=torch.float32)
 
-        if config["latent_corrections"] == "unscale":
-            # SD 3.5 VAE doesn't need scaling, it is already normally distributed and scaling them makes the avg std range become 1.25-2.0
-            latents = (latents / 1.5305) + 0.0609
-        elif config["latent_corrections"] == "danbooru":
-            # post corrections averaged over 5m anime illustrations for already cached the latents with the default sd3 scaling / shifting
-            latents = (latents / 1.5305) + 0.0609
-            latents = (latents - 0.0730) * 1.2528
-        elif config["latent_corrections"] != "none":
-            raise NotImplementedError(f'Latent correction type {config["latent_corrections"]} is not implemented for {config["model_type"]}')
-
         prompt_embeds = []
         pooled_embeds = []
         empty_embeds_count = 0
