@@ -79,8 +79,8 @@ def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, d
             masked_count += 1
             mask.append(torch.randint(random.randint(config["mask_low_rate"],0), random.randint(2,config["mask_high_rate"]), (height, width), device=device, dtype=torch.int8))
 
-    mask = torch.stack(mask, dim=0)
-    mask = mask.clamp_(0,1).to(device, dtype=torch.bool).view(1,1,height,width)
+    mask = torch.stack(mask, dim=0).unsqueeze(1)
+    mask = mask.clamp_(0,1).to(device, dtype=torch.bool)
     noisy_model_input = torch.sub(noisy_model_input, 1).mul_(mask).add_(1) # mask with ones
 
     return noisy_model_input, masked_count
