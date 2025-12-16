@@ -156,7 +156,7 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
         pipe = RaiFlowPipeline.from_pretrained(config["model_path"], torch_dtype=dtype)
         processor = copy.deepcopy(pipe.image_encoder)
         diffusion_model = pipe.transformer
-    if config["model_type"] == "z_image":
+    elif config["model_type"] == "z_image":
         pipe = diffusers.ZImagePipeline.from_pretrained(config["model_path"], torch_dtype=dtype, vae=None, text_encoder=None)
         processor = copy.deepcopy(pipe.image_processor)
         diffusion_model = pipe.transformer
@@ -201,7 +201,7 @@ def get_model_class(model_type: str) -> ModelMixin:
     elif model_type == "raiflow":
         from raiflow import RaiFlowTransformer2DModel
         return RaiFlowTransformer2DModel
-    if model_type == "z_image":
+    elif model_type == "z_image":
         return diffusers.ZImageTransformer2DModel
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
