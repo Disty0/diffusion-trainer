@@ -16,8 +16,6 @@ from accelerate import Accelerator
 from sdnq.quantizer import check_param_name_in, add_module_skip_keys
 
 from .sampler_utils import get_loss_weighting
-from .models.sd3_utils import run_sd3_model_training
-from .models.raiflow_utils import run_raiflow_model_training
 
 print_filler = "--------------------------------------------------"
 
@@ -158,8 +156,13 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
         pipe = RaiFlowPipeline.from_pretrained(config["model_path"], torch_dtype=dtype)
         processor = copy.deepcopy(pipe.image_encoder)
         diffusion_model = pipe.transformer
+    if config["model_type"] == "z_image":
+        pipe = diffusers.ZImagePipeline.from_pretrained(config["model_path"], torch_dtype=dtype, vae=None, text_encoder=None)
+        processor = copy.deepcopy(pipe.image_processor)
+        diffusion_model = pipe.transformer
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
+    del pipe
 
     diffusion_model.train()
     diffusion_model.requires_grad_(True)
@@ -198,6 +201,8 @@ def get_model_class(model_type: str) -> ModelMixin:
     elif model_type == "raiflow":
         from raiflow import RaiFlowTransformer2DModel
         return RaiFlowTransformer2DModel
+    if model_type == "z_image":
+        return diffusers.ZImageTransformer2DModel
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -213,9 +218,14 @@ def run_model(
     loss_func: callable,
 ) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
     if config["model_type"] == "sd3":
+        from .models.sd3_utils import run_sd3_model_training
         model_pred, target, sigmas, log_dict = run_sd3_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
     elif config["model_type"] == "raiflow":
+        from .models.raiflow_utils import run_raiflow_model_training
         model_pred, target, sigmas, log_dict = run_raiflow_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+    elif config["model_type"] == "z_image":
+        from .models.z_image_utils import run_z_image_model_training
+        model_pred, target, sigmas, log_dict = run_z_image_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
     else:
         raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
 

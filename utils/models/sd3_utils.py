@@ -18,6 +18,7 @@ def get_sd3_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_back
     if dynamo_backend != "no":
         latent_model = torch.compile(latent_model, backend=dynamo_backend)
     image_processor = pipe.image_processor
+    del pipe
     return latent_model, image_processor
 
 
@@ -36,6 +37,7 @@ def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, d
     tokenizer = pipe.tokenizer
     tokenizer_2 = pipe.tokenizer_2
     tokenizer_3 = pipe.tokenizer_3
+    del pipe
     return ((text_encoder, text_encoder_2, text_encoder_3), (tokenizer, tokenizer_2, tokenizer_3))
 
 
@@ -166,23 +168,24 @@ def run_sd3_model_training(
         pooled_embeds = []
         empty_embeds_count = 0
         nan_embeds_count= 0
+        embed_dtype = model.dtype if config["mixed_precision"] == "no" else torch.float32
         for i in range(len(embeds_list)):
             if random.randint(0,100) > config["dropout_rate"] * 100:
-                prompt_embeds.append(embeds_list[i][0].to(accelerator.device, dtype=torch.float32))
-                pooled_embeds.append(embeds_list[i][1].to(accelerator.device, dtype=torch.float32))
+                prompt_embeds.append(embeds_list[i][0].to(accelerator.device, dtype=embed_dtype))
+                pooled_embeds.append(embeds_list[i][1].to(accelerator.device, dtype=embed_dtype))
                 if config["do_nan_embed_check"] and (embeds_list[i][0].isnan().any() or embeds_list[i][1].isnan().any()):
-                    prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=torch.float32))
-                    pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=torch.float32))
+                    prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=embed_dtype))
+                    pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=embed_dtype))
                     empty_embeds_count += 1
                     nan_embeds_count += 1
             else:
-                prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=torch.float32))
-                pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=torch.float32))
+                prompt_embeds.append(empty_embed[0].to(accelerator.device, dtype=embed_dtype))
+                pooled_embeds.append(empty_embed[1].to(accelerator.device, dtype=embed_dtype))
                 empty_embeds_count += 1
         prompt_embeds = torch.stack(prompt_embeds)
         pooled_embeds = torch.stack(pooled_embeds)
-        prompt_embeds = prompt_embeds.to(accelerator.device, dtype=torch.float32)
-        pooled_embeds = pooled_embeds.to(accelerator.device, dtype=torch.float32)
+        prompt_embeds = prompt_embeds.to(accelerator.device, dtype=embed_dtype)
+        pooled_embeds = pooled_embeds.to(accelerator.device, dtype=embed_dtype)
 
         noisy_model_input, timesteps, target, sigmas, noise = get_flowmatch_inputs(
             latents=latents,
@@ -194,8 +197,6 @@ def run_sd3_model_training(
         if config["mixed_precision"] == "no":
             noisy_model_input = noisy_model_input.to(dtype=model.dtype)
             timesteps = timesteps.to(dtype=model.dtype)
-            prompt_embeds = prompt_embeds.to(dtype=model.dtype)
-            pooled_embeds = pooled_embeds.to(dtype=model.dtype)
 
         if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
             with accelerator.autocast():
@@ -236,7 +237,7 @@ def run_sd3_model_training(
             timestep=timesteps,
             pooled_projections=pooled_embeds,
             return_dict=False,
-        )[0]
+        )[0].to(dtype=torch.float32)
 
     log_dict = {
         "timesteps": timesteps.detach(),

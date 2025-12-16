@@ -1,4 +1,5 @@
 {
+    "model_path": "/mnt/DataSSD/AI/models/test/sd3/32_sb-3.6B_raifu_plus",
     "model_type": "sd3",
     "sensitive_keys": [],
     "override_sensitive_keys": false,
@@ -35,6 +36,7 @@
     "math_sdp_reduction": true,
     "ema_decay": 0.995,
     "ema_update_steps": 32,
+    "use_ema": true,
     "use_foreach_ema": true,
     "update_ema_on_cpu": false,
     "offload_ema_to_cpu": false,
@@ -52,7 +54,6 @@
     "resume_from": "none",
     "dataset_index": "cache/decoder_dataset_index.json",
     "project_dir": "/mnt/DataSSD/AI/models/SoteDiffusion/StableDiffusion3/train_decoder",
-    "model_path": "/mnt/DataSSD/AI/models/test/sd3/32_sb-3.6B_raifu_plus",
     "image_ext": ".jxl",
     "dataset_paths": [
         {

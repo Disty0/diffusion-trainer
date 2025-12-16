@@ -20,6 +20,7 @@ def get_raiflow_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_
     if dynamo_backend != "no":
         latent_model = torch.compile(latent_model, backend=dynamo_backend)
     image_processor = pipe.image_processor
+    del pipe
     return latent_model, image_processor
 
 
@@ -31,6 +32,7 @@ def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtyp
     if dynamo_backend != "no":
         text_encoder = torch.compile(text_encoder, backend=dynamo_backend)
     tokenizer = pipe.tokenizer
+    del pipe
     return (text_encoder, tokenizer)
 
 
@@ -124,7 +126,7 @@ def run_raiflow_model_training(
                     empty_embeds_count += 1
         else:
             embed_dim = embeds_list[0].shape[-1]
-            embed_dtype = torch.float32
+            embed_dtype = model.dtype if config["mixed_precision"] == "no" else torch.float32
             for i in range(len(embeds_list)):
                 if random.randint(0,100) > config["dropout_rate"] * 100:
                     if config["do_nan_embed_check"] and embeds_list[i].isnan().any():
@@ -164,9 +166,6 @@ def run_raiflow_model_training(
             sampler_config=config["sampler_config"],
             num_train_timesteps=model.config.num_train_timesteps,
         )
-
-        if config["mixed_precision"] == "no" and config["embed_type"] != "token":
-            prompt_embeds = prompt_embeds.to(dtype=model.dtype)
 
         if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
             with accelerator.autocast():

@@ -12,6 +12,9 @@ def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: t
     elif model_type == "raiflow":
         from .models.raiflow_utils import get_raiflow_embed_encoder
         return get_raiflow_embed_encoder(path, device, dtype, dynamo_backend)
+    elif model_type == "z_image":
+        from .models.z_image_utils import get_z_image_embed_encoder
+        return get_z_image_embed_encoder(path, device, dtype, dynamo_backend)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -24,5 +27,8 @@ def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], de
         elif model_type == "raiflow":
             from .models.raiflow_utils import encode_raiflow_embeds
             return encode_raiflow_embeds(embed_encoder, device, texts, prompt_images=prompt_images)
+        if model_type == "z_image":
+            from .models.z_image_utils import encode_z_image_embeds
+            return encode_z_image_embeds(embed_encoder, device, texts)
         else:
             raise NotImplementedError(f"Model type {model_type} is not implemented")

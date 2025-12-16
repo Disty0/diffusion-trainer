@@ -325,7 +325,7 @@ def main() -> None:
             current_epoch = first_epoch
             start_step = current_step
 
-    if config["ema_update_steps"] > 0 and accelerator.is_main_process:
+    if config["use_ema"] and accelerator.is_main_process:
         ema_dtype = getattr(torch, config["ema_weights_dtype"])
         accelerator.print(print_filler)
         accelerator.print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
@@ -438,7 +438,7 @@ def main() -> None:
                         grad_scaler.update()
 
                 if accelerator.sync_gradients:
-                    if config["ema_update_steps"] > 0 and current_step % config["ema_update_steps"] == 0:
+                    if config["use_ema"] and current_step % config["ema_update_steps"] == 0:
                         accelerator.wait_for_everyone()
                         if accelerator.is_main_process:
                             if config["update_ema_on_cpu"]:
@@ -476,7 +476,7 @@ def main() -> None:
                             save_path = os.path.join(config["project_dir"], f"checkpoint-{current_step}")
                             accelerator.print(f"Saving state to {save_path}")
                             accelerator.save_state(save_path)
-                            if config["ema_update_steps"] > 0:
+                            if config["use_ema"]:
                                 gc.collect()
                                 accelerator.print(f"Saving EMA state to {save_path}")
                                 save_ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu", ema_dtype, "no")
@@ -526,7 +526,7 @@ def main() -> None:
                     if skip_grad_norm_count > 0:
                         logs["skip_grad_norm_count"] = skip_grad_norm_count
                     if accelerator.is_main_process:
-                        if config["ema_update_steps"] > 0:
+                        if config["use_ema"]:
                             logs["ema_decay"] = ema_model.get_decay(ema_model.optimization_step)
 
                     progress_bar.set_postfix(**logs)
@@ -573,7 +573,7 @@ def main() -> None:
         accelerator.print("\n" + print_filler)
         accelerator.print(f"Saving state to {save_path}")
         accelerator.save_state(save_path)
-        if config["ema_update_steps"] > 0:
+        if config["use_ema"]:
             gc.collect()
             accelerator.print(f"Saving EMA state to {save_path}")
             save_ema_model, _ = latent_utils.get_latent_model(config["model_type"], config["model_path"], "cpu", ema_dtype, "no")

@@ -25,7 +25,7 @@ from utils.ema_model import EMAModel
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path: str, latent_type: str, embed_suffix: str) -> Dict[str, List[str]]:
+def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
 
@@ -67,7 +67,7 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path
                     if embed_dataset["path"] == "empty_embed":
                         embed_path = empty_embed_path
                     elif latent_type == "latent":
-                        embed_path = os.path.join(embed_dataset["path"], file_name.rsplit("_", maxsplit=2)[0] + embed_suffix)
+                        embed_path = os.path.join(embed_dataset["path"], file_name.removesuffix("_" + model_type + "_latent.pt") + embed_suffix)
                     else:
                         embed_path = os.path.join(embed_dataset["path"], os.path.splitext(file_name)[0] + embed_suffix)
                     if not os.path.exists(embed_path):
@@ -117,8 +117,8 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path
     return bucket_list
 
 
-def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str, embed_suffix: str) -> None:
-    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type, embed_suffix)
+def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str) -> None:
+    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type, embed_suffix, model_type)
     print("Creating epoch batches")
 
     epoch_batch = []
@@ -312,7 +312,7 @@ def main() -> None:
 
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix)
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix, config["model_type"])
         gc.collect()
     accelerator.wait_for_everyone()
 
@@ -368,7 +368,7 @@ def main() -> None:
             current_epoch = first_epoch
             start_step = current_step
 
-    if config["ema_update_steps"] > 0 and accelerator.is_main_process:
+    if config["use_ema"] and accelerator.is_main_process:
         ema_dtype = getattr(torch, config["ema_weights_dtype"])
         accelerator.print(print_filler)
         accelerator.print(f'Loading EMA models with dtype {ema_dtype} to device {"cpu" if config["update_ema_on_cpu"] or config["offload_ema_to_cpu"] else accelerator.device}')
@@ -476,7 +476,7 @@ def main() -> None:
                     total_masked_count += log_dict["masked_count"]
 
                 if accelerator.sync_gradients:
-                    if config["ema_update_steps"] > 0 and current_step % config["ema_update_steps"] == 0:
+                    if config["use_ema"] and current_step % config["ema_update_steps"] == 0:
                         accelerator.wait_for_everyone()
                         if accelerator.is_main_process:
                             if config["update_ema_on_cpu"]:
@@ -514,7 +514,7 @@ def main() -> None:
                             save_path = os.path.join(config["project_dir"], f"checkpoint-{current_step}")
                             accelerator.print(f"Saving state to {save_path}")
                             accelerator.save_state(save_path, safe_serialization=bool(not config["use_static_quantization"]))
-                            if config["ema_update_steps"] > 0:
+                            if config["use_ema"]:
                                 gc.collect()
                                 accelerator.print(f"Saving EMA state to {save_path}")
                                 save_ema_model, _ = train_utils.get_diffusion_model(config, "cpu", ema_dtype, is_ema=True)
@@ -564,7 +564,7 @@ def main() -> None:
                     if skip_grad_norm_count > 0:
                         logs["skip_grad_norm_count"] = skip_grad_norm_count
                     if accelerator.is_main_process:
-                        if config["ema_update_steps"] > 0:
+                        if config["use_ema"]:
                             logs["ema_decay"] = ema_model.get_decay(ema_model.optimization_step)
                     if log_dict.get("seq_len", None) is not None:
                         logs["seq_len"] = log_dict["seq_len"]
@@ -599,7 +599,7 @@ def main() -> None:
             gc.collect()
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
-                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix)
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix, config["model_type"])
                 gc.collect()
             accelerator.wait_for_everyone()
 
@@ -644,7 +644,7 @@ def main() -> None:
         accelerator.print("\n" + print_filler)
         accelerator.print(f"Saving state to {save_path}")
         accelerator.save_state(save_path, safe_serialization=bool(not config["use_static_quantization"]))
-        if config["ema_update_steps"] > 0:
+        if config["use_ema"]:
             gc.collect()
             accelerator.print(f"Saving EMA state to {save_path}")
             save_ema_model, _ = train_utils.get_diffusion_model(config, "cpu", ema_dtype, is_ema=True)

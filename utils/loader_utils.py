@@ -273,7 +273,8 @@ class SaveBackend():
                 time.sleep(0.25)
         print("Stopping the save backend threads")
 
-    def save_to_file(self, data: torch.FloatTensor, path: str) -> None:
+    @staticmethod
+    def save_to_file(data: torch.FloatTensor, path: str) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         torch.cpu.synchronize()
         data_is_nan = bool((isinstance(data, torch.Tensor) and data.isnan().any()) or (isinstance(data, list) and any(tensor.isnan().any() for tensor in data)))

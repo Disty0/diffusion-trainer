@@ -1,5 +1,5 @@
 A diffusion trainer for latent + embed only datasets.  
-Currently supports SD3.  
+Currently supports Z-Image, SD3 and RaiFlow.  
 
 To create a latent + embed dataset from images and text files:  
 

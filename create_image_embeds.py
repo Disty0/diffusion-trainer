@@ -63,7 +63,7 @@ def get_bucket_list(model_type: str, dataset_path: str, out_path: str, bucket_li
             total_image_count = total_image_count + 1
             image_progress_bar.update(1)
         bucket_list[key].extend(current_bucket_list)
-        latent_bucket_list.extend(current_latent_bucket_list)
+        latent_bucket_list[key].extend(current_latent_bucket_list)
         bucket_progress_bar.update(1)
 
     bucket_progress_bar.close()
@@ -235,7 +235,7 @@ def main():
     print(print_filler)
     embed_encoder = embed_utils.get_embed_encoder(args.model_type, args.model_path, device, dtype, args.dynamo_backend)
 
-    epoch_batches = get_batches(args.batch_size, args.model_type, args.dataset_path, args.out_path, args.bucket_list_path)
+    epoch_batches = get_batches(args.batch_size, args.model_type, args.dataset_path, args.out_path, args.bucket_list)
     epoch_len = len(epoch_batches)
     cache_backend = loader_utils.SaveBackend(model_type=args.model_type, save_dtype=save_dtype, save_queue_lenght=args.save_queue_lenght, max_save_workers=args.max_save_workers)
     image_backend = loader_utils.ImageBackend(epoch_batches, load_queue_lenght=args.load_queue_lenght, max_load_workers=args.max_load_workers)
