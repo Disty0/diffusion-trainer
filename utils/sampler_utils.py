@@ -109,7 +109,7 @@ def get_self_corrected_targets(
     self_correct_count = 0
     for i in range(target.shape[0]):
         if random.randint(0,100) <= config["self_correct_rate"] * 100:
-            new_noisy_model_input[i] = noisy_model_input[i]
+            noisy_model_input[i] = new_noisy_model_input[i]
             target[i] = new_target[i]
             self_correct_count += 1
 
