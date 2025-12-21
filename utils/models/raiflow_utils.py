@@ -167,7 +167,7 @@ def run_raiflow_model_training(
             num_train_timesteps=model.config.num_train_timesteps,
         )
 
-        if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
+        if config["self_correct_rate"] > 0:
             with accelerator.autocast():
                 model_pred = model(
                     hidden_states=noisy_model_input,
@@ -184,10 +184,13 @@ def run_raiflow_model_training(
                 sigmas=sigmas,
                 noise=noise,
                 model_pred=model_pred,
+                config=config,
                 x0_pred=True,
             )
         else:
             self_correct_count = None
+
+        del noise, target
 
         if config["mask_rate"] > 0:
             noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
@@ -203,9 +206,8 @@ def run_raiflow_model_training(
             return_dict=False,
             return_x0=True,
         )[0].to(dtype=torch.float32)
-    model_pred = noise - model_pred
 
-    assert model_pred.dtype == torch.float32
+    assert model_pred.dtype == torch.float32 and latents.dtype == torch.float32
 
     log_dict = {
         "timesteps": timesteps.detach(),
@@ -216,5 +218,5 @@ def run_raiflow_model_training(
         "seq_len": prompt_embeds.shape[1],
     }
 
-    del latents, prompt_embeds, noisy_model_input, timesteps, noise
-    return model_pred, target, sigmas, log_dict
+    del prompt_embeds, noisy_model_input, timesteps
+    return model_pred, latents, sigmas, log_dict

@@ -194,11 +194,13 @@ def run_sd3_model_training(
             num_train_timesteps=model_processor.config.num_train_timesteps,
         )
 
+        del latents
+
         if config["mixed_precision"] == "no":
             noisy_model_input = noisy_model_input.to(dtype=model.dtype)
             timesteps = timesteps.to(dtype=model.dtype)
 
-        if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
+        if config["self_correct_rate"] > 0:
             with accelerator.autocast():
                 model_pred = model(
                     hidden_states=noisy_model_input,
@@ -215,6 +217,7 @@ def run_sd3_model_training(
                 sigmas=sigmas,
                 noise=noise,
                 model_pred=model_pred,
+                config=config,
                 x0_pred=False,
             )
 
@@ -222,6 +225,8 @@ def run_sd3_model_training(
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
         else:
             self_correct_count = None
+
+        del noise
 
         if config["mask_rate"] > 0:
             noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
@@ -248,5 +253,5 @@ def run_sd3_model_training(
         "seq_len": prompt_embeds.shape[1],
     }
 
-    del latents, prompt_embeds, pooled_embeds, noisy_model_input, timesteps, noise
+    del prompt_embeds, pooled_embeds, noisy_model_input, timesteps
     return model_pred, target, sigmas, log_dict

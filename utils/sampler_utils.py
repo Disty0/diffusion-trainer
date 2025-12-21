@@ -92,6 +92,7 @@ def get_self_corrected_targets(
     sigmas: torch.FloatTensor,
     noise: torch.FloatTensor,
     model_pred: torch.FloatTensor,
+    config: dict,
     x0_pred: bool = False,
 ) -> Tuple[torch.FloatTensor, torch.FloatTensor, int]:
     if x0_pred:
@@ -105,5 +106,12 @@ def get_self_corrected_targets(
     # new_target = target + ((new_noisy_model_input - noisy_model_input) / sigmas)
     new_target = torch.addcdiv(target, torch.sub(new_noisy_model_input, noisy_model_input), sigmas)
 
-    self_correct_count = new_noisy_model_input.shape[0]
-    return new_noisy_model_input, new_target, self_correct_count
+    self_correct_count = 0
+    for i in range(target.shape[0]):
+        if random.randint(0,100) <= config["self_correct_rate"] * 100:
+            new_noisy_model_input[i] = noisy_model_input[i]
+            target[i] = new_target[i]
+            self_correct_count += 1
+
+    del model_x0_pred, new_noisy_model_input, new_target
+    return noisy_model_input, target, self_correct_count

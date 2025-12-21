@@ -20,7 +20,10 @@
         "weight_decay": 0.01, "use_quantized_buffers": true, "quantized_buffers_dtype": "uint8",
         "use_quantized_matmul": true, "quantized_matmul_dtype": "float16", "zeropower_dtype": "float32"
     },
-    "optimizer_args_sensitive": {"weight_decay": 0.0, "use_quantized_buffers": false, "quantized_buffers_dtype": "uint16"},
+    "optimizer_args_sensitive": {
+        "weight_decay": 0.0, "use_quantized_buffers": false, "quantized_buffers_dtype": "uint16",
+        "use_quantized_matmul": false, "quantized_matmul_dtype": "float16", "zeropower_dtype": "float32"
+    },
     "fused_optimizer": true,
     "optimizer_cpu_offload": false,
     "optimizer_offload_gradients": false,
@@ -41,10 +44,10 @@
     "loss_type": "mse",
     "loss_reduction": "mean",
     "dropout_rate": 0.0,
-    "mask_rate": 0.0,
+    "mask_rate": 0.25,
     "mask_high_rate": 8,
     "mask_low_rate": -2,
-    "self_correct_rate": 0.0,
+    "self_correct_rate": 0.25,
     "batch_size": 32,
     "gradient_accumulation_steps": 1,
     "gradient_checkpointing": true,

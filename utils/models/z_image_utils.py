@@ -129,13 +129,14 @@ def run_z_image_model_training(
             num_train_timesteps=1000,
         )
 
+        del latents
         input_sigmas = 1 - sigmas.view(-1)
 
         if config["mixed_precision"] == "no":
             noisy_model_input = noisy_model_input.to(dtype=model.dtype)
             input_sigmas = input_sigmas.to(dtype=model.dtype)
 
-        if config["self_correct_rate"] > 0 and random.randint(0,100) <= config["self_correct_rate"] * 100:
+        if config["self_correct_rate"] > 0:
             with accelerator.autocast():
                 model_pred = model(
                     x=list(noisy_model_input.unsqueeze(2).unbind(dim=0)),
@@ -153,6 +154,7 @@ def run_z_image_model_training(
                 sigmas=sigmas,
                 noise=noise,
                 model_pred=model_pred,
+                config=config,
                 x0_pred=False,
             )
 
@@ -160,6 +162,8 @@ def run_z_image_model_training(
                 noisy_model_input = noisy_model_input.to(dtype=model.dtype)
         else:
             self_correct_count = None
+
+        del noise
 
         if config["mask_rate"] > 0:
             noisy_model_input, masked_count = mask_noisy_model_input(noisy_model_input, config, accelerator.device)
@@ -190,5 +194,5 @@ def run_z_image_model_training(
         "seq_len": seq_len,
     }
 
-    del latents, prompt_embeds, noisy_model_input, timesteps, noise, input_sigmas
+    del prompt_embeds, noisy_model_input, timesteps, input_sigmas
     return model_pred, target, sigmas, log_dict
