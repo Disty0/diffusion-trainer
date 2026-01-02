@@ -1,9 +1,11 @@
 import os
 import gc
 import math
-import brotli
-import random
 import time
+import random
+import warnings
+
+import brotli
 import torch
 import numpy as np
 
@@ -18,6 +20,7 @@ from typing import List, Tuple, Union
 from transformers import ImageProcessingMixin, PreTrainedTokenizer
 
 Image.MAX_IMAGE_PIXELS = 999999999 # 178956970
+warnings.filterwarnings("ignore", "Corrupt EXIF data", UserWarning)
 
 
 def load_from_file(path: str) -> torch.FloatTensor:

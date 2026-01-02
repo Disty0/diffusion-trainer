@@ -25,7 +25,7 @@ from utils.ema_model import EMAModel
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str) -> Dict[str, List[str]]:
+def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str, do_file_check: bool = True) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
 
@@ -59,7 +59,7 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path
 
             for file_name in bucket[key]:
                 latent_path = os.path.join(dataset["path"], file_name)
-                if not os.path.exists(latent_path):
+                if do_file_check and not os.path.exists(latent_path):
                     print(f"Latent file not found: {latent_path}")
                     continue
 
@@ -70,7 +70,7 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path
                         embed_path = os.path.join(embed_dataset["path"], file_name.removesuffix("_" + model_type + "_latent.pt") + embed_suffix)
                     else:
                         embed_path = os.path.join(embed_dataset["path"], os.path.splitext(file_name)[0] + embed_suffix)
-                    if not os.path.exists(embed_path):
+                    if do_file_check and not os.path.exists(embed_path):
                         print(f"Embed file not found: {embed_path}")
                     else:
                         current_bucket_list.extend([(latent_path, embed_path)]*(embed_dataset["repeats"]*dataset["repeats"]))
@@ -117,8 +117,8 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path
     return bucket_list
 
 
-def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str) -> None:
-    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type, embed_suffix, model_type)
+def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str, do_file_check: bool = True) -> None:
+    bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type, embed_suffix, model_type, do_file_check=do_file_check)
     print("Creating epoch batches")
 
     epoch_batch = []
@@ -312,7 +312,7 @@ def main() -> None:
 
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix, config["model_type"])
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix, config["model_type"], do_file_check=config["do_file_check"])
         gc.collect()
     accelerator.wait_for_everyone()
 
@@ -599,7 +599,7 @@ def main() -> None:
             gc.collect()
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
-                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix, config["model_type"])
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix, config["model_type"], do_file_check=config["do_file_check"])
                 gc.collect()
             accelerator.wait_for_everyone()
 

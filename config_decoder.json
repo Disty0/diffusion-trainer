@@ -49,6 +49,7 @@
     "load_queue_lenght": 64,
     "max_load_workers": 4,
     "reshuffle": true,
+    "do_file_check": true,
     "log_with": "wandb",
     "project_name": "anime_decoder",
     "resume_from": "none",

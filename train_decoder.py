@@ -24,7 +24,7 @@ from utils.ema_model import EMAModel
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str) -> Dict[str, List[str]]:
+def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str, do_file_check: bool = True) -> Dict[str, List[str]]:
     print("Creating bucket list")
     bucket_list = {}
 
@@ -59,9 +59,9 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str) 
             for file_name in bucket[key]:
                 latent_path = os.path.join(dataset["path"], file_name)
                 image_path = os.path.join(dataset["images"], file_name[:-9]+"image"+image_ext)
-                if not os.path.exists(latent_path):
+                if do_file_check and not os.path.exists(latent_path):
                     print(f"Latent file not found: {latent_path}")
-                elif not os.path.exists(image_path):
+                elif do_file_check and not os.path.exists(image_path):
                     print(f"Image file not found: {image_path}")
                 else:
                     current_bucket_list.extend([(latent_path, image_path)]*dataset["repeats"])
@@ -108,8 +108,8 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], image_ext: str) 
     return bucket_list
 
 
-def get_batches(batch_size: int, dataset_paths: List[Tuple[str, str, int]], dataset_index: str, image_ext: str) -> None:
-    bucket_list = get_bucket_list(batch_size, dataset_paths, image_ext)
+def get_batches(batch_size: int, dataset_paths: List[Tuple[str, str, int]], dataset_index: str, image_ext: str, do_file_check: bool = True) -> None:
+    bucket_list = get_bucket_list(batch_size, dataset_paths, image_ext, do_file_check=do_file_check)
     print("Creating epoch batches")
 
     epoch_batch = []
@@ -287,7 +287,7 @@ def main() -> None:
 
     batch_size = config["batch_size"]
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"], do_file_check=config["do_file_check"])
         gc.collect()
     accelerator.wait_for_everyone()
 
@@ -546,7 +546,7 @@ def main() -> None:
             gc.collect()
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
-                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"])
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], config["image_ext"], do_file_check=config["do_file_check"])
                 gc.collect()
             accelerator.wait_for_everyone()
 
