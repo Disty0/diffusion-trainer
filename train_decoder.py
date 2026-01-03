@@ -456,6 +456,7 @@ def main() -> None:
                     current_step = current_step + 1
 
                     if current_step % config["checkpoint_save_steps"] == 0:
+                        getattr(torch, torch.device(accelerator.device).type).synchronize()
                         accelerator.wait_for_everyone()
                         if accelerator.is_main_process:
                             accelerator.print("\n" + print_filler)
@@ -566,6 +567,7 @@ def main() -> None:
             gc.collect()
 
     progress_bar.close()
+    getattr(torch, torch.device(accelerator.device).type).synchronize()
     accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         model = unwrap_model(model)
