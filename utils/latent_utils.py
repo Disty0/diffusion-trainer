@@ -10,16 +10,16 @@ from diffusers.models.modeling_utils import ModelMixin
 def get_latent_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
     match model_type:
         case "sd3":
-            from .models.sd3_utils import get_sd3_vae
+            from .models.sd3_utils import get_sd3_latent_model
             latent_model, image_processor = get_sd3_latent_model(path, dtype, dynamo_backend)
         case "sdxl":
-            from .models.sdxl_utils import get_sdxl_vae
+            from .models.sdxl_utils import get_sdxl_latent_model
             latent_model, image_processor = get_sdxl_latent_model(path, dtype, dynamo_backend)
         case "raiflow":
-            from .models.raiflow_utils import get_raiflow_vae
+            from .models.raiflow_utils import get_raiflow_latent_model
             latent_model, image_processor = get_raiflow_latent_model(path, dtype, dynamo_backend)
         case "z_image":
-            from .models.z_image_utils import get_z_image_vae
+            from .models.z_image_utils import get_z_image_latent_model
             latent_model, image_processor = get_z_image_latent_model(path, dtype, dynamo_backend)
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
