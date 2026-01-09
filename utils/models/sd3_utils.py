@@ -20,7 +20,7 @@ def get_sd3_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, 
     return diffusion_model, processor
 
 
-def get_sd3_vae(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_sd3_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
     pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae

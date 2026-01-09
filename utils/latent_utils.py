@@ -11,16 +11,16 @@ def get_latent_model(model_type: str, path: str, device: torch.device, dtype: to
     match model_type:
         case "sd3":
             from .models.sd3_utils import get_sd3_vae
-            latent_model, image_processor = get_sd3_vae(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_sd3_latent_model(path, dtype, dynamo_backend)
         case "sdxl":
             from .models.sdxl_utils import get_sdxl_vae
-            latent_model, image_processor = get_sdxl_vae(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_sdxl_latent_model(path, dtype, dynamo_backend)
         case "raiflow":
             from .models.raiflow_utils import get_raiflow_vae
-            latent_model, image_processor = get_raiflow_vae(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_raiflow_latent_model(path, dtype, dynamo_backend)
         case "z_image":
             from .models.z_image_utils import get_z_image_vae
-            latent_model, image_processor = get_z_image_vae(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_z_image_latent_model(path, dtype, dynamo_backend)
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 

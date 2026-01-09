@@ -22,7 +22,7 @@ def get_raiflow_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMix
     return diffusion_model, processor
 
 
-def get_raiflow_vae(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_raiflow_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
     from raiflow import RaiFlowPipeline
     pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
     image_processor = copy.deepcopy(pipe.image_processor)

@@ -20,7 +20,7 @@ def get_z_image_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMix
     return diffusion_model, processor
 
 
-def get_z_image_vae(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_z_image_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
     pipe = diffusers.ZImagePipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae
