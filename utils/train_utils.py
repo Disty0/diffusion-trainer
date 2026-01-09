@@ -236,7 +236,7 @@ def run_model(
             raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
 
     model_pred = model_pred.to(dtype=torch.float32)
-    target = target.to(dtype=torch.float32).detach()
+    target = target.to(dtype=torch.float32)
     sigmas = sigmas.to(dtype=torch.float32)
 
     model_pred, target = get_loss_weighting(loss_weighting=config["loss_weighting"], model_pred=model_pred, target=target, sigmas=sigmas)
