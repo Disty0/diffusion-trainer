@@ -1,5 +1,6 @@
 from typing import List, Optional, Tuple, Union
 
+import copy
 import random
 import torch
 import diffusers
@@ -11,13 +12,18 @@ from accelerate import Accelerator
 from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
 
-def get_z_image_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_z_image_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+    pipe = diffusers.ZImagePipeline.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None)
+    processor = copy.deepcopy(pipe.image_processor)
+    diffusion_model = pipe.transformer
+    del pipe
+    return diffusion_model, processor
+
+
+def get_z_image_vae(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
     pipe = diffusers.ZImagePipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
-    latent_model = pipe.vae.to(device, dtype=dtype).eval()
-    latent_model.requires_grad_(False)
-    if dynamo_backend != "no":
-        latent_model = torch.compile(latent_model, backend=dynamo_backend)
-    image_processor = pipe.image_processor
+    image_processor = copy.deepcopy(pipe.image_processor)
+    latent_model = pipe.vae
     del pipe
     return latent_model, image_processor
 

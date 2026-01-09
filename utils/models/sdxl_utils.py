@@ -12,91 +12,38 @@ from accelerate import Accelerator
 from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
 
-def get_sd3_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None)
+def get_sdxl_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None, text_encoder_2=None)
     processor = copy.deepcopy(pipe.image_processor)
-    diffusion_model = pipe.transformer
+    diffusion_model = pipe.unet
     del pipe
     return diffusion_model, processor
 
 
-def get_sd3_vae(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None, torch_dtype=dtype)
+def get_sdxl_vae(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, unet=None, text_encoder=None, text_encoder_2=None, torch_dtype=dtype)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae
     del pipe
     return latent_model, image_processor
 
 
-def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
+def get_sdxl_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, unet=None, vae=None, torch_dtype=dtype)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder_2 = pipe.text_encoder_2.to(device, dtype=dtype).eval()
-    text_encoder_3 = pipe.text_encoder_3.to(device, dtype=dtype).eval()
     text_encoder.requires_grad_(False)
     text_encoder_2.requires_grad_(False)
-    text_encoder_3.requires_grad_(False)
     if dynamo_backend != "no":
         text_encoder = torch.compile(text_encoder, backend=dynamo_backend)
         text_encoder_2 = torch.compile(text_encoder_2, backend=dynamo_backend)
-        text_encoder_3 = torch.compile(text_encoder_3, backend=dynamo_backend)
     tokenizer = pipe.tokenizer
     tokenizer_2 = pipe.tokenizer_2
-    tokenizer_3 = pipe.tokenizer_3
     del pipe
-    return ((text_encoder, text_encoder_2, text_encoder_3), (tokenizer, tokenizer_2, tokenizer_3))
+    return ((text_encoder, text_encoder_2), (tokenizer, tokenizer_2))
 
 
-def _encode_sd3_prompt_with_t5(
-    text_encoder: PreTrainedModel,
-    tokenizer: PreTrainedTokenizer,
-    prompt: Union[str, List[str]],
-    device: Optional[torch.device] = None,
-) -> torch.FloatTensor:
-    prompt = [prompt] if isinstance(prompt, str) else prompt
-
-    text_inputs = tokenizer(
-        prompt,
-        padding="max_length",
-        max_length=512,
-        truncation=True,
-        add_special_tokens=True,
-        return_tensors="pt",
-    )
-    text_input_ids = text_inputs.input_ids
-    prompt_embeds = text_encoder(text_input_ids.to(device))[0]
-
-    prompt_embeds = prompt_embeds.to(dtype=text_encoder.dtype, device=device)
-    attention_mask = text_inputs.attention_mask.to(device)
-    return prompt_embeds * attention_mask.unsqueeze(-1).expand(prompt_embeds.shape)
-
-
-def _encode_sd3_prompt_with_clip(
-    text_encoder: PreTrainedModel,
-    tokenizer: PreTrainedTokenizer,
-    prompt: Union[str, List[str]],
-    device: Optional[torch.device] = None,
-) -> torch.FloatTensor:
-    prompt = [prompt] if isinstance(prompt, str) else prompt
-
-    text_inputs = tokenizer(
-        prompt,
-        padding="max_length",
-        max_length=77,
-        truncation=True,
-        return_tensors="pt",
-    )
-    text_input_ids = text_inputs.input_ids
-    prompt_embeds = text_encoder(text_input_ids.to(device), output_hidden_states=True)
-
-    pooled_prompt_embeds = prompt_embeds[0]
-    prompt_embeds = prompt_embeds.hidden_states[-2]
-    prompt_embeds = prompt_embeds.to(dtype=text_encoder.dtype, device=device)
-
-    return prompt_embeds, pooled_prompt_embeds
-
-
-def encode_sd3_prompt(
+def encode_sdxl_prompt(
     text_encoders: Tuple[PreTrainedModel],
     tokenizers: Tuple[PreTrainedTokenizer],
     prompt: Union[str, List[str]],
@@ -105,52 +52,33 @@ def encode_sd3_prompt(
 ) -> torch.FloatTensor:
         prompt = [prompt] if isinstance(prompt, str) else prompt
 
-        clip_tokenizers = tokenizers[:2]
-        clip_text_encoders = text_encoders[:2]
-
-        clip_prompt_embeds_list = []
-        clip_pooled_prompt_embeds_list = []
-        for tokenizer, text_encoder in zip(clip_tokenizers, clip_text_encoders):
-            prompt_embeds, pooled_prompt_embeds = _encode_sd3_prompt_with_clip(
-                text_encoder=text_encoder,
-                tokenizer=tokenizer,
-                prompt=prompt,
-                device=device,
-            )
-            clip_prompt_embeds_list.append(prompt_embeds)
-            clip_pooled_prompt_embeds_list.append(pooled_prompt_embeds)
-
-        clip_prompt_embeds = torch.cat(clip_prompt_embeds_list, dim=-1)
-        pooled_prompt_embeds = torch.cat(clip_pooled_prompt_embeds_list, dim=-1)
-
-        t5_prompt_embed = _encode_sd3_prompt_with_t5(
-            text_encoders[-1],
-            tokenizers[-1],
-            prompt=prompt,
-            device=device,
-        )
-
-        if no_clip:
-            prompt_embeds = t5_prompt_embed
-        else:
-            clip_prompt_embeds = torch.nn.functional.pad(
-                clip_prompt_embeds,
-                (0, t5_prompt_embed.shape[-1] - clip_prompt_embeds.shape[-1]),
-            )
-            prompt_embeds = torch.cat([clip_prompt_embeds, t5_prompt_embed], dim=-2)
+        prompt_embeds_list = []
+        for tokenizer, text_encoder in zip(tokenizers, text_encoders):
+            text_input_ids = tokenizer(
+                prompt,
+                padding="max_length",
+                max_length=tokenizer.model_max_length,
+                truncation=True,
+                return_tensors="pt",
+            ).input_ids.to(device)
+            prompt_embeds = text_encoder(text_input_ids, output_hidden_states=True)
+            if prompt_embeds[0].ndim == 2:
+                pooled_prompt_embeds = prompt_embeds[0]
+            prompt_embeds_list.append(prompt_embeds.hidden_states[-2])
+        prompt_embeds = torch.concat(prompt_embeds_list, dim=-1)
 
         return prompt_embeds, pooled_prompt_embeds
 
 
-def encode_sd3_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], device: torch.device, texts: List[str]) -> List[List[torch.FloatTensor]]:
-    prompt_embeds, pooled_prompt_embeds = encode_sd3_prompt(embed_encoders[0], embed_encoders[1], texts, device=device, no_clip=True)
+def encode_sdxl_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], device: torch.device, texts: List[str]) -> List[List[torch.FloatTensor]]:
+    prompt_embeds, pooled_prompt_embeds = encode_sdxl_prompt(embed_encoders[0], embed_encoders[1], texts, device=device, no_clip=True)
     embeds = []
     for i in range(len(prompt_embeds)):
         embeds.append([prompt_embeds[i], pooled_prompt_embeds[i]])
     return embeds
 
 
-def run_sd3_model_training(
+def run_sdxl_model_training(
     model: ModelMixin,
     model_processor: ModelMixin,
     config: dict,
@@ -193,11 +121,19 @@ def run_sd3_model_training(
         prompt_embeds = prompt_embeds.to(accelerator.device, dtype=embed_dtype)
         pooled_embeds = pooled_embeds.to(accelerator.device, dtype=embed_dtype)
 
+        image_height = latents.shape[-2] * 8
+        image_width = latents.shape[-1] * 8
+        add_time_ids = torch.tensor(
+            (image_height, image_width, 0,0, image_height, image_width),
+            device=accelerator.device,
+            dtype=embed_dtype,
+        ).repeat(latents.shape[0], 1)
+
         noisy_model_input, timesteps, target, sigmas, noise = get_flowmatch_inputs(
             latents=latents,
             device=accelerator.device,
             sampler_config=config["sampler_config"],
-            num_train_timesteps=model.config.num_train_timesteps,
+            num_train_timesteps=1000,
         )
 
         del latents
@@ -209,10 +145,10 @@ def run_sd3_model_training(
         if config["self_correct_rate"] > 0:
             with accelerator.autocast():
                 model_pred = model(
-                    hidden_states=noisy_model_input,
-                    encoder_hidden_states=prompt_embeds,
+                    sample=noisy_model_input,
                     timestep=timesteps,
-                    pooled_projections=pooled_embeds,
+                    encoder_hidden_states=prompt_embeds,
+                    added_cond_kwargs={"text_embeds": pooled_embeds, "time_ids": add_time_ids},
                     return_dict=False,
                 )[0].to(dtype=torch.float32)
 
@@ -243,10 +179,10 @@ def run_sd3_model_training(
 
     with accelerator.autocast():
         model_pred = model(
-            hidden_states=noisy_model_input,
-            encoder_hidden_states=prompt_embeds,
+            sample=noisy_model_input,
             timestep=timesteps,
-            pooled_projections=pooled_embeds,
+            encoder_hidden_states=prompt_embeds,
+            added_cond_kwargs={"text_embeds": pooled_embeds, "time_ids": add_time_ids},
             return_dict=False,
         )[0].to(dtype=torch.float32)
 
@@ -259,5 +195,5 @@ def run_sd3_model_training(
         "seq_len": prompt_embeds.shape[1],
     }
 
-    del prompt_embeds, pooled_embeds, noisy_model_input, timesteps
+    del prompt_embeds, pooled_embeds, add_time_ids, noisy_model_input, timesteps
     return model_pred, target, sigmas, log_dict

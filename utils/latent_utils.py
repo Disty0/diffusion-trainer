@@ -8,28 +8,39 @@ from diffusers.models.modeling_utils import ModelMixin
 
 
 def get_latent_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    if model_type == "sd3":
-        from .models.sd3_utils import get_sd3_vae
-        return get_sd3_vae(path, device, dtype, dynamo_backend)
-    elif model_type == "raiflow":
-        from .models.raiflow_utils import get_raiflow_vae
-        return get_raiflow_vae(path, device, dtype, dynamo_backend)
-    if model_type == "z_image":
-        from .models.z_image_utils import get_z_image_vae
-        return get_z_image_vae(path, device, dtype, dynamo_backend)
-    else:
-        raise NotImplementedError(f"Model type {model_type} is not implemented")
+    match model_type:
+        case "sd3":
+            from .models.sd3_utils import get_sd3_vae
+            latent_model, image_processor = get_sd3_vae(path, dtype, dynamo_backend)
+        case "sdxl":
+            from .models.sdxl_utils import get_sdxl_vae
+            latent_model, image_processor = get_sdxl_vae(path, dtype, dynamo_backend)
+        case "raiflow":
+            from .models.raiflow_utils import get_raiflow_vae
+            latent_model, image_processor = get_raiflow_vae(path, dtype, dynamo_backend)
+        case "z_image":
+            from .models.z_image_utils import get_z_image_vae
+            latent_model, image_processor = get_z_image_vae(path, dtype, dynamo_backend)
+        case _:
+            raise NotImplementedError(f"Model type {model_type} is not implemented")
+
+    latent_model = latent_model.eval()
+    latent_model.requires_grad_(False)
+    latent_model = latent_model.to(device)
+    if dynamo_backend != "no":
+        latent_model = torch.compile(latent_model, backend=dynamo_backend)
+    return latent_model, image_processor
 
 
 def get_latent_model_class(model_type: str) -> type:
-    if model_type in {"sd3", "raiflow", "z_image"}:
+    if model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
         return diffusers.AutoencoderKL
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], model_type: str, device: torch.device) -> torch.FloatTensor:
-    if model_type in {"sd3", "raiflow", "z_image"}:
+    if model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
         return encode_vae_latents(latent_model, image_processor, images, device)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -44,7 +55,7 @@ def decode_latents(
     return_image: bool = True,
     mixed_precision: str = "no"
 ) -> Union[Image.Image, torch.FloatTensor]:
-    if model_type in {"sd3", "raiflow", "z_image"}:
+    if model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
         return decode_vae_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")

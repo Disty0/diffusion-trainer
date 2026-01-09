@@ -1,7 +1,6 @@
 from typing import Callable, Iterator, List, Optional, Tuple, Union
 
 import gc
-import copy
 import importlib
 
 import torch
@@ -137,32 +136,32 @@ def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator:
 
 
 def get_loss_func(config: dict) -> Callable:
-    if config["loss_type"] == "mae":
-        return torch.nn.functional.l1_loss
-    elif config["loss_type"] == "mse":
-        return torch.nn.functional.mse_loss
-    else:
-        return getattr(torch.nn.functional, config["loss_type"])
+    match config["loss_type"]:
+        case "mae":
+            return torch.nn.functional.l1_loss
+        case "mse":
+            return torch.nn.functional.mse_loss
+        case _:
+            return getattr(torch.nn.functional, config["loss_type"])
 
 
 def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, is_ema: bool = False) -> Tuple[ModelMixin]:
     device = torch.device(device)
-    if config["model_type"] == "sd3":
-        pipe = diffusers.AutoPipelineForText2Image.from_pretrained(config["model_path"], torch_dtype=dtype, vae=None, text_encoder=None, text_encoder_2=None, text_encoder_3=None)
-        processor = copy.deepcopy(pipe.image_processor)
-        diffusion_model = pipe.transformer
-    elif config["model_type"] == "raiflow":
-        from raiflow import RaiFlowPipeline
-        pipe = RaiFlowPipeline.from_pretrained(config["model_path"], torch_dtype=dtype)
-        processor = copy.deepcopy(pipe.image_encoder)
-        diffusion_model = pipe.transformer
-    elif config["model_type"] == "z_image":
-        pipe = diffusers.ZImagePipeline.from_pretrained(config["model_path"], torch_dtype=dtype, vae=None, text_encoder=None)
-        processor = copy.deepcopy(pipe.image_processor)
-        diffusion_model = pipe.transformer
-    else:
-        raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
-    del pipe
+    match config["model_type"]:
+        case "sd3":
+            from .models.sd3_utils import get_sd3_diffusion_model
+            diffusion_model, processor = get_sd3_diffusion_model(config["model_path"], dtype)
+        case "sdxl":
+            from .models.sdxl_utils import get_sdxl_diffusion_model
+            diffusion_model, processor = get_sdxl_diffusion_model(config["model_path"], dtype)
+        case "raiflow":
+            from .models.raiflow_utils import get_raiflow_diffusion_model
+            diffusion_model, processor = get_raiflow_diffusion_model(config["model_path"], dtype)
+        case "z_image":
+            from .models.z_image_utils import get_z_image_diffusion_model
+            diffusion_model, processor = get_z_image_diffusion_model(config["model_path"], dtype)
+        case _:
+            raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
 
     diffusion_model.train()
     diffusion_model.requires_grad_(True)
@@ -196,15 +195,18 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
 
 
 def get_model_class(model_type: str) -> ModelMixin:
-    if model_type == "sd3":
-        return diffusers.SD3Transformer2DModel
-    elif model_type == "raiflow":
-        from raiflow import RaiFlowTransformer2DModel
-        return RaiFlowTransformer2DModel
-    elif model_type == "z_image":
-        return diffusers.ZImageTransformer2DModel
-    else:
-        raise NotImplementedError(f"Model type {model_type} is not implemented")
+    match model_type:
+        case "sd3":
+            return diffusers.SD3Transformer2DModel
+        case "sdxl":
+            return diffusers.UNet2DConditionModel
+        case "raiflow":
+            from raiflow import RaiFlowTransformer2DModel
+            return RaiFlowTransformer2DModel
+        case "z_image":
+            return diffusers.ZImageTransformer2DModel
+        case _:
+            raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def run_model(
@@ -217,17 +219,21 @@ def run_model(
     empty_embed: Union[List, torch.FloatTensor],
     loss_func: callable,
 ) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
-    if config["model_type"] == "sd3":
-        from .models.sd3_utils import run_sd3_model_training
-        model_pred, target, sigmas, log_dict = run_sd3_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
-    elif config["model_type"] == "raiflow":
-        from .models.raiflow_utils import run_raiflow_model_training
-        model_pred, target, sigmas, log_dict = run_raiflow_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
-    elif config["model_type"] == "z_image":
-        from .models.z_image_utils import run_z_image_model_training
-        model_pred, target, sigmas, log_dict = run_z_image_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
-    else:
-        raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
+    match config["model_type"]:
+        case "sd3":
+            from .models.sd3_utils import run_sd3_model_training
+            model_pred, target, sigmas, log_dict = run_sd3_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+        case "sdxl":
+            from .models.sdxl_utils import run_sdxl_model_training
+            model_pred, target, sigmas, log_dict = run_sdxl_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+        case "raiflow":
+            from .models.raiflow_utils import run_raiflow_model_training
+            model_pred, target, sigmas, log_dict = run_raiflow_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+        case "z_image":
+            from .models.z_image_utils import run_z_image_model_training
+            model_pred, target, sigmas, log_dict = run_z_image_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+        case _:
+            raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
 
     model_pred = model_pred.to(dtype=torch.float32)
     target = target.to(dtype=torch.float32).detach()

@@ -1,5 +1,6 @@
 from typing import List, Tuple, Optional, Union
 
+import copy
 import random
 import torch
 
@@ -12,14 +13,20 @@ from PIL import Image
 from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
 
-def get_raiflow_vae(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_raiflow_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+    from raiflow import RaiFlowPipeline
+    pipe = RaiFlowPipeline.from_pretrained(path, torch_dtype=dtype)
+    processor = copy.deepcopy(pipe.image_encoder)
+    diffusion_model = pipe.transformer
+    del pipe
+    return diffusion_model, processor
+
+
+def get_raiflow_vae(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
     from raiflow import RaiFlowPipeline
     pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
-    latent_model = pipe.vae.to(device, dtype=dtype).eval()
-    latent_model.requires_grad_(False)
-    if dynamo_backend != "no":
-        latent_model = torch.compile(latent_model, backend=dynamo_backend)
-    image_processor = pipe.image_processor
+    image_processor = copy.deepcopy(pipe.image_processor)
+    latent_model = pipe.vae
     del pipe
     return latent_model, image_processor
 
