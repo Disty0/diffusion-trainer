@@ -48,7 +48,6 @@ def encode_sdxl_prompt(
     tokenizers: Tuple[PreTrainedTokenizer],
     prompt: Union[str, List[str]],
     device: Optional[torch.device] = None,
-    no_clip: bool = True,
 ) -> torch.FloatTensor:
         prompt = [prompt] if isinstance(prompt, str) else prompt
 
@@ -71,7 +70,7 @@ def encode_sdxl_prompt(
 
 
 def encode_sdxl_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], device: torch.device, texts: List[str]) -> List[List[torch.FloatTensor]]:
-    prompt_embeds, pooled_prompt_embeds = encode_sdxl_prompt(embed_encoders[0], embed_encoders[1], texts, device=device, no_clip=True)
+    prompt_embeds, pooled_prompt_embeds = encode_sdxl_prompt(embed_encoders[0], embed_encoders[1], texts, device=device)
     embeds = []
     for i in range(len(prompt_embeds)):
         embeds.append([prompt_embeds[i], pooled_prompt_embeds[i]])
