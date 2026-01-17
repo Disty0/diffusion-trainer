@@ -171,7 +171,7 @@ def run_raiflow_model_training(
             latents=latents,
             device=accelerator.device,
             sampler_config=config["sampler_config"],
-            num_train_timesteps=model.config.num_train_timesteps,
+            num_train_timesteps=1000,
         )
 
         if config["self_correct_rate"] > 0:
@@ -179,10 +179,7 @@ def run_raiflow_model_training(
                 model_pred = model(
                     hidden_states=noisy_model_input,
                     encoder_hidden_states=prompt_embeds,
-                    timestep=sigmas,
-                    scale_timesteps=False,
                     return_dict=False,
-                    return_x0=True,
                 )[0].to(dtype=torch.float32)
 
             noisy_model_input, target, self_correct_count = get_self_corrected_targets(
@@ -208,10 +205,7 @@ def run_raiflow_model_training(
         model_pred = model(
             hidden_states=noisy_model_input,
             encoder_hidden_states=prompt_embeds,
-            timestep=sigmas,
-            scale_timesteps=False,
             return_dict=False,
-            return_x0=True,
         )[0].to(dtype=torch.float32)
 
     assert model_pred.dtype == torch.float32 and latents.dtype == torch.float32
