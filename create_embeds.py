@@ -159,8 +159,9 @@ def main():
             write_embeds(embed_encoder, device, args, cache_backend, text_batches.pop(0), embed_pathes.pop(0))
             if steps_done % args.gc_steps == 0:
                 gc.collect()
-                getattr(torch, device.type).synchronize(device)
-                getattr(torch, device.type).empty_cache()
+                if device.type != "cpu":
+                    getattr(torch, device.type).synchronize(device)
+                    getattr(torch, device.type).empty_cache()
         except Exception as e:
             print("ERROR: ", embed_pathes[0], " : ", str(e))
             break # break so torch can save the new tunableops table

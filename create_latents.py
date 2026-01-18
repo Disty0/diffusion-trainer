@@ -275,8 +275,9 @@ def main():
             write_latents(latent_model, image_processor, device, args, cache_backend, save_image_backend, batch)
             if steps_done % args.gc_steps == 0:
                 gc.collect()
-                getattr(torch, device.type).synchronize(device)
-                getattr(torch, device.type).empty_cache()
+                if device.type != "cpu":
+                    getattr(torch, device.type).synchronize(device)
+                    getattr(torch, device.type).empty_cache()
         except Exception as e:
             print("ERROR: ", str(e))
             break # break so torch can save the new tunableops table
