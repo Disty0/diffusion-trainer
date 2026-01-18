@@ -155,7 +155,7 @@ def main() -> None:
         config = json.load(f)
     gc.collect()
 
-    if config["tunableop"] != "default":
+    if config["tunableop"] is not None:
         torch.cuda.tunable.enable(config["tunableop"])
     torch.backends.cudnn.enabled = config["cudnn_enabled"]
 

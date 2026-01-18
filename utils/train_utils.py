@@ -169,25 +169,14 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
     diffusion_model.train()
     diffusion_model.requires_grad_(True)
 
-    if not is_ema and (config["use_quantized_matmul"] or config["use_static_quantization"]):
+    if not is_ema and (config["quantization_config"]["use_quantized_matmul"] or config["quantization_config"]["use_static_quantization"]):
         from sdnq.training import sdnq_training_post_load_quant
         diffusion_model = sdnq_training_post_load_quant(
             diffusion_model,
-            weights_dtype=config["quantized_weights_dtype"],
-            quantized_matmul_dtype=config["quantized_matmul_dtype"],
-            group_size=config["quantized_weights_group_size"],
-            svd_rank=config["quantized_weights_svd_rank"],
-            use_svd=config["use_svd_quantization"],
             use_grad_ckpt=config["gradient_checkpointing"],
-            use_quantized_matmul=config["use_quantized_matmul"],
-            use_static_quantization=config["use_static_quantization"],
-            use_stochastic_rounding=config["use_stochastic_rounding"],
-            non_blocking=config["offload_ema_non_blocking"],
-            add_skip_keys=bool(not config["override_sensitive_keys"]),
             quantization_device=device,
             return_device=device,
-            modules_to_not_convert=config["sensitive_keys"].copy(),
-            modules_dtype_dict=config["modules_dtype_dict"].copy(),
+            **config["quantization_config"],
         )
 
     diffusion_model = diffusion_model.to(device)

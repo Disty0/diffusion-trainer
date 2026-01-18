@@ -164,7 +164,7 @@ def main() -> None:
         config = json.load(f)
     gc.collect()
 
-    if config["tunableop"] != "default":
+    if config["tunableop"] is not None:
         torch.cuda.tunable.enable(config["tunableop"])
     torch.backends.cudnn.enabled = config["cudnn_enabled"]
 
@@ -276,7 +276,7 @@ def main() -> None:
                 parameter.grad = parameter.grad.to("meta")
             parameter.grad = None
 
-    if not config["use_static_quantization"]:
+    if not config["quantization_config"]["use_static_quantization"]:
         accelerator.register_save_state_pre_hook(save_model_hook)
         accelerator.register_load_state_pre_hook(load_model_hook)
 
@@ -287,10 +287,10 @@ def main() -> None:
     dtype = getattr(torch, config["weights_dtype"])
 
     accelerator.print(f"Loading diffusion models with dtype {dtype} and mixed precision {config['mixed_precision']} to device {accelerator.device}")
-    if config["use_static_quantization"]:
-        accelerator.print(f"Using quantized weights with dtype {config['quantized_weights_dtype']} and group size {config['quantized_weights_group_size']}")
-    if config["use_quantized_matmul"]:
-        accelerator.print(f"Using quantized matmul with dtype {config['quantized_matmul_dtype']}")
+    if config["quantization_config"]["use_static_quantization"]:
+        accelerator.print(f"Using quantized weights with dtype {config['quantization_config']['weights_dtype']} and group size {config['quantization_config']['group_size']}")
+    if config["quantization_config"]["use_quantized_matmul"]:
+        accelerator.print(f"Using quantized matmul with dtype {config['quantization_config']['quantized_matmul_dtype']}")
     accelerator.print(print_filler)
 
     model, model_processor = train_utils.get_diffusion_model(config, accelerator.device, dtype)
@@ -497,7 +497,7 @@ def main() -> None:
 
                             save_path = os.path.join(config["project_dir"], f"checkpoint-{current_step}")
                             accelerator.print(f"Saving state to {save_path}")
-                            accelerator.save_state(save_path, safe_serialization=bool(not config["use_static_quantization"]))
+                            accelerator.save_state(save_path, safe_serialization=bool(not config["quantization_config"]["use_static_quantization"]))
                             if config["use_ema"]:
                                 gc.collect()
                                 accelerator.print(f"Saving EMA state to {save_path}")
@@ -610,7 +610,7 @@ def main() -> None:
         save_path = os.path.join(config["project_dir"], "checkpoint-final")
         accelerator.print("\n" + print_filler)
         accelerator.print(f"Saving state to {save_path}")
-        accelerator.save_state(save_path, safe_serialization=bool(not config["use_static_quantization"]))
+        accelerator.save_state(save_path, safe_serialization=bool(not config["quantization_config"]["use_static_quantization"]))
         if config["use_ema"]:
             gc.collect()
             accelerator.print(f"Saving EMA state to {save_path}")
