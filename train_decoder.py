@@ -296,7 +296,7 @@ def main() -> None:
         epoch_batch = json.load(f)
     gc.collect()
 
-    dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
+    dataset = loader_utils.LatentDecoderDataset(epoch_batch, image_processor)
     del epoch_batch
     gc.collect()
 
@@ -556,8 +556,8 @@ def main() -> None:
                 epoch_batch = json.load(f)
             gc.collect()
 
-            accelerator.print('Setting up dataset loader: LatentsAndImagesDataset')
-            dataset = loader_utils.LatentsAndImagesDataset(epoch_batch, image_processor)
+            accelerator.print('Setting up dataset loader: LatentDecoderDataset')
+            dataset = loader_utils.LatentDecoderDataset(epoch_batch, image_processor)
             del epoch_batch
             gc.collect()
 

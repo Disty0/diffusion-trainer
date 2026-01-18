@@ -116,7 +116,7 @@ class DiffusionDataset(Dataset):
             embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=self.config["max_token_length"], truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
 
         latents = torch.stack(latents)
-        if self.config["latent_type"] == "image":
+        if self.config["latent_type"] == "image_tensor":
             latents = latents.permute(0,3,1,2).to(dtype=torch.float32).div_(127.5).sub_(1)
         elif self.config["latent_type"] == "jpeg" and self.config["encode_dcts_with_cpu"]:
             latents = self.image_encoder.encode(latents, device="cpu")
@@ -124,7 +124,7 @@ class DiffusionDataset(Dataset):
         return (latents, embeds)
 
 
-class LatentsAndImagesDataset(Dataset):
+class LatentDecoderDataset(Dataset):
     def __init__(self, batches: List[Tuple[str, str]], image_processor: ImageProcessingMixin):
         self.batches = batches
         self.image_processor = image_processor
