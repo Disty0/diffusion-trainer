@@ -94,7 +94,7 @@ class DiffusionDataset(Dataset):
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            if self.config["latent_type"] == "image_tensor":
+            if self.config["latent_type"] in {"image_tensor", "image_pt"}:
                 with load_image_from_file(batch[0], resolution) as image:
                     latents.append(torch.from_numpy(np.asarray(image).copy()))
             elif self.config["latent_type"] != "latent":
@@ -117,7 +117,7 @@ class DiffusionDataset(Dataset):
         if self.config["embed_type"] == "token":
             embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=self.config["max_token_length"], truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
 
-        if self.config["latent_type"] == "latent":
+        if self.config["latent_type"] in {"latent", "image_pt"}:
             latents = torch.stack(latents)
         elif self.config["latent_type"] == "image_tensor":
             latents = torch.stack(latents)
