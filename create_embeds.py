@@ -33,7 +33,7 @@ def get_paths(dataset_path: str, out_path: str, model_type: str, text_ext: str) 
             paths.append(embed_path)
             with open(text_file, "r") as file:
                 text = file.read()
-            if text[-1] == "\n":
+            if text and text[-1] == "\n":
                 text = text[:-1]
             texts.append(text)
     print(f"Found {len(paths)} {text_ext} files to encode")
