@@ -11,19 +11,19 @@ def get_latent_model(model_type: str, path: str, device: torch.device, dtype: to
     match model_type:
         case "sd3":
             from .models.sd3_utils import get_sd3_latent_model
-            latent_model, image_processor = get_sd3_latent_model(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_sd3_latent_model(path, dtype)
         case "sdxl":
             from .models.sdxl_utils import get_sdxl_latent_model
-            latent_model, image_processor = get_sdxl_latent_model(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_sdxl_latent_model(path, dtype)
         case "raiflow":
             from .models.raiflow_utils import get_raiflow_latent_model
-            latent_model, image_processor = get_raiflow_latent_model(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_raiflow_latent_model(path, dtype)
         case "z_image":
             from .models.z_image_utils import get_z_image_latent_model
-            latent_model, image_processor = get_z_image_latent_model(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_z_image_latent_model(path, dtype)
         case "flux2":
             from .models.flux2_utils import get_flux2_latent_model
-            latent_model, image_processor = get_flux2_latent_model(path, dtype, dynamo_backend)
+            latent_model, image_processor = get_flux2_latent_model(path, dtype)
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -44,7 +44,7 @@ def get_latent_model_class(model_type: str) -> type:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
-def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], model_type: str, device: torch.device) -> torch.FloatTensor:
+def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], device: torch.device, model_type: str) -> torch.FloatTensor:
     if model_type == "flux2":
         from .models.flux2_utils import encode_flux2_latents
         return encode_flux2_latents(latent_model, image_processor, images, device)
@@ -58,8 +58,8 @@ def decode_latents(
     latent_model: ModelMixin,
     image_processor: ImageProcessingMixin,
     latents: torch.FloatTensor,
-    model_type: str,
     device: torch.device,
+    model_type: str,
     return_image: bool = True,
     mixed_precision: str = "no"
 ) -> Union[Image.Image, torch.FloatTensor]:

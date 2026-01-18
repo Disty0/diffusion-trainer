@@ -28,8 +28,11 @@ def get_sdxl_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, Im
     return latent_model, image_processor
 
 
-def get_sdxl_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, unet=None, vae=None, torch_dtype=dtype)
+def get_sdxl_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
+    if quantization_config is not None:
+        from diffusers.quantizers import PipelineQuantizationConfig
+        quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder_2"])
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, unet=None, vae=None, torch_dtype=dtype, quantization_config=quantization_config)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder_2 = pipe.text_encoder_2.to(device, dtype=dtype).eval()
     text_encoder.requires_grad_(False)
@@ -69,7 +72,7 @@ def encode_sdxl_prompt(
         return prompt_embeds, pooled_prompt_embeds
 
 
-def encode_sdxl_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], device: torch.device, texts: List[str]) -> List[List[torch.FloatTensor]]:
+def encode_sdxl_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], texts: List[str], device: torch.device) -> List[List[torch.FloatTensor]]:
     prompt_embeds, pooled_prompt_embeds = encode_sdxl_prompt(embed_encoders[0], embed_encoders[1], texts, device=device)
     embeds = []
     for i in range(len(prompt_embeds)):

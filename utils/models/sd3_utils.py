@@ -28,8 +28,11 @@ def get_sd3_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, Ima
     return latent_model, image_processor
 
 
-def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
+def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
+    if quantization_config is not None:
+        from diffusers.quantizers import PipelineQuantizationConfig
+        quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder_3"])
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype, quantization_config=quantization_config)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder_2 = pipe.text_encoder_2.to(device, dtype=dtype).eval()
     text_encoder_3 = pipe.text_encoder_3.to(device, dtype=dtype).eval()
@@ -101,7 +104,7 @@ def encode_sd3_prompt(
     tokenizers: Tuple[PreTrainedTokenizer],
     prompt: Union[str, List[str]],
     device: Optional[torch.device] = None,
-    no_clip: bool = True,
+    no_clip: bool = False,
 ) -> torch.FloatTensor:
         prompt = [prompt] if isinstance(prompt, str) else prompt
 
@@ -142,8 +145,8 @@ def encode_sd3_prompt(
         return prompt_embeds, pooled_prompt_embeds
 
 
-def encode_sd3_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], device: torch.device, texts: List[str]) -> List[List[torch.FloatTensor]]:
-    prompt_embeds, pooled_prompt_embeds = encode_sd3_prompt(embed_encoders[0], embed_encoders[1], texts, device=device, no_clip=True)
+def encode_sd3_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], texts: List[str], device: torch.device) -> List[List[torch.FloatTensor]]:
+    prompt_embeds, pooled_prompt_embeds = encode_sd3_prompt(embed_encoders[0], embed_encoders[1], texts, device=device)
     embeds = []
     for i in range(len(prompt_embeds)):
         embeds.append([prompt_embeds[i], pooled_prompt_embeds[i]])

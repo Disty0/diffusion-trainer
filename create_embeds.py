@@ -71,7 +71,7 @@ def write_embeds(
     text_batch: List[str],
     embed_path: List[str]
 ) -> None:
-    embeds = embed_utils.encode_embeds(embed_encoder, device, args.model_type, text_batch)
+    embeds = embed_utils.encode_embeds(embed_encoder, text_batch, device, args.model_type)
     getattr(torch, device.type).synchronize(device)
     for i in range(len(text_batch)):
         cache_backend.save(embeds[i], embed_path[i])

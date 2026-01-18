@@ -31,9 +31,12 @@ def get_raiflow_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin,
     return latent_model, image_processor
 
 
-def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
     from raiflow import RaiFlowPipeline
-    pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
+    if quantization_config is not None:
+        from diffusers.quantizers import PipelineQuantizationConfig
+        quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder"])
+    pipe = RaiFlowPipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype, quantization_config=quantization_config)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder.requires_grad_(False)
     if dynamo_backend != "no":
@@ -92,7 +95,7 @@ def encode_raiflow_prompt(
     return prompt_embeds_list
 
 
-def encode_raiflow_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, texts: List[str], prompt_images: Optional[List[Image.Image]] = None) -> List[torch.FloatTensor]:
+def encode_raiflow_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], texts: List[str], device: torch.device, prompt_images: Optional[List[Image.Image]] = None) -> List[torch.FloatTensor]:
     return encode_raiflow_prompt(embed_encoders[0], embed_encoders[1], prompt=texts, prompt_images=prompt_images, device=device)
 
 
@@ -107,7 +110,7 @@ def run_raiflow_model_training(
     loss_func: callable,
 ) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
     with torch.no_grad():
-        if config["latent_type"] == "jpeg" and not config["encode_dcts_with_cpu"]:
+        if config["latent_type"] == "jpeg" and not config["encode_latents_with_cpu"]:
             latents = model_processor.encode(latents_list, device=accelerator.device).to(accelerator.device, dtype=torch.float32)
         else:
             if isinstance(latents_list, torch.Tensor):

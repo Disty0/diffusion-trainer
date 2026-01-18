@@ -19,6 +19,9 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import List, Tuple, Union
 from transformers import ImageProcessingMixin, AutoTokenizer
 
+from .latent_utils import get_latent_model, encode_latents
+from .embed_utils import get_embed_encoder, encode_embeds
+
 Image.MAX_IMAGE_PIXELS = 999999999 # 178956970
 warnings.filterwarnings("ignore", "Corrupt EXIF data", UserWarning)
 
@@ -76,17 +79,48 @@ def load_image_from_file(image_path: str, target_size: str) -> Image.Image:
 class DiffusionDataset(Dataset):
     def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], config: dict):
         self.batches = batches
-        self.config = config
+        self.model_type = config["model_type"]
+        self.latent_type = config["latent_type"]
+        self.embed_type = config["embed_type"]
+        self.load_latent_type = config["latent_type"]
+        self.load_embed_type = config["embed_type"]
+        self.encode_latents_with_cpu = config["encode_latents_with_cpu"]
+        self.encode_embeds_with_cpu = config["encode_embeds_with_cpu"]
+        self.use_latent_dataset = config["use_latent_dataset"]
+        self.use_embed_dataset = config["use_embed_dataset"]
 
-        if self.config["embed_type"] == "token":
-            self.tokenizer = AutoTokenizer.from_pretrained(self.config["model_path"], subfolder="tokenizer")
+        if self.latent_type == "jpeg":
+            self.load_latent_type = "image"
+            if self.encode_latents_with_cpu:
+                from raiflow import RaiFlowImageEncoder
+                self.image_encoder = RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder")
+        elif not self.use_latent_dataset:
+            if self.encode_latents_with_cpu:
+                if self.latent_type == "latent":
+                    self.latent_encoder, self.image_processor = get_latent_model(config["model_type"], config["model_path"], "cpu", torch.float32, "no")
+                    self.load_latent_type = "image"
+            else:
+                if self.latent_type == "latent":
+                    self.load_latent_type = "image"
 
-        if self.config["latent_type"] == "jpeg" and self.config["encode_dcts_with_cpu"]:
-            from raiflow import RaiFlowImageEncoder
-            self.image_encoder = RaiFlowImageEncoder.from_pretrained(self.config["model_path"], subfolder="image_encoder")
+        if self.embed_type == "token":
+            self.tokenizer = AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer")
+            self.load_embed_type = "text"
+        elif not self.use_embed_dataset:
+            if self.encode_embeds_with_cpu:
+                if self.embed_type == "embed":
+                    self.embed_encoder = get_embed_encoder(config["model_type"], config["model_path"], "cpu", torch.float32, "no")
+                    self.load_embed_type = "text"
+            else:
+                if self.embed_type == "embed":
+                    self.load_embed_type = "text"
+
 
     def __len__(self) -> int:
         return len(self.batches)
+
+    def __repr__(self) -> str:
+        return f"DiffusionDataset(batches={len(self.batches)}, model_type={self.model_type}, latent_type={self.latent_type}, embed_type={self.embed_type}, load_latent_type={self.load_latent_type}, load_embed_type={self.load_embed_type}, encode_latents_with_cpu={self.encode_latents_with_cpu}, encode_embeds_with_cpu={self.encode_embeds_with_cpu}, use_latent_dataset={self.use_latent_dataset}, use_embed_dataset={self.use_embed_dataset})"
 
     @torch.no_grad()
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
@@ -94,15 +128,15 @@ class DiffusionDataset(Dataset):
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            if self.config["latent_type"] in {"image_tensor", "image_pt"}:
+            if self.load_latent_type in {"image_tensor", "image_pt"}:
                 with load_image_from_file(batch[0], resolution) as image:
                     latents.append(torch.from_numpy(np.asarray(image).copy()))
-            elif self.config["latent_type"] != "latent":
+            elif self.load_latent_type != "latent":
                 latents.append(load_image_from_file(batch[0], resolution))
             else:
                 latents.append(load_from_file(batch[0]).to(dtype=torch.float32))
 
-            if self.config["embed_type"] in {"text", "token"}:
+            if self.load_embed_type == "text":
                 if batch[1] == "":
                     text = ""
                 else:
@@ -114,17 +148,27 @@ class DiffusionDataset(Dataset):
             else:
                 embeds.append(load_from_file(batch[1]))
 
-        if self.config["embed_type"] == "token":
-            embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=self.config["max_token_length"], truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
-
-        if self.config["latent_type"] in {"latent", "image_pt"}:
+        if self.load_latent_type in {"latent", "image_pt"}:
             latents = torch.stack(latents)
-        elif self.config["latent_type"] == "image_tensor":
+        elif self.load_latent_type == "image_tensor":
             latents = torch.stack(latents)
             latents = latents.permute(0,3,1,2).to(dtype=torch.float32)
             latents = latents.div_(127.5).sub_(1)
-        elif self.config["latent_type"] == "jpeg" and self.config["encode_dcts_with_cpu"]:
+
+
+        if self.latent_type == "jpeg" and self.encode_latents_with_cpu:
             latents = self.image_encoder.encode(latents, device="cpu")
+        elif not self.use_latent_dataset:
+            if self.encode_latents_with_cpu:
+                if self.latent_type == "latent":
+                    latents = encode_latents(self.latent_encoder, self.image_processor, latents, "cpu", self.model_type)
+
+        if self.embed_type == "token":
+            embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=512, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
+        elif not self.use_embed_dataset:
+            if self.encode_embeds_with_cpu:
+                if self.embed_type == "embed":
+                    embeds = encode_embeds(self.embed_encoder, embeds, "cpu", self.model_type)
 
         return (latents, embeds)
 

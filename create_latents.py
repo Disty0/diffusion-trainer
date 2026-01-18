@@ -129,7 +129,7 @@ def write_latents(
             save_image_paths.append(save_image_path)
         images.append(item[0])
     with torch.no_grad():
-        latents = latent_utils.encode_latents(latent_model, image_processor, images, args.model_type, device)
+        latents = latent_utils.encode_latents(latent_model, image_processor, images, device, args.model_type)
     getattr(torch, device.type).synchronize(device)
     for i in range(len(latent_paths)):
         cache_backend.save(latents[i], latent_paths[i])

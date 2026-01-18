@@ -393,7 +393,7 @@ def main() -> None:
                 image_tensors = torch.stack(image_tensors).to(accelerator.device, dtype=torch.float32)
             with accelerator.accumulate(model):
                 last_loss = loss
-                model_pred = latent_utils.decode_latents(model, image_processor, latents, config["model_type"], accelerator.device, return_image=False, mixed_precision=config["mixed_precision"])
+                model_pred = latent_utils.decode_latents(model, image_processor, latents, accelerator.device, config["model_type"], return_image=False, mixed_precision=config["mixed_precision"])
                 loss = loss_func(model_pred, image_tensors, reduction=config["loss_reduction"])
                 del model_pred
                 if grad_scaler is not None:

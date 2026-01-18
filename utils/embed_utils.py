@@ -5,44 +5,44 @@ from typing import List, Optional, Tuple
 from transformers import PreTrainedModel, PreTrainedTokenizer
 
 
-def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
     match model_type:
         case "sd3":
             from .models.sd3_utils import get_sd3_embed_encoder
-            return get_sd3_embed_encoder(path, device, dtype, dynamo_backend)
+            return get_sd3_embed_encoder(path, device, dtype, dynamo_backend, quantization_config=quantization_config)
         case "sdxl":
             from .models.sdxl_utils import get_sdxl_embed_encoder
-            return get_sdxl_embed_encoder(path, device, dtype, dynamo_backend)
+            return get_sdxl_embed_encoder(path, device, dtype, dynamo_backend, quantization_config=quantization_config)
         case "raiflow":
             from .models.raiflow_utils import get_raiflow_embed_encoder
-            return get_raiflow_embed_encoder(path, device, dtype, dynamo_backend)
+            return get_raiflow_embed_encoder(path, device, dtype, dynamo_backend, quantization_config=quantization_config)
         case "z_image":
             from .models.z_image_utils import get_z_image_embed_encoder
-            return get_z_image_embed_encoder(path, device, dtype, dynamo_backend)
+            return get_z_image_embed_encoder(path, device, dtype, dynamo_backend, quantization_config=quantization_config)
         case "flux2":
             from .models.flux2_utils import get_flux2_embed_encoder
-            return get_flux2_embed_encoder(path, device, dtype, dynamo_backend)
+            return get_flux2_embed_encoder(path, device, dtype, dynamo_backend, quantization_config=quantization_config)
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
-def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], device: torch.device, model_type: str, texts: List[str], prompt_images: Optional[List[Image.Image]] = None) -> torch.FloatTensor:
+def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], texts: List[str], device: torch.device, model_type: str, prompt_images: Optional[List[Image.Image]] = None) -> torch.FloatTensor:
     with torch.no_grad():
         match model_type:
             case "sd3":
                 from .models.sd3_utils import encode_sd3_embeds
-                return encode_sd3_embeds(embed_encoder, device, texts)
+                return encode_sd3_embeds(embed_encoder, texts, device)
             case "sdxl":
                 from .models.sdxl_utils import encode_sdxl_embeds
-                return encode_sdxl_embeds(embed_encoder, device, texts)
+                return encode_sdxl_embeds(embed_encoder, texts, device)
             case "raiflow":
                 from .models.raiflow_utils import encode_raiflow_embeds
-                return encode_raiflow_embeds(embed_encoder, device, texts, prompt_images=prompt_images)
+                return encode_raiflow_embeds(embed_encoder, texts, device, prompt_images=prompt_images)
             case "z_image":
                 from .models.z_image_utils import encode_z_image_embeds
-                return encode_z_image_embeds(embed_encoder, device, texts)
+                return encode_z_image_embeds(embed_encoder, texts, device)
             case "flux2":
                 from .models.flux2_utils import encode_flux2_embeds
-                return encode_flux2_embeds(embed_encoder, device, texts)
+                return encode_flux2_embeds(embed_encoder, texts, device)
             case _:
                 raise NotImplementedError(f"Model type {model_type} is not implemented")

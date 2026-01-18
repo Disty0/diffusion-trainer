@@ -127,7 +127,7 @@ def write_embeds(
         images.append(item[0])
     with torch.no_grad():
         text_batch = [args.text_prompt] * len(images)
-        embeds = embed_utils.encode_embeds(embed_encoder, device, args.model_type, text_batch, prompt_images=images)
+        embeds = embed_utils.encode_embeds(embed_encoder, text_batch, device, args.model_type, prompt_images=images)
     getattr(torch, device.type).synchronize(device)
     for i in range(len(embed_paths)):
         cache_backend.save(embeds[i], embed_paths[i])

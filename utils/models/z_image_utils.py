@@ -28,8 +28,11 @@ def get_z_image_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin,
     return latent_model, image_processor
 
 
-def get_z_image_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
-    pipe = diffusers.ZImagePipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype)
+def get_z_image_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
+    if quantization_config is not None:
+        from diffusers.quantizers import PipelineQuantizationConfig
+        quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder"])
+    pipe = diffusers.ZImagePipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype, quantization_config=quantization_config)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder.requires_grad_(False)
     if dynamo_backend != "no":
@@ -87,7 +90,7 @@ def encode_z_image_prompt(
 
 
 
-def encode_z_image_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], device: torch.device, texts: List[str]) -> List[List[torch.FloatTensor]]:
+def encode_z_image_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], texts: List[str], device: torch.device) -> List[List[torch.FloatTensor]]:
     return encode_z_image_prompt(embed_encoders[0], embed_encoders[1], texts, device=device)
 
 

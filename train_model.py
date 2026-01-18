@@ -19,7 +19,7 @@ from tqdm import tqdm
 from accelerate import Accelerator
 from torch.utils.data import DataLoader
 
-from utils import loader_utils, train_utils
+from utils import loader_utils, train_utils, latent_utils, embed_utils
 from utils.ema_model import EMAModel
 
 print_filler = "--------------------------------------------------"
@@ -196,14 +196,17 @@ def main() -> None:
         torch.nn.functional.scaled_dot_product_attention = dynamic_scaled_dot_product_attention
 
     os.makedirs(config["project_dir"], exist_ok=True)
-    if config["embed_type"] == "embed":
+    if config["embed_type"] == "embed" and config["use_embed_dataset"]:
         empty_embed_path = os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt")
         embed_suffix = "_" + config["model_type"] + "_embed.pt"
         empty_embed = loader_utils.load_from_file(empty_embed_path)
     else:
         empty_embed_path = os.path.join("empty_embeds", "empty.txt")
         embed_suffix = ".txt"
-        empty_embed = None
+        if config["embed_type"] == "embed":
+            empty_embed = loader_utils.load_from_file(os.path.join("empty_embeds", "empty_" + config["model_type"] + "_embed.pt"))
+        else:
+            empty_embed = None
 
     first_epoch = 0
     current_epoch = 0
@@ -285,12 +288,14 @@ def main() -> None:
     accelerator.print(print_filler)
 
     dtype = getattr(torch, config["weights_dtype"])
+    diffusion_model_is_offloaded = False
 
     accelerator.print(f"Loading diffusion models with dtype {dtype} and mixed precision {config['mixed_precision']} to device {accelerator.device}")
     if config["quantization_config"]["use_static_quantization"]:
         accelerator.print(f"Using quantized weights with dtype {config['quantization_config']['weights_dtype']} and group size {config['quantization_config']['group_size']}")
     if config["quantization_config"]["use_quantized_matmul"]:
         accelerator.print(f"Using quantized matmul with dtype {config['quantization_config']['quantized_matmul_dtype']}")
+    accelerator.print(f"Using quantization_config: {config['quantization_config']}")
     accelerator.print(print_filler)
 
     model, model_processor = train_utils.get_diffusion_model(config, accelerator.device, dtype)
@@ -298,6 +303,43 @@ def main() -> None:
         model.enable_gradient_checkpointing()
     model = accelerator.prepare(model)
     gc.collect()
+
+    if config["embed_type"] == "embed" and not config["use_embed_dataset"] and not config["encode_embeds_with_cpu"]:
+        embed_encoder_dtype = getattr(torch, config["embed_encoder_dtype"])
+        embed_encoder_device = "cpu" if config["offload_embed_encoder_to_cpu"] else accelerator.device
+        accelerator.print(print_filler)
+        accelerator.print(f"Loading embed encoder models with dtype {embed_encoder_dtype} to device {embed_encoder_device}")
+        if config["quantize_embed_encoder"]:
+            config["embed_encoder_quantization_config"]["quantization_device"] = accelerator.device
+            config["embed_encoder_quantization_config"]["return_device"] = embed_encoder_device
+            accelerator.print(f"Using quantization_config for embed encoder: {config['embed_encoder_quantization_config']}")
+        accelerator.print(print_filler)
+
+        if config["offload_diffusion_model_to_cpu"] and not diffusion_model_is_offloaded:
+            model = model.to("cpu")
+            diffusion_model_is_offloaded = True
+
+        embed_encoder = embed_utils.get_embed_encoder(config["model_type"], config["model_path"], embed_encoder_device, embed_encoder_dtype, config["dynamo_backend"], quantization_config=config["embed_encoder_quantization_config"] if config["quantize_embed_encoder"] else None)
+        gc.collect()
+    else:
+        embed_encoder = None
+
+    if config["latent_type"] == "latent" and not config["use_latent_dataset"] and not config["encode_latents_with_cpu"]:
+        latent_encoder_dtype = getattr(torch, config["latent_encoder_dtype"])
+        latent_encoder_device = "cpu" if config["offload_latent_encoder_to_cpu"] else accelerator.device
+        accelerator.print(print_filler)
+        accelerator.print(f"Loading latent encoder models with dtype {latent_encoder_dtype} to device {latent_encoder_device}")
+        accelerator.print(print_filler)
+
+        if config["offload_diffusion_model_to_cpu"] and not diffusion_model_is_offloaded:
+            model = model.to("cpu")
+            diffusion_model_is_offloaded = True
+
+        latent_encoder, image_processor = latent_utils.get_latent_model(config["model_type"], config["model_path"], latent_encoder_device, latent_encoder_dtype, config["dynamo_backend"])
+        gc.collect()
+    else:
+        latent_encoder, image_processor = None, None
+
 
     optimizer, lr_scheduler = train_utils.get_optimizer_and_lr_scheduler(config, model, accelerator, fused_optimizer_hook)
 
@@ -311,8 +353,13 @@ def main() -> None:
     gc.collect()
 
     batch_size = config["batch_size"]
+    if config["latent_type"] == "latent":
+        load_latent_type = "latent" if config["use_latent_dataset"] else "image"
+    else:
+        load_latent_type = config["latent_type"]
+
     if accelerator.is_local_main_process and not os.path.exists(config["dataset_index"]):
-        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix, config["model_type"], do_file_check=config["do_file_check"])
+        get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, load_latent_type, embed_suffix, config["model_type"], do_file_check=config["do_file_check"])
         gc.collect()
     accelerator.wait_for_everyone()
 
@@ -321,8 +368,9 @@ def main() -> None:
         epoch_batch = json.load(f)
     gc.collect()
 
-    accelerator.print(f'Setting up dataset loader: {config["latent_type"]} and {config["embed_type"]}')
+    accelerator.print(f'Setting up dataset loader: latent_type={config["latent_type"]}, embed_type={config["embed_type"]}, encode_latents_with_cpu={config["encode_latents_with_cpu"]}, encode_embeds_with_cpu={config["encode_embeds_with_cpu"]}, use_latent_dataset={config["use_latent_dataset"]}, use_embed_dataset={config["use_embed_dataset"]}')
     dataset = loader_utils.DiffusionDataset(epoch_batch, config)
+    accelerator.print(f'Using dataset loader: {dataset}')
     del epoch_batch
     gc.collect()
 
@@ -405,12 +453,50 @@ def main() -> None:
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
             with accelerator.accumulate(model):
                 last_loss = loss
+
+                if embed_encoder is not None:
+                    if config["offload_diffusion_model_to_cpu"] and not diffusion_model_is_offloaded:
+                        model = model.to("cpu", non_blocking=config["offload_diffusion_model_non_blocking_cpu"])
+                        diffusion_model_is_offloaded = True
+                    if config["offload_embed_encoder_to_cpu"]:
+                        if not isinstance(embed_encoder, (tuple, list)):
+                            embed_encoder = embed_encoder.to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
+                        elif isinstance(embed_encoder[0], (tuple, list)):
+                            for i in range(len(embed_encoder)):
+                                embed_encoder[i] = embed_encoder[i].to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
+                        else:
+                            embed_encoder[0] = embed_encoder[0].to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
+                    embeds_list = embed_utils.encode_embeds(embed_encoder, embeds_list, accelerator.device, config["model_type"])
+                    if config["offload_embed_encoder_to_cpu"]:
+                        if not isinstance(embed_encoder, (tuple, list)):
+                            embed_encoder = embed_encoder.to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
+                        elif isinstance(embed_encoder[0], (tuple, list)):
+                            for i in range(len(embed_encoder)):
+                                embed_encoder[i] = embed_encoder[i].to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
+                        else:
+                            embed_encoder[0] = embed_encoder[0].to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
+
+                if latent_encoder is not None:
+                    if config["offload_diffusion_model_to_cpu"] and not diffusion_model_is_offloaded:
+                        model = model.to("cpu", non_blocking=config["offload_diffusion_model_non_blocking_cpu"])
+                        diffusion_model_is_offloaded = True
+                    if config["offload_latent_encoder_to_cpu"]:
+                        latent_encoder = latent_encoder.to(accelerator.device, non_blocking=config["offload_latent_encoder_non_blocking"])
+                    latents_list = latent_utils.encode_latents(latent_encoder, image_processor, latents_list, accelerator.device, config["model_type"])
+                    if config["offload_latent_encoder_to_cpu"]:
+                        latent_encoder = latent_encoder.to("cpu", non_blocking=config["offload_latent_encoder_non_blocking_cpu"])
+
+                if diffusion_model_is_offloaded:
+                    model = model.to(accelerator.device, non_blocking=config["offload_diffusion_model_non_blocking"])
+                    diffusion_model_is_offloaded = False
+
                 loss, log_dict = train_utils.run_model(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
                 if grad_scaler is not None:
                     accelerator.backward(grad_scaler.scale(loss))
                 else:
                     accelerator.backward(loss)
                 loss = loss.detach().item()
+
                 if not config["fused_optimizer"]:
                     if accelerator.sync_gradients:
                         if grad_scaler is not None and (config["max_grad_clip"] > 0 or config["max_grad_norm"] > 0):
@@ -583,7 +669,7 @@ def main() -> None:
             gc.collect()
             if accelerator.is_local_main_process:
                 os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
-                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, config["latent_type"], embed_suffix, config["model_type"], do_file_check=config["do_file_check"])
+                get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, load_latent_type, embed_suffix, config["model_type"], do_file_check=config["do_file_check"])
                 gc.collect()
             accelerator.wait_for_everyone()
 
@@ -592,8 +678,9 @@ def main() -> None:
                 epoch_batch = json.load(f)
             gc.collect()
 
-            accelerator.print(f'Setting up dataset loader: {config["latent_type"]} and {config["embed_type"]}')
+            accelerator.print(f'Setting up dataset loader: latent_type={config["latent_type"]}, embed_type={config["embed_type"]}, encode_latents_with_cpu={config["encode_latents_with_cpu"]}, encode_embeds_with_cpu={config["encode_embeds_with_cpu"]}, use_latent_dataset={config["use_latent_dataset"]}, use_embed_dataset={config["use_embed_dataset"]}')
             dataset = loader_utils.DiffusionDataset(epoch_batch, config)
+            accelerator.print(f'Using dataset loader: {dataset}')
             del epoch_batch
             gc.collect()
 
