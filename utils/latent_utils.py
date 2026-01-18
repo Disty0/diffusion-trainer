@@ -21,6 +21,9 @@ def get_latent_model(model_type: str, path: str, device: torch.device, dtype: to
         case "z_image":
             from .models.z_image_utils import get_z_image_latent_model
             latent_model, image_processor = get_z_image_latent_model(path, dtype, dynamo_backend)
+        case "flux2":
+            from .models.flux2_utils import get_flux2_latent_model
+            latent_model, image_processor = get_flux2_latent_model(path, dtype, dynamo_backend)
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -33,14 +36,19 @@ def get_latent_model(model_type: str, path: str, device: torch.device, dtype: to
 
 
 def get_latent_model_class(model_type: str) -> type:
-    if model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
+    if model_type == "flux2":
+        return diffusers.AutoencoderKLFlux2
+    elif model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
         return diffusers.AutoencoderKL
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], model_type: str, device: torch.device) -> torch.FloatTensor:
-    if model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
+    if model_type == "flux2":
+        from .models.flux2_utils import encode_flux2_latents
+        return encode_flux2_latents(latent_model, image_processor, images, device)
+    elif model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
         return encode_vae_latents(latent_model, image_processor, images, device)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -55,7 +63,10 @@ def decode_latents(
     return_image: bool = True,
     mixed_precision: str = "no"
 ) -> Union[Image.Image, torch.FloatTensor]:
-    if model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
+    if model_type == "flux2":
+        from .models.flux2_utils import decode_flux2_latents
+        return decode_flux2_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
+    elif model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
         return decode_vae_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -67,14 +78,14 @@ def encode_vae_latents(latent_model: ModelMixin, image_processor: ImageProcessin
     latents = latent_model.encode(tensor_images).latent_dist.sample().to(dtype=torch.float32)
 
     with torch.no_grad():
-        if latent_model.config.latents_mean is not None:
+        if getattr(latent_model.config, "latents_mean", None) is not None:
             latents = latents - torch.tensor(latent_model.config.latents_mean, device=device, dtype=torch.float32).view(1,-1,1,1)
-        elif latent_model.config.shift_factor is not None and latent_model.config.shift_factor != 0:
+        elif getattr(latent_model.config, "shift_factor", None) is not None and latent_model.config.shift_factor != 0:
             latents = latents - latent_model.config.shift_factor
 
-        if latent_model.config.latents_std is not None:
+        if getattr(latent_model.config, "latents_std", None) is not None:
             latents = latents / torch.tensor(latent_model.config.latents_std, device=device, dtype=torch.float32).view(1,-1,1,1)
-        elif latent_model.config.scaling_factor is not None and latent_model.config.scaling_factor != 1:
+        elif getattr(latent_model.config, "scaling_factor", None) is not None and latent_model.config.scaling_factor != 1:
             latents = latents * latent_model.config.scaling_factor
 
     return latents.to(dtype=latent_model.dtype)
@@ -91,14 +102,14 @@ def decode_vae_latents(
     with torch.no_grad():
         latents = latents.to(device, dtype=torch.float32)
 
-        if latent_model.config.latents_std is not None:
+        if getattr(latent_model.config, "latents_std", None) is not None:
             latents = latents * torch.tensor(latent_model.config.latents_std, device=device, dtype=torch.float32).view(1,-1,1,1)
-        elif latent_model.config.scaling_factor is not None and latent_model.config.scaling_factor != 1:
+        elif getattr(latent_model.config, "scaling_factor", None) is not None and latent_model.config.scaling_factor != 1:
             latents = latents / latent_model.config.scaling_factor
 
-        if latent_model.config.latents_mean is not None:
+        if getattr(latent_model.config, "latents_mean", None) is not None:
             latents = latents + torch.tensor(latent_model.config.latents_mean, device=device, dtype=torch.float32).view(1,-1,1,1)
-        elif latent_model.config.shift_factor is not None and latent_model.config.shift_factor != 0:
+        elif getattr(latent_model.config, "shift_factor", None) is not None and latent_model.config.shift_factor != 0:
             latents = latents + latent_model.config.shift_factor
 
         if mixed_precision == "no":
@@ -108,4 +119,4 @@ def decode_vae_latents(
     if return_image:
         return image_processor.postprocess(image_tensor, output_type="pil")
     else:
-        return image_tensor.to(dtype=latent_model.dtype)
+        return image_tensor

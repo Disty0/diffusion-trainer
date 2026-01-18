@@ -120,7 +120,7 @@ def run_z_image_model_training(
             if random.randint(0,100) > config["dropout_rate"] * 100:
                 seq_len = max(seq_len, embeds_list[i].shape[0])
                 prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=embed_dtype))
-                if config["do_nan_embed_check"] and (embeds_list[i].isnan().any() or embeds_list[i].isnan().any()):
+                if config["do_nan_embed_check"] and embeds_list[i].isnan().any():
                     prompt_embeds.append(empty_embed.to(accelerator.device, dtype=embed_dtype))
                     empty_embeds_count += 1
                     nan_embeds_count += 1

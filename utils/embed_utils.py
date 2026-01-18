@@ -19,6 +19,9 @@ def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: t
         case "z_image":
             from .models.z_image_utils import get_z_image_embed_encoder
             return get_z_image_embed_encoder(path, device, dtype, dynamo_backend)
+        case "flux2":
+            from .models.flux2_utils import get_flux2_embed_encoder
+            return get_flux2_embed_encoder(path, device, dtype, dynamo_backend)
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -38,5 +41,8 @@ def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], de
             case "z_image":
                 from .models.z_image_utils import encode_z_image_embeds
                 return encode_z_image_embeds(embed_encoder, device, texts)
+            case "flux2":
+                from .models.flux2_utils import encode_flux2_embeds
+                return encode_flux2_embeds(embed_encoder, device, texts)
             case _:
                 raise NotImplementedError(f"Model type {model_type} is not implemented")
