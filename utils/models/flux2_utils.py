@@ -188,7 +188,7 @@ def run_flux2_model_training(
         )
 
         del latents
-        input_sigmas = sigmas
+        input_sigmas = sigmas.view(-1)
 
         if config["mixed_precision"] == "no":
             noisy_model_input = noisy_model_input.to(dtype=model.dtype)
