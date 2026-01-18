@@ -321,25 +321,8 @@ def main() -> None:
         epoch_batch = json.load(f)
     gc.collect()
 
-    if config["latent_type"] == "latent":
-        dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
-    elif config["latent_type"] == "image":
-        dataset = loader_utils.ImageTensorsAndEmbedsDataset(epoch_batch)
-    elif config["latent_type"] == "jpeg":
-        if config["encode_dcts_with_cpu"]:
-            if config["embed_type"] == "token":
-                from transformers import AutoTokenizer
-                dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=model_processor, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"), max_length=config["max_token_length"])
-            else:
-                dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=model_processor)
-        else:
-            if config["embed_type"] == "token":
-                from transformers import AutoTokenizer
-                dataset = loader_utils.ImagesAndTokensDataset(epoch_batch, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"), max_length=config["max_token_length"])
-            else:
-                dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
-    else:
-        raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
+    accelerator.print(f'Setting up dataset loader: {config["latent_type"]} and {config["embed_type"]}')
+    dataset = loader_utils.DiffusionDataset(epoch_batch, config)
     del epoch_batch
     gc.collect()
 
@@ -609,26 +592,8 @@ def main() -> None:
                 epoch_batch = json.load(f)
             gc.collect()
 
-            accelerator.print(f'Setting up dataset loader: {config["latent_type"]}')
-            if config["latent_type"] == "latent":
-                dataset = loader_utils.LatentsAndEmbedsDataset(epoch_batch)
-            elif config["latent_type"] == "image":
-                dataset = loader_utils.ImageTensorsAndEmbedsDataset(epoch_batch)
-            elif config["latent_type"] == "jpeg":
-                if config["encode_dcts_with_cpu"]:
-                    if config["embed_type"] == "token":
-                        from transformers import AutoTokenizer
-                        dataset = loader_utils.DCTsAndTokensDataset(epoch_batch, image_encoder=model_processor, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"), max_length=config["max_token_length"])
-                    else:
-                        dataset = loader_utils.DCTsAndEmbedsDataset(epoch_batch, image_encoder=model_processor)
-                else:
-                    if config["embed_type"] == "token":
-                        from transformers import AutoTokenizer
-                        dataset = loader_utils.ImagesAndTokensDataset(epoch_batch, tokenizer=AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer"), max_length=config["max_token_length"])
-                    else:
-                        dataset = loader_utils.ImagesAndEmbedsDataset(epoch_batch)
-            else:
-                raise NotImplementedError(F'Latent type {config["latent_type"]} is not implemented')
+            accelerator.print(f'Setting up dataset loader: {config["latent_type"]} and {config["embed_type"]}')
+            dataset = loader_utils.DiffusionDataset(epoch_batch, config)
             del epoch_batch
             gc.collect()
 

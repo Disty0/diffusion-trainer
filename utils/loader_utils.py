@@ -17,7 +17,7 @@ from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
 
 from typing import List, Tuple, Union
-from transformers import ImageProcessingMixin, PreTrainedTokenizer
+from transformers import ImageProcessingMixin, AutoTokenizer
 
 Image.MAX_IMAGE_PIXELS = 999999999 # 178956970
 warnings.filterwarnings("ignore", "Corrupt EXIF data", UserWarning)
@@ -73,9 +73,17 @@ def load_image_from_file(image_path: str, target_size: str) -> Image.Image:
         return image
 
 
-class LatentsAndEmbedsDataset(Dataset):
-    def __init__(self, batches: List[Tuple[str, str]]):
+class DiffusionDataset(Dataset):
+    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], config: dict):
         self.batches = batches
+        self.config = config
+
+        if self.config["embed_type"] == "token":
+            self.tokenizer = AutoTokenizer.from_pretrained(self.config["model_path"], subfolder="tokenizer")
+
+        if self.config["latent_type"] == "jpeg" and self.config["encode_dcts_with_cpu"]:
+            from raiflow import RaiFlowImageEncoder
+            self.image_encoder = RaiFlowImageEncoder.from_pretrained(self.config["model_path"], subfolder="image_encoder")
 
     def __len__(self) -> int:
         return len(self.batches)
@@ -84,11 +92,35 @@ class LatentsAndEmbedsDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
         latents = []
         embeds = []
-        # resolution = self.batches[index][1]
+        resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            latents.append(load_from_file(batch[0]).to(dtype=torch.float32))
-            embeds.append(load_from_file(batch[1]))
+            if self.config["latent_type"] != "latent":
+                with load_image_from_file(batch[0], resolution) as image:
+                    latents.append(torch.from_numpy(np.asarray(image).copy()))
+            else:
+                latents.append(load_from_file(batch[0]).to(dtype=torch.float32))
+
+            if self.config["embed_type"] in {"text", "token"}:
+                if batch[1] == "":
+                    text = ""
+                else:
+                    with open(batch[1], "r") as file:
+                        text = file.read()
+                    if text and text[-1] == "\n":
+                        text = text[:-1]
+                embeds.append(text)
+            else:
+                embeds.append(load_from_file(batch[1]))
+
+        if self.config["embed_type"] == "token":
+            embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=self.config["max_token_length"], truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
+
         latents = torch.stack(latents)
+        if self.config["latent_type"] == "image":
+            latents = latents.permute(0,3,1,2).to(dtype=torch.float32).div_(127.5).sub_(1)
+        elif self.config["latent_type"] == "jpeg" and self.config["encode_dcts_with_cpu"]:
+            latents = self.image_encoder.encode(latents, device="cpu")
+
         return (latents, embeds)
 
 
@@ -112,130 +144,6 @@ class LatentsAndImagesDataset(Dataset):
         latents = torch.stack(latents)
         image_tensors = torch.stack(image_tensors)
         return (latents, image_tensors)
-
-
-class ImagesAndEmbedsDataset(Dataset):
-    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]]):
-        self.batches = batches
-
-    def __len__(self) -> int:
-        return len(self.batches)
-
-    @torch.no_grad()
-    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
-        images = []
-        embeds = []
-        resolution = self.batches[index][1]
-        for batch in self.batches[index][0]:
-            with load_image_from_file(batch[0], resolution) as image:
-                images.append(torch.from_numpy(np.asarray(image).copy()))
-            embeds.append(load_from_file(batch[1]))
-        images = torch.stack(images)
-        return (images, embeds)
-
-
-class ImagesAndTokensDataset(Dataset):
-    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], tokenizer: PreTrainedTokenizer, max_length: int = 1024, pad_to_multiple_of: int = 256):
-        self.batches = batches
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        self.pad_to_multiple_of = pad_to_multiple_of
-
-    def __len__(self) -> int:
-        return len(self.batches)
-
-    @torch.no_grad()
-    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
-        images = []
-        embeds = []
-        resolution = self.batches[index][1]
-        for batch in self.batches[index][0]:
-            with load_image_from_file(batch[0], resolution) as image:
-                images.append(torch.from_numpy(np.asarray(image).copy()))
-            if batch[1] == "":
-                text = ""
-            else:
-                with open(batch[1], "r") as file:
-                    text = file.read()
-                if text and text[-1] == "\n":
-                    text = text[:-1]
-            embeds.append(text)
-        embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=self.pad_to_multiple_of, max_length=self.max_length, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
-        images = torch.stack(images)
-        return (images, embeds)
-
-
-class ImageTensorsAndEmbedsDataset(Dataset):
-    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]]):
-        self.batches = batches
-
-    def __len__(self) -> int:
-        return len(self.batches)
-
-    @torch.no_grad()
-    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
-        images = []
-        embeds = []
-        resolution = self.batches[index][1]
-        for batch in self.batches[index][0]:
-            with load_image_from_file(batch[0], resolution) as image:
-                images.append((torch.from_numpy(np.asarray(image).copy()).permute(2,0,1).to(dtype=torch.float32) / 127.5) - 1) # -1 to 1 range
-            embeds.append(load_from_file(batch[1]))
-        images = torch.stack(images)
-        return (images, embeds)
-
-
-class DCTsAndEmbedsDataset(Dataset):
-    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], image_encoder: ImageProcessingMixin):
-        self.batches = batches
-        self.image_encoder = image_encoder
-
-    def __len__(self) -> int:
-        return len(self.batches)
-
-    @torch.no_grad()
-    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
-        dcts = []
-        embeds = []
-        resolution = self.batches[index][1]
-        for batch in self.batches[index][0]:
-            with load_image_from_file(batch[0], resolution) as image:
-                dcts.append(self.image_encoder.encode(image, device="cpu")[0])
-            embeds.append(load_from_file(batch[1]))
-        dcts = torch.stack(dcts)
-        return (dcts, embeds)
-
-
-class DCTsAndTokensDataset(Dataset):
-    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], image_encoder: ImageProcessingMixin, tokenizer: PreTrainedTokenizer, max_length: int = 1024, pad_to_multiple_of: int = 256):
-        self.batches = batches
-        self.image_encoder = image_encoder
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        self.pad_to_multiple_of = pad_to_multiple_of
-
-    def __len__(self) -> int:
-        return len(self.batches)
-
-    @torch.no_grad()
-    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
-        dcts = []
-        embeds = []
-        resolution = self.batches[index][1]
-        for batch in self.batches[index][0]:
-            with load_image_from_file(batch[0], resolution) as image:
-                dcts.append(self.image_encoder.encode(image, device="cpu")[0])
-            if batch[1] == "":
-                text = ""
-            else:
-                with open(batch[1], "r") as file:
-                    text = file.read()
-                if text and text[-1] == "\n":
-                    text = text[:-1]
-            embeds.append(text)
-        embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=self.pad_to_multiple_of, max_length=self.max_length, truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
-        dcts = torch.stack(dcts)
-        return (dcts, embeds)
 
 
 class SaveBackend():
