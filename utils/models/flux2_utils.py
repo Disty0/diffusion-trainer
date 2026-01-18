@@ -184,7 +184,7 @@ def run_flux2_model_training(
             latents=latents,
             device=accelerator.device,
             sampler_config=config["sampler_config"],
-            num_train_timesteps=model.config.num_train_timesteps,
+            num_train_timesteps=1000,
         )
 
         del latents
