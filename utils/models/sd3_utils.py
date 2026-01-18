@@ -47,7 +47,7 @@ def get_sd3_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, d
     tokenizer_2 = pipe.tokenizer_2
     tokenizer_3 = pipe.tokenizer_3
     del pipe
-    return ((text_encoder, text_encoder_2, text_encoder_3), (tokenizer, tokenizer_2, tokenizer_3))
+    return [[text_encoder, text_encoder_2, text_encoder_3], [tokenizer, tokenizer_2, tokenizer_3]]
 
 
 def _encode_sd3_prompt_with_t5(

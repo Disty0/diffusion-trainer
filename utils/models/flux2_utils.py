@@ -64,7 +64,7 @@ def decode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcess
         return image_tensor
 
 
-def get_flux2_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
+def get_flux2_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
     if quantization_config is not None:
         from diffusers.quantizers import PipelineQuantizationConfig
         quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder"])
@@ -75,7 +75,7 @@ def get_flux2_embed_encoder(path: str, device: torch.device, dtype: torch.dtype,
         text_encoder = torch.compile(text_encoder, backend=dynamo_backend)
     tokenizer = pipe.tokenizer
     del pipe
-    return (text_encoder, tokenizer)
+    return [text_encoder, tokenizer]
 
 
 def encode_flux2_prompt(

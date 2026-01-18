@@ -43,7 +43,7 @@ def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtyp
         text_encoder = torch.compile(text_encoder, backend=dynamo_backend)
     tokenizer = pipe.tokenizer
     del pipe
-    return (text_encoder, tokenizer)
+    return [text_encoder, tokenizer]
 
 
 def encode_raiflow_prompt(

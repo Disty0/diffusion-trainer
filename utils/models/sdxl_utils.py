@@ -43,7 +43,7 @@ def get_sdxl_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, 
     tokenizer = pipe.tokenizer
     tokenizer_2 = pipe.tokenizer_2
     del pipe
-    return ((text_encoder, text_encoder_2), (tokenizer, tokenizer_2))
+    return [[text_encoder, text_encoder_2], [tokenizer, tokenizer_2]]
 
 
 def encode_sdxl_prompt(
