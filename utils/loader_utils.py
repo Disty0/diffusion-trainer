@@ -94,9 +94,11 @@ class DiffusionDataset(Dataset):
         embeds = []
         resolution = self.batches[index][1]
         for batch in self.batches[index][0]:
-            if self.config["latent_type"] != "latent":
+            if self.config["latent_type"] == "image_tensor":
                 with load_image_from_file(batch[0], resolution) as image:
                     latents.append(torch.from_numpy(np.asarray(image).copy()))
+            elif self.config["latent_type"] != "latent":
+                latents.append(load_image_from_file(batch[0], resolution))
             else:
                 latents.append(load_from_file(batch[0]).to(dtype=torch.float32))
 
@@ -115,9 +117,12 @@ class DiffusionDataset(Dataset):
         if self.config["embed_type"] == "token":
             embeds = self.tokenizer(text=embeds, padding="longest", pad_to_multiple_of=256, max_length=self.config["max_token_length"], truncation=True, add_special_tokens=True, return_tensors="pt").input_ids
 
-        latents = torch.stack(latents)
-        if self.config["latent_type"] == "image_tensor":
-            latents = latents.permute(0,3,1,2).to(dtype=torch.float32).div_(127.5).sub_(1)
+        if self.config["latent_type"] == "latent":
+            latents = torch.stack(latents)
+        elif self.config["latent_type"] == "image_tensor":
+            latents = torch.stack(latents)
+            latents = latents.permute(0,3,1,2).to(dtype=torch.float32)
+            latents = latents.div_(127.5).sub_(1)
         elif self.config["latent_type"] == "jpeg" and self.config["encode_dcts_with_cpu"]:
             latents = self.image_encoder.encode(latents, device="cpu")
 
@@ -226,8 +231,9 @@ class ImageBackend():
             elif not self.batches.empty():
                 batches = self.batches.get()
                 current_batch = []
+                resolution = batches[1]
                 for batch in batches[0]:
-                    current_batch.append((load_image_from_file(batch, batches[1]), batch))
+                    current_batch.append((load_image_from_file(batch, resolution), batch))
                 self.load_queue.put(current_batch)
                 self.load_queue_lenght += 1
             else:
