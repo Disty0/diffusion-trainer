@@ -316,6 +316,7 @@ def main() -> None:
         else:
             resume_checkpoint = config["resume_from"]
         if resume_checkpoint is None:
+            accelerator.print(print_filler)
             accelerator.print("No checkpoint found, starting a fresh training run")
         else:
             accelerator.print(f"Resuming from: {resume_checkpoint}")
