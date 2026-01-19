@@ -173,6 +173,8 @@ def run_sd3_model_training(
             latents = torch.stack(latents)
             latents = latents.to(accelerator.device, dtype=torch.float32)
 
+        batch_size, _, height, width = latents.shape
+
         prompt_embeds = []
         pooled_embeds = []
         empty_embeds_count = 0
@@ -260,6 +262,7 @@ def run_sd3_model_training(
         "self_correct_count": self_correct_count,
         "masked_count": masked_count,
         "seq_len": prompt_embeds.shape[1],
+        "latent_seq_len": int(height*width),
     }
 
     del prompt_embeds, pooled_embeds, noisy_model_input, timesteps

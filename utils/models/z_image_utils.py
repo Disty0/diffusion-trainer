@@ -114,6 +114,8 @@ def run_z_image_model_training(
             latents = torch.stack(latents)
             latents = latents.to(accelerator.device, dtype=torch.float32)
 
+        batch_size, _, height, width = latents.shape
+
         seq_len = empty_embed.shape[0]
         prompt_embeds = []
         empty_embeds_count = 0
@@ -201,6 +203,7 @@ def run_z_image_model_training(
         "self_correct_count": self_correct_count,
         "masked_count": masked_count,
         "seq_len": seq_len,
+        "latent_seq_len": int(height*width),
     }
 
     del prompt_embeds, noisy_model_input, timesteps, input_sigmas

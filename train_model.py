@@ -639,6 +639,8 @@ def main() -> None:
                             logs["ema_decay"] = ema_model.get_decay(ema_model.optimization_step)
                     if log_dict.get("seq_len", None) is not None:
                         logs["seq_len"] = log_dict["seq_len"]
+                    if log_dict.get("latent_seq_len", None) is not None:
+                        logs["latent_seq_len"] = log_dict["latent_seq_len"]
 
                     progress_bar.set_postfix(**logs)
                     if config["dropout_rate"] > 0:

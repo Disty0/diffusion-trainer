@@ -153,6 +153,8 @@ def run_flux2_model_training(
             latents = torch.stack(latents)
             latents = latents.to(accelerator.device, dtype=torch.float32)
 
+        batch_size, _, height, width = latents.shape
+
         prompt_embeds = []
         empty_embeds_count = 0
         nan_embeds_count= 0
@@ -175,7 +177,6 @@ def run_flux2_model_training(
         if current_text_ids is None or current_text_ids_batch_size != batch_size or current_text_ids_seq_len != seq_len:
             current_text_ids = prepare_text_ids(batch_size, seq_len, accelerator.device)
         
-        batch_size, _, height, width = latents.shape
         global current_latent_ids, current_latent_ids_batch_size, current_latent_ids_height, current_latent_ids_width
         if current_latent_ids is None or current_latent_ids_batch_size != batch_size or current_latent_ids_height != height or current_latent_ids_width != width:
             current_latent_ids = prepare_latent_ids(batch_size, height, width, accelerator.device)
@@ -254,6 +255,7 @@ def run_flux2_model_training(
         "self_correct_count": self_correct_count,
         "masked_count": masked_count,
         "seq_len": prompt_embeds.shape[1],
+        "latent_seq_len": int(height*width),
     }
 
     del prompt_embeds, noisy_model_input, timesteps, input_sigmas
