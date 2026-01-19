@@ -141,18 +141,32 @@ def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]]
         bucket_progress_bar.update(1)
 
     bucket_progress_bar.close()
+    num_of_batches = len(epoch_batch)
 
     print(print_filler)
     print(f"Images that got left out from the epoch: {images_left_out_count}")
-    print(f"Total images left in the epoch: {len(epoch_batch) * batch_size}")
-    print(f"Batches * Batch Size: {len(epoch_batch)} * {batch_size}")
+    print(f"Total images left in the epoch: {num_of_batches * batch_size}")
+    print(f"Batches * Batch Size: {num_of_batches} * {batch_size}")
     print(print_filler + "\n")
 
-    random.shuffle(epoch_batch)
-    os.makedirs(os.path.dirname(dataset_index), exist_ok=True)
     print(f"Saving dataset index to: {dataset_index}")
-    with open(dataset_index, "w") as f:
-        json.dump(epoch_batch, f)
+    random.shuffle(epoch_batch)
+
+    save_progress_bar = tqdm(total=num_of_batches)
+    save_progress_bar.set_description("Saving batches")
+
+    os.makedirs(dataset_index, exist_ok=True)
+    with open(os.path.join(dataset_index, "num_of_batches.txt"), "w") as f:
+        f.write(str(num_of_batches))
+
+    for i in range(num_of_batches):
+        folder = os.path.join(dataset_index, str(int(i / 10000)))
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, str(i)+".json"), "w") as f:
+            json.dump(epoch_batch.pop(-1), f)
+        save_progress_bar.update(1)
+    save_progress_bar.close()
+    del epoch_batch
 
 
 def main() -> None:
@@ -375,15 +389,9 @@ def main() -> None:
         gc.collect()
     accelerator.wait_for_everyone()
 
-    accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
-    with open(config["dataset_index"], "r") as f:
-        epoch_batch = json.load(f)
-    gc.collect()
-
-    accelerator.print(f'Setting up dataset loader: latent_type={config["latent_type"]}, embed_type={config["embed_type"]}, encode_latents_with_cpu={config["encode_latents_with_cpu"]}, encode_embeds_with_cpu={config["encode_embeds_with_cpu"]}, use_latent_dataset={config["use_latent_dataset"]}, use_embed_dataset={config["use_embed_dataset"]}')
-    dataset = loader_utils.DiffusionDataset(epoch_batch, config)
+    accelerator.print(f'Setting up dataset loader: dataset_index={config["dataset_index"]}, latent_type={config["latent_type"]}, embed_type={config["embed_type"]}, encode_latents_with_cpu={config["encode_latents_with_cpu"]}, encode_embeds_with_cpu={config["encode_embeds_with_cpu"]}, use_latent_dataset={config["use_latent_dataset"]}, use_embed_dataset={config["use_embed_dataset"]}')
+    dataset = loader_utils.DiffusionDataset(config["dataset_index"], config)
     accelerator.print(f'Using dataset loader: {dataset}')
-    del epoch_batch
     gc.collect()
 
     train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))
@@ -685,20 +693,14 @@ def main() -> None:
             del train_dataloader
             gc.collect()
             if accelerator.is_local_main_process:
-                os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1)+".json")
+                os.rename(config["dataset_index"], config["dataset_index"]+"-epoch_"+str(current_epoch-1))
                 get_batches(batch_size, config["dataset_paths"], config["dataset_index"], empty_embed_path, load_latent_type, embed_suffix, config["model_type"], do_file_check=config["do_file_check"])
                 gc.collect()
             accelerator.wait_for_everyone()
 
-            accelerator.print(f'Loading dataset index: {config["dataset_index"]}')
-            with open(config["dataset_index"], "r") as f:
-                epoch_batch = json.load(f)
-            gc.collect()
-
             accelerator.print(f'Setting up dataset loader: latent_type={config["latent_type"]}, embed_type={config["embed_type"]}, encode_latents_with_cpu={config["encode_latents_with_cpu"]}, encode_embeds_with_cpu={config["encode_embeds_with_cpu"]}, use_latent_dataset={config["use_latent_dataset"]}, use_embed_dataset={config["use_embed_dataset"]}')
-            dataset = loader_utils.DiffusionDataset(epoch_batch, config)
+            dataset = loader_utils.DiffusionDataset(config["dataset_index"], config)
             accelerator.print(f'Using dataset loader: {dataset}')
-            del epoch_batch
             gc.collect()
 
             train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True, num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]))

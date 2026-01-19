@@ -1,6 +1,7 @@
 import os
 import gc
 import math
+import json
 import time
 import random
 import warnings
@@ -77,8 +78,11 @@ def load_image_from_file(image_path: str, target_size: str) -> Image.Image:
 
 
 class DiffusionDataset(Dataset):
-    def __init__(self, batches: List[Tuple[List[Tuple[str, str]], str]], config: dict):
-        self.batches = batches
+    def __init__(self, dataset_index: str, config: dict):
+        self.dataset_index = dataset_index
+        with open(os.path.join(self.dataset_index, "num_of_batches.txt"), "r") as f:
+            self.num_of_batches = int(f.read().strip())
+
         self.model_type = config["model_type"]
         self.latent_type = config["latent_type"]
         self.embed_type = config["embed_type"]
@@ -117,17 +121,19 @@ class DiffusionDataset(Dataset):
 
 
     def __len__(self) -> int:
-        return len(self.batches)
+        return self.num_of_batches
 
     def __repr__(self) -> str:
-        return f"DiffusionDataset(batches={len(self.batches)}, model_type={self.model_type}, latent_type={self.latent_type}, embed_type={self.embed_type}, load_latent_type={self.load_latent_type}, load_embed_type={self.load_embed_type}, encode_latents_with_cpu={self.encode_latents_with_cpu}, encode_embeds_with_cpu={self.encode_embeds_with_cpu}, use_latent_dataset={self.use_latent_dataset}, use_embed_dataset={self.use_embed_dataset})"
+        return f"DiffusionDataset(dataset_index={self.dataset_index}, num_of_batches={self.num_of_batches}, model_type={self.model_type}, latent_type={self.latent_type}, embed_type={self.embed_type}, load_latent_type={self.load_latent_type}, load_embed_type={self.load_embed_type}, encode_latents_with_cpu={self.encode_latents_with_cpu}, encode_embeds_with_cpu={self.encode_embeds_with_cpu}, use_latent_dataset={self.use_latent_dataset}, use_embed_dataset={self.use_embed_dataset})"
 
     @torch.no_grad()
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
+        with open(os.path.join(self.dataset_index, str(int(index / 10000)), str(index)+".json"), "r") as f:
+            current_batch = json.load(f)
         latents = []
         embeds = []
-        resolution = self.batches[index][1]
-        for batch in self.batches[index][0]:
+        resolution = current_batch[1]
+        for batch in current_batch[0]:
             if self.load_latent_type in {"image_tensor", "image_pt"}:
                 with load_image_from_file(batch[0], resolution) as image:
                     latents.append(torch.from_numpy(np.asarray(image).copy()))
@@ -174,19 +180,26 @@ class DiffusionDataset(Dataset):
 
 
 class LatentDecoderDataset(Dataset):
-    def __init__(self, batches: List[Tuple[str, str]], image_processor: ImageProcessingMixin):
-        self.batches = batches
+    def __init__(self, dataset_index: str, image_processor: ImageProcessingMixin):
+        self.dataset_index = dataset_index
+        with open(os.path.join(self.dataset_index, "num_of_batches.txt"), "r") as f:
+            self.num_of_batches = int(f.read().strip())
         self.image_processor = image_processor
 
     def __len__(self) -> int:
-        return len(self.batches)
+        return self.num_of_batches
+
+    def __repr__(self) -> str:
+        return f"LatentDecoderDataset(dataset_index={self.dataset_index}, num_of_batches={self.num_of_batches}, image_processor={self.image_processor})"
 
     @torch.no_grad()
     def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
+        with open(os.path.join(self.dataset_index, str(int(index / 10000)), str(index)+".json"), "r") as f:
+            current_batch = json.load(f)
         latents = []
         image_tensors = []
-        # resolution = self.batches[index][1]
-        for batch in self.batches[index][0]:
+        # resolution = current_batch[1]
+        for batch in current_batch[0]:
             latents.append(load_from_file(batch[0]).to(dtype=torch.float32))
             with Image.open(batch[1]) as image:
                 image_tensors.append(self.image_processor.preprocess(image)[0])

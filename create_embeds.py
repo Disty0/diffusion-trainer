@@ -156,7 +156,7 @@ def main():
     print(f"Starting to encode {epoch_len} batches with batch size {args.batch_size}")
     for steps_done in tqdm(range(epoch_len)):
         try:
-            write_embeds(embed_encoder, device, args, cache_backend, text_batches.pop(0), embed_pathes.pop(0))
+            write_embeds(embed_encoder, device, args, cache_backend, text_batches.pop(-1), embed_pathes.pop(-1))
             if steps_done % args.gc_steps == 0:
                 gc.collect()
                 if device.type != "cpu":

@@ -121,7 +121,7 @@
     "log_with": "wandb",
     "project_name": "raiflow",
     "resume_from": "latest",
-    "dataset_index": "cache/dataset_index_256_32.json",
+    "dataset_index": "cache/dataset_index_256_32",
     "project_dir": "/mnt/DataSSD/AI/models/RaiFlow/train_model",
     "dataset_paths": [
         {

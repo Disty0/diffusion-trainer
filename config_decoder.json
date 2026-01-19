@@ -54,7 +54,7 @@
     "log_with": "wandb",
     "project_name": "anime_decoder",
     "resume_from": "none",
-    "dataset_index": "cache/decoder_dataset_index.json",
+    "dataset_index": "cache/decoder_dataset_index",
     "project_dir": "/mnt/DataSSD/AI/models/SoteDiffusion/StableDiffusion3/train_decoder",
     "image_ext": ".jxl",
     "dataset_paths": [
