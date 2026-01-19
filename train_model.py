@@ -163,7 +163,7 @@ def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]]
         folder = os.path.join(dataset_index, str(int(i / 10000)))
         os.makedirs(folder, exist_ok=True)
         with open(os.path.join(folder, str(i)+".json"), "w") as f:
-            json.dump(epoch_batch.pop(-1), f)
+            json.dump(epoch_batch[i], f)
         save_progress_bar.update(1)
     save_progress_bar.close()
     del epoch_batch
