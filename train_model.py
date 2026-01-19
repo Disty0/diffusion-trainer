@@ -319,7 +319,8 @@ def main() -> None:
             model = model.to("cpu")
             diffusion_model_is_offloaded = True
 
-        embed_encoder = embed_utils.get_embed_encoder(config["model_type"], config["model_path"], embed_encoder_device, embed_encoder_dtype, config["dynamo_backend"], quantization_config=config["embed_encoder_quantization_config"] if config["quantize_embed_encoder"] else None)
+        with torch.no_grad():
+            embed_encoder = embed_utils.get_embed_encoder(config["model_type"], config["model_path"], embed_encoder_device, embed_encoder_dtype, config["dynamo_backend"], quantization_config=config["embed_encoder_quantization_config"] if config["quantize_embed_encoder"] else None)
         gc.collect()
     else:
         embed_encoder = None
@@ -335,17 +336,18 @@ def main() -> None:
             model = model.to("cpu")
             diffusion_model_is_offloaded = True
 
-        latent_encoder, image_processor = latent_utils.get_latent_model(config["model_type"], config["model_path"], latent_encoder_device, latent_encoder_dtype, config["dynamo_backend"])
-        if hasattr(latent_encoder, "decoder") and hasattr(latent_encoder, "encoder"):
-            latent_encoder.eval()
-            latent_encoder.requires_grad_(False)
-            latent_encoder.encoder.eval()
-            latent_encoder.encoder.requires_grad_(False)
-            latent_encoder.decoder.eval()
-            latent_encoder.decoder.requires_grad_(False)
-        else:
-            latent_encoder.eval()
-            latent_encoder.requires_grad_(False)
+        with torch.no_grad():
+            latent_encoder, image_processor = latent_utils.get_latent_model(config["model_type"], config["model_path"], latent_encoder_device, latent_encoder_dtype, config["dynamo_backend"])
+            if hasattr(latent_encoder, "decoder") and hasattr(latent_encoder, "encoder"):
+                latent_encoder.eval()
+                latent_encoder.requires_grad_(False)
+                latent_encoder.encoder.eval()
+                latent_encoder.encoder.requires_grad_(False)
+                latent_encoder.decoder.eval()
+                latent_encoder.decoder.requires_grad_(False)
+            else:
+                latent_encoder.eval()
+                latent_encoder.requires_grad_(False)
         gc.collect()
     else:
         latent_encoder, image_processor = None, None
