@@ -42,7 +42,7 @@ def encode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcess
     with torch.no_grad():
         tensor_images = image_processor.preprocess(images).to(device, dtype=latent_model.dtype)
         latents_bn_mean = latent_model.bn.running_mean.view(1, -1, 1, 1).to(device, dtype=torch.float32)
-        latents_bn_std = latent_model.bn.running_var.view(1, -1, 1, 1).to(device, dtype=torch.float32).add_(latent_model.config.batch_norm_eps).sqrt_()
+        latents_bn_std = latent_model.bn.running_var.view(1, -1, 1, 1).to(device, dtype=torch.float32).add(latent_model.config.batch_norm_eps).sqrt_()
     latents = latent_model.encode(tensor_images).latent_dist.mode()
     latents = torch.nn.functional.pixel_unshuffle(latents, 2).to(dtype=torch.float32)
     latents = ((latents - latents_bn_mean) / latents_bn_std).to(dtype=latent_model.dtype)
@@ -52,7 +52,7 @@ def encode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcess
 def decode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, latents: torch.FloatTensor, device: torch.device, return_image: bool = True, mixed_precision: str = "no") -> Union[Image.Image, torch.FloatTensor]:
     with torch.no_grad():
         latents_bn_mean = latent_model.bn.running_mean.view(1, -1, 1, 1).to(device, dtype=torch.float32)
-        latents_bn_std = latent_model.bn.running_var.view(1, -1, 1, 1).to(device, dtype=torch.float32).add_(latent_model.config.batch_norm_eps).sqrt_()
+        latents_bn_std = latent_model.bn.running_var.view(1, -1, 1, 1).to(device, dtype=torch.float32).add(latent_model.config.batch_norm_eps).sqrt_()
     latents = torch.addcmul(latents_bn_mean, latents.to(dtype=torch.float32), latents_bn_std)
     if mixed_precision == "no":
         latents = latents.to(dtype=latent_model.dtype)
