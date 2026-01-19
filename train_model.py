@@ -336,6 +336,16 @@ def main() -> None:
             diffusion_model_is_offloaded = True
 
         latent_encoder, image_processor = latent_utils.get_latent_model(config["model_type"], config["model_path"], latent_encoder_device, latent_encoder_dtype, config["dynamo_backend"])
+        if hasattr(latent_encoder, "decoder") and hasattr(latent_encoder, "encoder"):
+            latent_encoder.eval()
+            latent_encoder.requires_grad_(False)
+            latent_encoder.encoder.eval()
+            latent_encoder.encoder.requires_grad_(False)
+            latent_encoder.decoder.eval()
+            latent_encoder.decoder.requires_grad_(False)
+        else:
+            latent_encoder.eval()
+            latent_encoder.requires_grad_(False)
         gc.collect()
     else:
         latent_encoder, image_processor = None, None
@@ -459,33 +469,35 @@ def main() -> None:
                     if config["offload_diffusion_model_to_cpu"] and not diffusion_model_is_offloaded:
                         model = model.to("cpu", non_blocking=config["offload_diffusion_model_non_blocking_cpu"])
                         diffusion_model_is_offloaded = True
-                    if config["offload_embed_encoder_to_cpu"]:
-                        if not isinstance(embed_encoder, (tuple, list)):
-                            embed_encoder = embed_encoder.to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
-                        elif isinstance(embed_encoder[0], (tuple, list)):
-                            for i in range(len(embed_encoder)):
-                                embed_encoder[i] = embed_encoder[i].to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
-                        else:
-                            embed_encoder[0] = embed_encoder[0].to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
-                    embeds_list = embed_utils.encode_embeds(embed_encoder, embeds_list, accelerator.device, config["model_type"])
-                    if config["offload_embed_encoder_to_cpu"]:
-                        if not isinstance(embed_encoder, (tuple, list)):
-                            embed_encoder = embed_encoder.to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
-                        elif isinstance(embed_encoder[0], (tuple, list)):
-                            for i in range(len(embed_encoder)):
-                                embed_encoder[i] = embed_encoder[i].to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
-                        else:
-                            embed_encoder[0] = embed_encoder[0].to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
+                    with torch.no_grad():
+                        if config["offload_embed_encoder_to_cpu"]:
+                            if not isinstance(embed_encoder, (tuple, list)):
+                                embed_encoder = embed_encoder.to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
+                            elif isinstance(embed_encoder[0], (tuple, list)):
+                                for i in range(len(embed_encoder)):
+                                    embed_encoder[i] = embed_encoder[i].to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
+                            else:
+                                embed_encoder[0] = embed_encoder[0].to(accelerator.device, non_blocking=config["offload_embed_encoder_non_blocking"])
+                        embeds_list = embed_utils.encode_embeds(embed_encoder, embeds_list, accelerator.device, config["model_type"])
+                        if config["offload_embed_encoder_to_cpu"]:
+                            if not isinstance(embed_encoder, (tuple, list)):
+                                embed_encoder = embed_encoder.to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
+                            elif isinstance(embed_encoder[0], (tuple, list)):
+                                for i in range(len(embed_encoder)):
+                                    embed_encoder[i] = embed_encoder[i].to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
+                            else:
+                                embed_encoder[0] = embed_encoder[0].to("cpu", non_blocking=config["offload_embed_encoder_non_blocking_cpu"])
 
                 if latent_encoder is not None:
                     if config["offload_diffusion_model_to_cpu"] and not diffusion_model_is_offloaded:
                         model = model.to("cpu", non_blocking=config["offload_diffusion_model_non_blocking_cpu"])
                         diffusion_model_is_offloaded = True
-                    if config["offload_latent_encoder_to_cpu"]:
-                        latent_encoder = latent_encoder.to(accelerator.device, non_blocking=config["offload_latent_encoder_non_blocking"])
-                    latents_list = latent_utils.encode_latents(latent_encoder, image_processor, latents_list, accelerator.device, config["model_type"])
-                    if config["offload_latent_encoder_to_cpu"]:
-                        latent_encoder = latent_encoder.to("cpu", non_blocking=config["offload_latent_encoder_non_blocking_cpu"])
+                    with torch.no_grad():
+                        if config["offload_latent_encoder_to_cpu"]:
+                            latent_encoder = latent_encoder.to(accelerator.device, non_blocking=config["offload_latent_encoder_non_blocking"])
+                        latents_list = latent_utils.encode_latents(latent_encoder, image_processor, latents_list, accelerator.device, config["model_type"])
+                        if config["offload_latent_encoder_to_cpu"]:
+                            latent_encoder = latent_encoder.to("cpu", non_blocking=config["offload_latent_encoder_non_blocking_cpu"])
 
                 if diffusion_model_is_offloaded:
                     model = model.to(accelerator.device, non_blocking=config["offload_diffusion_model_non_blocking"])
