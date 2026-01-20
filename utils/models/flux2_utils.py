@@ -87,7 +87,7 @@ def encode_flux2_prompt(
     hidden_states_layers: List[int] = (9, 18, 27),
 ) -> torch.FloatTensor:
     prompt = [prompt] if isinstance(prompt, str) else prompt
-    prompt = [[{"role": "user", "content": [{"type": "text", "text": p}]}] for p in prompt]
+    prompt = [[{"role": "user", "content": p}] for p in prompt]
 
     inputs = tokenizer.apply_chat_template(
         prompt,
