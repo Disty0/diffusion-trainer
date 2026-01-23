@@ -48,6 +48,7 @@
     "checkpoint_save_steps": 256,
     "checkpoints_limit": 20,
     "load_queue_lenght": 64,
+    "dataloader_pin_memory": false,
     "max_load_workers": 4,
     "reshuffle": true,
     "do_file_check": true,
