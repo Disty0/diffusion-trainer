@@ -420,6 +420,7 @@ def main() -> None:
             first_epoch = current_step // math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"])
             current_epoch = first_epoch
             start_step = current_step
+        gc.collect()
 
     if config["use_ema"] and accelerator.is_main_process:
         ema_dtype = getattr(torch, config["ema_weights_dtype"])
@@ -439,6 +440,7 @@ def main() -> None:
             del orig_model
         if config["offload_ema_pin_memory"]:
             ema_model.pin_memory()
+        gc.collect()
 
     accelerator.init_trackers(project_name=config["project_name"], config=config)
 
