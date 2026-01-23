@@ -318,6 +318,7 @@ def main() -> None:
 
     resume_checkpoint = None
     if config.get("resume_from", "") and config["resume_from"] != "none":
+        accelerator.print(f"Resuming from: {resume_checkpoint}")
         if config["resume_from"] == "latest":
             checkpoints = os.listdir(config["project_dir"])
             checkpoints = [d for d in checkpoints if d.startswith("checkpoint-")]
@@ -330,7 +331,6 @@ def main() -> None:
             accelerator.print(print_filler)
             accelerator.print("No checkpoint found, starting a fresh training run")
         else:
-            accelerator.print(f"Resuming from: {resume_checkpoint}")
             accelerator.load_state(os.path.join(config["project_dir"], resume_checkpoint))
             current_step = int(resume_checkpoint.split("-")[1])
             first_epoch = current_step // math.ceil(len(train_dataloader) / config["gradient_accumulation_steps"])
@@ -356,7 +356,6 @@ def main() -> None:
             del orig_model
         if config["offload_ema_pin_memory"]:
             ema_model.pin_memory()
-        accelerator.print(print_filler)
 
     accelerator.init_trackers(project_name=config["project_name"], config=config)
 

@@ -402,6 +402,7 @@ def main() -> None:
 
     resume_checkpoint = None
     if config.get("resume_from", "") and config["resume_from"] != "none":
+        accelerator.print(print_filler)
         if config["resume_from"] == "latest":
             checkpoints = os.listdir(config["project_dir"])
             checkpoints = [d for d in checkpoints if d.startswith("checkpoint-")]
@@ -411,7 +412,6 @@ def main() -> None:
         else:
             resume_checkpoint = config["resume_from"]
         if resume_checkpoint is None:
-            accelerator.print(print_filler)
             accelerator.print("No checkpoint found, starting a fresh training run")
         else:
             accelerator.print(f"Resuming from: {resume_checkpoint}")
@@ -439,7 +439,6 @@ def main() -> None:
             del orig_model
         if config["offload_ema_pin_memory"]:
             ema_model.pin_memory()
-        accelerator.print(print_filler)
 
     accelerator.init_trackers(project_name=config["project_name"], config=config)
 
