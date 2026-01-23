@@ -98,11 +98,12 @@ def encode_flux2_prompt(
         padding="max_length",
         truncation=True,
         max_length=max_sequence_length,
+        return_dict=True,
     )
 
     prompt_embeds = text_encoder(
-        input_ids=inputs["input_ids"].to(device),
-        attention_mask=inputs["attention_mask"].to(device),
+        input_ids=inputs.input_ids.to(device),
+        attention_mask=inputs.attention_mask.to(device),
         output_hidden_states=True,
         use_cache=False,
     )
