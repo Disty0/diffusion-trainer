@@ -395,7 +395,7 @@ def main() -> None:
     accelerator.print(f'Using dataset loader: {dataset}')
     gc.collect()
 
-    train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, multiprocessing_context="spawn", pin_memory=config["dataloader_pin_memory"], num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/(config["max_load_workers"] if config["max_load_workers"] != 0 else 1)))
+    train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, multiprocessing_context="spawn" if config["max_load_workers"] > 0 else None, pin_memory=config["dataloader_pin_memory"], num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]) if config["max_load_workers"] > 0 else None)
     train_dataloader = accelerator.prepare(train_dataloader)
     del dataset
     gc.collect()
@@ -705,7 +705,7 @@ def main() -> None:
             accelerator.print(f'Using dataset loader: {dataset}')
             gc.collect()
 
-            train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, multiprocessing_context="spawn", pin_memory=config["dataloader_pin_memory"], num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/(config["max_load_workers"] if config["max_load_workers"] != 0 else 1)))
+            train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, multiprocessing_context="spawn" if config["max_load_workers"] > 0 else None, pin_memory=config["dataloader_pin_memory"], num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]) if config["max_load_workers"] > 0 else None)
             train_dataloader = accelerator.prepare(train_dataloader)
             del dataset
             gc.collect()
