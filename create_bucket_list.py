@@ -41,7 +41,7 @@ def write_bucket_list(dataset_path: str, target_size: int, res_steps: int) -> No
     res_map = {}
     file_list = []
     for ext in img_ext_list:
-        file_list.extend(glob(f"{dataset_path}/**/*{ext}"))
+        file_list.extend(glob(f"{dataset_path}/**/*.{ext}", recursive=True))
     for image_path in tqdm(file_list):
         if os.path.splitext(image_path)[-1] == ".jxl":
             width, height = get_jxl_size(image_path)

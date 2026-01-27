@@ -235,6 +235,7 @@ def main() -> None:
         project_dir=config["project_dir"],
         dynamo_backend=config["dynamo_backend"],
     )
+    accelerator.even_batches = False
 
     def unwrap_model(model: torch.nn.Module) -> torch.nn.Module:
         model = accelerator.unwrap_model(model)
