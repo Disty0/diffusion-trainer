@@ -14,8 +14,6 @@ from accelerate import Accelerator
 
 from sdnq.quantizer import check_param_name_in, add_module_skip_keys
 
-from .sampler_utils import get_loss_weighting
-
 print_filler = "--------------------------------------------------"
 
 
@@ -203,6 +201,34 @@ def get_model_class(model_type: str) -> ModelMixin:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
+def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, target: torch.FloatTensor, latents: torch.FloatTensor, sigmas: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+    if loss_weighting in {None, "none"}:
+        return model_pred, target
+    model_pred, target, sigmas = model_pred.to(dtype=torch.float32), target.to(dtype=torch.float32), sigmas.to(dtype=torch.float32)
+    match loss_weighting:
+        case "sigma":
+            weight = sigmas
+        case "sigma_pi":
+            weight = sigmas * (torch.pi/2)
+        case "sigma_sqrt_clamp":
+            weight = sigmas.sqrt().clamp(min=0.1, max=None)
+        case "sigma_sqrt":
+            weight = sigmas.sqrt()
+        case "cosmap":
+            # weighting = 2 / (torch.pi * (1 - (2 * sigmas) + 2 * sigmas**2))
+            double_sigmas = 2 * sigmas
+            weight = (2 / torch.pi) / torch.sub(1, double_sigmas).addcmul_(double_sigmas, sigmas)
+        case "std_ch":
+            latents = latents.to(dtype=torch.float32)
+            weight = latents.std(dim=[-(1+i) for i in range(latents.ndim - 2)], keepdims=True).clamp_(min=1e-3).reciprocal()
+        case "std":
+            latents = latents.to(dtype=torch.float32)
+            weight = latents.std(dim=[-(1+i) for i in range(latents.ndim - 1)], keepdims=True).clamp_(min=1e-3).reciprocal()
+        case _:
+            raise NotImplementedError(f'loss_weighting type {loss_weighting} is not implemented')
+    return torch.mul(model_pred, weight), torch.mul(target, weight)
+
+
 def run_model(
     model: ModelMixin,
     model_processor: ModelMixin,
@@ -216,19 +242,19 @@ def run_model(
     match config["model_type"]:
         case "sd3":
             from .models.sd3_utils import run_sd3_model_training
-            model_pred, target, sigmas, log_dict = run_sd3_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+            model_pred, target, latents, sigmas, log_dict = run_sd3_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
         case "sdxl":
             from .models.sdxl_utils import run_sdxl_model_training
-            model_pred, target, sigmas, log_dict = run_sdxl_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+            model_pred, target, latents, sigmas, log_dict = run_sdxl_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
         case "raiflow":
             from .models.raiflow_utils import run_raiflow_model_training
-            model_pred, target, sigmas, log_dict = run_raiflow_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+            model_pred, target, latents, sigmas, log_dict = run_raiflow_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
         case "z_image":
             from .models.z_image_utils import run_z_image_model_training
-            model_pred, target, sigmas, log_dict = run_z_image_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+            model_pred, target, latents, sigmas, log_dict = run_z_image_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
         case "flux2":
             from .models.flux2_utils import run_flux2_model_training
-            model_pred, target, sigmas, log_dict = run_flux2_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+            model_pred, target, latents, sigmas, log_dict = run_flux2_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
         case _:
             raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
 
@@ -236,8 +262,8 @@ def run_model(
     target = target.to(dtype=torch.float32)
     sigmas = sigmas.to(dtype=torch.float32)
 
-    model_pred, target = get_loss_weighting(loss_weighting=config["loss_weighting"], model_pred=model_pred, target=target, sigmas=sigmas)
+    model_pred, target = get_loss_weighting(loss_weighting=config["loss_weighting"], model_pred=model_pred, target=target, latents=latents, sigmas=sigmas)
     loss = loss_func(model_pred, target, reduction=config["loss_reduction"])
 
-    del model_pred, target, sigmas
+    del model_pred, target, latents, sigmas
     return loss, log_dict

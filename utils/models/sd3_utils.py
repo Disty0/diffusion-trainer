@@ -205,8 +205,6 @@ def run_sd3_model_training(
             num_train_timesteps=model.config.num_train_timesteps,
         )
 
-        del latents
-
         if config["mixed_precision"] == "no":
             noisy_model_input = noisy_model_input.to(dtype=model.dtype)
             timesteps = timesteps.to(dtype=model.dtype)
@@ -266,4 +264,4 @@ def run_sd3_model_training(
     }
 
     del prompt_embeds, pooled_embeds, noisy_model_input, timesteps
-    return model_pred, target, sigmas, log_dict
+    return model_pred, target, latents, sigmas, log_dict

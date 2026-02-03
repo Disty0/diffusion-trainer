@@ -44,27 +44,6 @@ def get_flowmatch_inputs(
     return noisy_model_input, timesteps, target, sigmas, noise
 
 
-def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, target: torch.FloatTensor, sigmas: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
-    model_pred, target, sigmas = model_pred.to(dtype=torch.float32), target.to(dtype=torch.float32), sigmas.to(dtype=torch.float32)
-    if loss_weighting in {None, "none"}:
-        return model_pred, target
-    elif loss_weighting == "sigma":
-        weight = sigmas
-    elif loss_weighting == "sigma_pi":
-        weight = sigmas * (torch.pi/2)
-    elif loss_weighting == "sigma_sqrt_clamp":
-        weight = sigmas.sqrt().clamp(min=0.1, max=None)
-    elif loss_weighting == "sigma_sqrt":
-        weight = sigmas.sqrt()
-    elif loss_weighting == "cosmap":
-        # weighting = 2 / (torch.pi * (1 - (2 * sigmas) + 2 * sigmas**2))
-        double_sigmas = 2 * sigmas
-        weight = (2 / torch.pi) / torch.sub(1, double_sigmas).addcmul_(double_sigmas, sigmas)
-    else:
-        raise NotImplementedError(f'loss_weighting type {loss_weighting} is not implemented')
-    return torch.mul(model_pred, weight), torch.mul(target, weight)
-
-
 def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, device: torch.device) -> Tuple[torch.FloatTensor, int]:
     masked_count = 0
     batch_size, channels, height, width = noisy_model_input.shape

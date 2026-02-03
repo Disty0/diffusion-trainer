@@ -226,4 +226,4 @@ def run_raiflow_model_training(
     }
 
     del prompt_embeds, noisy_model_input, timesteps
-    return model_pred, latents, sigmas, log_dict
+    return model_pred, latents, latents, sigmas, log_dict

@@ -189,7 +189,6 @@ def run_flux2_model_training(
             num_train_timesteps=1000,
         )
 
-        del latents
         input_sigmas = sigmas.view(-1)
 
         if config["mixed_precision"] == "no":
@@ -260,4 +259,4 @@ def run_flux2_model_training(
     }
 
     del prompt_embeds, noisy_model_input, timesteps, input_sigmas
-    return model_pred, target, sigmas, log_dict
+    return model_pred, target, latents, sigmas, log_dict
