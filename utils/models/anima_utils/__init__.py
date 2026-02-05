@@ -45,8 +45,8 @@ class AnimaTransformerWrapper(ModelMixin):
         subfolder = kwargs.pop("subfolder", None)
         if subfolder is not None:
             path = os.path.join(path, subfolder)
-        self.transformer.save_pretrained(path, *args, subfolder="transformer", **kwargs)
-        self.llm_adapter.save_pretrained(path, *args, subfolder="llm_adapter", **kwargs)
+        self.transformer.save_pretrained(os.path.join(path, "transformer"), *args, **kwargs)
+        self.llm_adapter.save_pretrained(os.path.join(path, "llm_adapter"), *args, **kwargs)
 
     @classmethod
     def from_pretrained(cls, path, *args, **kwargs):
