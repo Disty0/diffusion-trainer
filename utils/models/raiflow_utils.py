@@ -131,7 +131,7 @@ def run_raiflow_model_training(
             seq_len = embeds_list[0].shape[0]
             embed_dtype = torch.int64
             for i in range(len(embeds_list)):
-                if random.randint(0,100) > config["dropout_rate"] * 100:
+                if config["dropout_rate"] == 0 or random.randint(0,100) > config["dropout_rate"] * 100:
                     prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=embed_dtype))
                 else:
                     prompt_embeds.append(torch.tensor(model.config.pad_token_id, device=accelerator.device, dtype=embed_dtype).expand(seq_len))
@@ -140,7 +140,7 @@ def run_raiflow_model_training(
             embed_dim = embeds_list[0].shape[-1]
             embed_dtype = model.dtype if config["mixed_precision"] == "no" else torch.float32
             for i in range(len(embeds_list)):
-                if random.randint(0,100) > config["dropout_rate"] * 100:
+                if config["dropout_rate"] == 0 or random.randint(0,100) > config["dropout_rate"] * 100:
                     if config["do_nan_embed_check"] and embeds_list[i].isnan().any():
                         prompt_embeds.append(torch.zeros((1, embed_dim), device=accelerator.device, dtype=embed_dtype))
                         empty_embeds_count += 1

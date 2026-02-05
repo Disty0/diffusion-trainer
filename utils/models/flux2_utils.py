@@ -161,7 +161,7 @@ def run_flux2_model_training(
         nan_embeds_count= 0
         embed_dtype = model.dtype if config["mixed_precision"] == "no" else torch.float32
         for i in range(len(embeds_list)):
-            if random.randint(0,100) > config["dropout_rate"] * 100:
+            if config["dropout_rate"] == 0 or random.randint(0,100) > config["dropout_rate"] * 100:
                 prompt_embeds.append(embeds_list[i].to(accelerator.device, dtype=embed_dtype))
                 if config["do_nan_embed_check"] and embeds_list[i].isnan().any():
                     prompt_embeds.append(empty_embed.to(accelerator.device, dtype=embed_dtype))
