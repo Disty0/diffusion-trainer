@@ -222,11 +222,13 @@ class SaveBackend():
 
     def save(self, data: Union[List[torch.FloatTensor], torch.FloatTensor], path: str) -> None:
         if isinstance(data, torch.Tensor):
-            data = data.to("cpu", dtype=self.save_dtype).clone()
+            save_dtype = self.save_dtype if torch.is_floating_point(data) else None
+            data = data.to("cpu", dtype=save_dtype).clone()
         elif isinstance(data, list):
             for i in range(len(data)):
                 if isinstance(data[i], torch.Tensor):
-                    data[i] = data[i].to("cpu", dtype=self.save_dtype).clone()
+                    save_dtype = self.save_dtype if torch.is_floating_point(data[i]) else None
+                    data[i] = data[i].to("cpu", dtype=save_dtype).clone()
         torch.cpu.synchronize()
         if self.save_queue_lenght > self.max_save_queue_lenght:
             print(f"Hit the max save queue lenght of {self.max_save_queue_lenght}. Sleeping for 10 seconds")

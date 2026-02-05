@@ -13,7 +13,7 @@ from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, ma
 
 
 def get_z_image_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.ZImagePipeline.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None)
+    pipe = diffusers.ZImagePipeline.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None, tokenizer=None)
     processor = copy.deepcopy(pipe.image_processor)
     diffusion_model = pipe.transformer
     del pipe
@@ -21,7 +21,7 @@ def get_z_image_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMix
 
 
 def get_z_image_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.ZImagePipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
+    pipe = diffusers.ZImagePipeline.from_pretrained(path, torch_dtype=dtype, transformer=None, text_encoder=None, tokenizer=None)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae
     del pipe
@@ -32,7 +32,7 @@ def get_z_image_embed_encoder(path: str, device: torch.device, dtype: torch.dtyp
     if quantization_config is not None:
         from diffusers.quantizers import PipelineQuantizationConfig
         quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder"])
-    pipe = diffusers.ZImagePipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype, quantization_config=quantization_config)
+    pipe = diffusers.ZImagePipeline.from_pretrained(path, torch_dtype=dtype, quantization_config=quantization_config, transformer=None, vae=None)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder.requires_grad_(False)
     if dynamo_backend != "no":

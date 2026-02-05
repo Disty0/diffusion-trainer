@@ -13,7 +13,7 @@ from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, ma
 
 
 def get_sdxl_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None, text_encoder_2=None)
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None, text_encoder_2=None, tokenizer=None, tokenizer_2=None)
     processor = copy.deepcopy(pipe.image_processor)
     diffusion_model = pipe.unet
     del pipe
@@ -21,7 +21,7 @@ def get_sdxl_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin,
 
 
 def get_sdxl_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, unet=None, text_encoder=None, text_encoder_2=None, torch_dtype=dtype)
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, torch_dtype=dtype, unet=None, text_encoder=None, text_encoder_2=None, tokenizer=None, tokenizer_2=None)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae
     del pipe
@@ -32,7 +32,7 @@ def get_sdxl_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, 
     if quantization_config is not None:
         from diffusers.quantizers import PipelineQuantizationConfig
         quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder_2"])
-    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, unet=None, vae=None, torch_dtype=dtype, quantization_config=quantization_config)
+    pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, torch_dtype=dtype, unet=None, vae=None, quantization_config=quantization_config)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder_2 = pipe.text_encoder_2.to(device, dtype=dtype).eval()
     text_encoder.requires_grad_(False)

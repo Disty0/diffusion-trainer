@@ -24,6 +24,9 @@ def get_latent_model(model_type: str, path: str, device: torch.device, dtype: to
         case "flux2":
             from .models.flux2_utils import get_flux2_latent_model
             latent_model, image_processor = get_flux2_latent_model(path, dtype)
+        case "anima":
+            from .models.anima_utils import get_anima_latent_model
+            latent_model, image_processor = get_anima_latent_model(path, dtype)
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -38,6 +41,8 @@ def get_latent_model(model_type: str, path: str, device: torch.device, dtype: to
 def get_latent_model_class(model_type: str) -> type:
     if model_type == "flux2":
         return diffusers.AutoencoderKLFlux2
+    elif model_type == "anima":
+        return diffusers.AutoencoderKLWan
     elif model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
         return diffusers.AutoencoderKL
     else:
@@ -48,7 +53,7 @@ def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMix
     if model_type == "flux2":
         from .models.flux2_utils import encode_flux2_latents
         return encode_flux2_latents(latent_model, image_processor, images, device)
-    elif model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
+    elif model_type in {"sd3", "sdxl", "raiflow", "z_image", "anima"}:
         return encode_vae_latents(latent_model, image_processor, images, device)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -66,7 +71,7 @@ def decode_latents(
     if model_type == "flux2":
         from .models.flux2_utils import decode_flux2_latents
         return decode_flux2_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
-    elif model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
+    elif model_type in {"sd3", "sdxl", "raiflow", "z_image", "anima"}:
         return decode_vae_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -75,16 +80,21 @@ def decode_latents(
 def encode_vae_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], device: torch.device) -> torch.FloatTensor:
     with torch.no_grad():
         tensor_images = image_processor.preprocess(images).to(device, dtype=latent_model.dtype)
+        if hasattr(image_processor, "postprocess_video"):
+            tensor_images = tensor_images.unsqueeze(2)
+            view_shape = (1,-1,1,1,1)
+        else:
+            view_shape = (1,-1,1,1)
     latents = latent_model.encode(tensor_images).latent_dist.sample().to(dtype=torch.float32)
 
     with torch.no_grad():
         if getattr(latent_model.config, "latents_mean", None) is not None:
-            latents = latents - torch.tensor(latent_model.config.latents_mean, device=device, dtype=torch.float32).view(1,-1,1,1)
+            latents = latents - torch.tensor(latent_model.config.latents_mean, device=device, dtype=torch.float32).view(*view_shape)
         elif getattr(latent_model.config, "shift_factor", None) is not None and latent_model.config.shift_factor != 0:
             latents = latents - latent_model.config.shift_factor
 
         if getattr(latent_model.config, "latents_std", None) is not None:
-            latents = latents / torch.tensor(latent_model.config.latents_std, device=device, dtype=torch.float32).view(1,-1,1,1)
+            latents = latents / torch.tensor(latent_model.config.latents_std, device=device, dtype=torch.float32).view(*view_shape)
         elif getattr(latent_model.config, "scaling_factor", None) is not None and latent_model.config.scaling_factor != 1:
             latents = latents * latent_model.config.scaling_factor
 
@@ -117,6 +127,9 @@ def decode_vae_latents(
 
     image_tensor = latent_model.decode(latents).sample
     if return_image:
-        return image_processor.postprocess(image_tensor, output_type="pil")
+        if hasattr(image_processor, "postprocess_video"):
+            return [batch[0] for batch in image_processor.postprocess_video(image_tensor, output_type="pil")]
+        else:
+            return image_processor.postprocess(image_tensor, output_type="pil")
     else:
         return image_tensor

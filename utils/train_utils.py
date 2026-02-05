@@ -161,6 +161,9 @@ def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, 
         case "flux2":
             from .models.flux2_utils import get_flux2_diffusion_model
             diffusion_model, processor = get_flux2_diffusion_model(config["model_path"], dtype)
+        case "anima":
+            from .models.anima_utils import get_anima_diffusion_model
+            diffusion_model, processor = get_anima_diffusion_model(config["model_path"], dtype)
         case _:
             raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
 
@@ -197,6 +200,9 @@ def get_model_class(model_type: str) -> ModelMixin:
             return diffusers.ZImageTransformer2DModel
         case "flux2":
             return diffusers.Flux2Transformer2DModel
+        case "anima":
+            from .models.anima_utils import AnimaTransformerWrapper
+            return AnimaTransformerWrapper
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -255,6 +261,9 @@ def run_model(
         case "flux2":
             from .models.flux2_utils import run_flux2_model_training
             model_pred, target, latents, sigmas, log_dict = run_flux2_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
+        case "anima":
+            from .models.anima_utils import run_anima_model_training
+            model_pred, target, latents, sigmas, log_dict = run_anima_model_training(model, model_processor, config, accelerator, latents_list, embeds_list, empty_embed, loss_func)
         case _:
             raise NotImplementedError(f'Model type {config["model_type"]} is not implemented')
 

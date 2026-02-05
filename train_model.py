@@ -255,7 +255,8 @@ def main() -> None:
             model = models.pop()
             if isinstance(unwrap_model(model), train_utils.get_model_class(config["model_type"])):
                 load_model = train_utils.get_model_class(config["model_type"]).from_pretrained(input_dir, subfolder="diffusion_model")
-                model.register_to_config(**load_model.config)
+                if hasattr(load_model, "config"):
+                    model.register_to_config(**load_model.config)
                 model.load_state_dict(load_model.state_dict())
             else:
                 raise ValueError(f"Unsupported model found: {type(model)=}")

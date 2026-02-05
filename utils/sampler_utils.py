@@ -32,7 +32,7 @@ def get_flowmatch_inputs(
 
     u = u.clamp_(1/num_train_timesteps,1.0)
     timesteps = torch.mul(u, num_train_timesteps)
-    sigmas = u.view(-1, 1, 1, 1)
+    sigmas = u.view(*((-1,) + (1,)*(latents.ndim-1)))
 
     if noise is None:
         noise = torch.randn_like(latents, device=device, dtype=torch.float32)

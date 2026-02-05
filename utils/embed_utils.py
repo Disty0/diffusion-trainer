@@ -22,6 +22,9 @@ def get_embed_encoder(model_type: str, path: str, device: torch.device, dtype: t
         case "flux2":
             from .models.flux2_utils import get_flux2_embed_encoder
             return get_flux2_embed_encoder(path, device, dtype, dynamo_backend, quantization_config=quantization_config)
+        case "anima":
+            from .models.anima_utils import get_anima_embed_encoder
+            return get_anima_embed_encoder(path, device, dtype, dynamo_backend, quantization_config=quantization_config)
         case _:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
@@ -44,5 +47,8 @@ def encode_embeds(embed_encoder: Tuple[PreTrainedModel, PreTrainedTokenizer], te
             case "flux2":
                 from .models.flux2_utils import encode_flux2_embeds
                 return encode_flux2_embeds(embed_encoder, texts, device)
+            case "anima":
+                from .models.anima_utils import encode_anima_embeds
+                return encode_anima_embeds(embed_encoder, texts, device)
             case _:
                 raise NotImplementedError(f"Model type {model_type} is not implemented")

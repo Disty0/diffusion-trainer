@@ -23,7 +23,7 @@ current_latent_ids_width = 0
 
 
 def get_flux2_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.Flux2KleinPipeline.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None)
+    pipe = diffusers.Flux2KleinPipeline.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None, tokenizer=None)
     processor = copy.deepcopy(pipe.image_processor)
     diffusion_model = pipe.transformer
     del pipe
@@ -31,7 +31,7 @@ def get_flux2_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin
 
 
 def get_flux2_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
-    pipe = diffusers.Flux2KleinPipeline.from_pretrained(path, transformer=None, text_encoder=None, torch_dtype=dtype)
+    pipe = diffusers.Flux2KleinPipeline.from_pretrained(path, torch_dtype=dtype, transformer=None, text_encoder=None, tokenizer=None)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae
     del pipe
@@ -68,7 +68,7 @@ def get_flux2_embed_encoder(path: str, device: torch.device, dtype: torch.dtype,
     if quantization_config is not None:
         from diffusers.quantizers import PipelineQuantizationConfig
         quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder"])
-    pipe = diffusers.Flux2KleinPipeline.from_pretrained(path, transformer=None, vae=None, torch_dtype=dtype, quantization_config=quantization_config)
+    pipe = diffusers.Flux2KleinPipeline.from_pretrained(path, torch_dtype=dtype, quantization_config=quantization_config, transformer=None, vae=None)
     text_encoder = pipe.text_encoder.to(device, dtype=dtype).eval()
     text_encoder.requires_grad_(False)
     if dynamo_backend != "no":
