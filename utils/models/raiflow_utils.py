@@ -68,7 +68,7 @@ def encode_raiflow_prompt(
     inputs = tokenizer(
         text=prompt.copy(), # tokenizer overwrites
         images=prompt_images,
-        padding="longest",
+        padding="max_length",
         max_length=max_sequence_length,
         truncation=True,
         add_special_tokens=True,

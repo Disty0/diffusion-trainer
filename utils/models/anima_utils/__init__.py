@@ -106,9 +106,9 @@ def encode_anima_prompt(
     max_sequence_length=512,
 ) -> torch.FloatTensor:
         prompt = [prompt] if isinstance(prompt, str) else prompt
-        qwen_inputs = tokenizers[0](prompt, padding=True, truncation=True, max_length=max_sequence_length, return_tensors="pt")
+        qwen_inputs = tokenizers[0](prompt, truncation=True, max_length=max_sequence_length, padding="max_length", return_tensors="pt")
         prompt_embeds = text_encoder(input_ids=qwen_inputs.input_ids.to(device), attention_mask=qwen_inputs.attention_mask.to(device)).last_hidden_state
-        t5_input_ids = tokenizers[1](prompt, padding=True, truncation=True, max_length=max_sequence_length, return_tensors="pt").input_ids.to(device)
+        t5_input_ids = tokenizers[1](prompt, truncation=True, max_length=max_sequence_length, padding="max_length", return_tensors="pt").input_ids.to(device)
         return prompt_embeds, t5_input_ids
 
 
