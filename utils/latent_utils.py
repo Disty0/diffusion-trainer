@@ -39,21 +39,21 @@ def get_latent_model(model_type: str, path: str, device: torch.device, dtype: to
 
 
 def get_latent_model_class(model_type: str) -> type:
-    if model_type == "flux2":
+    if model_type in {"flux2", "raiflow"}:
         return diffusers.AutoencoderKLFlux2
     elif model_type == "anima":
         return diffusers.AutoencoderKLWan
-    elif model_type in {"sd3", "sdxl", "raiflow", "z_image"}:
+    elif model_type in {"sd3", "sdxl", "z_image"}:
         return diffusers.AutoencoderKL
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
 def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], device: torch.device, model_type: str) -> torch.FloatTensor:
-    if model_type == "flux2":
+    if model_type in {"flux2", "raiflow"}:
         from .models.flux2_utils import encode_flux2_latents
         return encode_flux2_latents(latent_model, image_processor, images, device)
-    elif model_type in {"sd3", "sdxl", "raiflow", "z_image", "anima"}:
+    elif model_type in {"sd3", "sdxl", "z_image", "anima"}:
         return encode_vae_latents(latent_model, image_processor, images, device)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
@@ -68,10 +68,10 @@ def decode_latents(
     return_image: bool = True,
     mixed_precision: str = "no"
 ) -> Union[Image.Image, torch.FloatTensor]:
-    if model_type == "flux2":
+    if model_type in {"flux2", "raiflow"}:
         from .models.flux2_utils import decode_flux2_latents
         return decode_flux2_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
-    elif model_type in {"sd3", "sdxl", "raiflow", "z_image", "anima"}:
+    elif model_type in {"sd3", "sdxl", "z_image", "anima"}:
         return decode_vae_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
     else:
         raise NotImplementedError(f"Model type {model_type} is not implemented")

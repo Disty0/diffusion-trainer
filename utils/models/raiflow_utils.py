@@ -16,7 +16,7 @@ from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, ma
 def get_raiflow_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
     from raiflow import RaiFlowPipeline
     pipe = RaiFlowPipeline.from_pretrained(path, torch_dtype=dtype, tokenizer=None)
-    processor = copy.deepcopy(pipe.image_encoder)
+    processor = copy.deepcopy(pipe.image_processor)
     diffusion_model = pipe.transformer
     del pipe
     return diffusion_model, processor
@@ -24,7 +24,7 @@ def get_raiflow_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMix
 
 def get_raiflow_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
     from raiflow import RaiFlowPipeline
-    pipe = RaiFlowPipeline.from_pretrained(path, torch_dtype=dtype, transformer=None, text_encoder=None, tokenizer=None)
+    pipe = RaiFlowPipeline.from_pretrained(path, torch_dtype=dtype, transformer=None, tokenizer=None)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae
     del pipe
