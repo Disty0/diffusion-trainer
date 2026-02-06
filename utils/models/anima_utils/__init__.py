@@ -22,7 +22,7 @@ current_padding_mask_width = 0
 
 class AnimaTransformerWrapper(ModelMixin):
     _supports_gradient_checkpointing = True
-    _skip_layerwise_casting_patterns = ["transformer_blocks.0.norm*", "patch_embed", "time_embed", "norm_out", "proj_out", "crossattn_proj", "llm_adapter", "in_proj", "embed", "rotary_emb", "out_proj"]
+    _skip_layerwise_casting_patterns = ["transformer.transformer_blocks.0.norm*", "patch_embed", "time_embed", "norm_out", "proj_out", "crossattn_proj", "llm_adapter", "in_proj", "embed", "rotary_emb", "out_proj"]
     _no_split_modules = ["CosmosTransformerBlock", "TransformerBlock"]
     _keep_in_fp32_modules = ["learnable_pos_embed"]
 
