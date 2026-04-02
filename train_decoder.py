@@ -4,6 +4,7 @@ import os
 import gc
 import math
 import json
+import time
 import torch
 
 if not torch.version.cuda:
@@ -393,6 +394,7 @@ def main() -> None:
     if accelerator.device.type != "cpu":
         getattr(torch, accelerator.device.type).empty_cache()
 
+    time_0 = time.time()
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents_list, image_tensors_list) in enumerate(train_dataloader):
             with torch.no_grad():
@@ -465,8 +467,13 @@ def main() -> None:
                             elif config["offload_ema_to_cpu"]:
                                 ema_model.to(device="cpu", non_blocking=False)
                         accelerator.wait_for_everyone()
+
                     progress_bar.update(1)
                     current_step = current_step + 1
+
+                    time_1 = time.time()
+                    time_took = time_1 - time_0
+                    time_0 = time.time()
 
                     if current_step % config["checkpoint_save_steps"] == 0:
                         getattr(torch, torch.device(accelerator.device).type).synchronize()
@@ -506,10 +513,12 @@ def main() -> None:
                                 del save_ema_model_state_dict
                             gc.collect()
                             accelerator.print(f"\nSaved states to {save_path}")
+                            accelerator.print(f"\nSave time: {round(time_0 - time.time(), 2)} seconds")
                             accelerator.print(print_filler)
                         accelerator.wait_for_everyone()
+                        time_0 = time.time()
 
-                    logs = {"loss": loss, "epoch": current_epoch}
+                    logs = {"loss": loss, "epoch": current_epoch, "s_it": round(time_took, 2)}
                     if config["fused_optimizer"]:
                         last_lr = optimizer[list(optimizer.keys())[0]][1].get_last_lr()
                     else:
