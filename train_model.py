@@ -398,7 +398,7 @@ def main() -> None:
     accelerator.print(f'Using dataset loader: {dataset}')
     gc.collect()
 
-    train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, multiprocessing_context="spawn" if config["max_load_workers"] > 0 else None, pin_memory=config["dataloader_pin_memory"], num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]) if config["max_load_workers"] > 0 else None)
+    train_dataloader = DataLoader(dataset=dataset, batch_size=1, batch_sampler=None, shuffle=False, multiprocessing_context="spawn" if config["max_load_workers"] > 0 else None, pin_memory=config["dataloader_pin_memory"], num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]) if config["max_load_workers"] > 0 else None)
     train_dataloader = accelerator.prepare(train_dataloader)
     del dataset
     gc.collect()
@@ -478,6 +478,9 @@ def main() -> None:
     time_0 = time.time()
     for _ in range(first_epoch, config["epochs"]):
         for epoch_step, (latents_list, embeds_list) in enumerate(train_dataloader):
+            with torch.no_grad():
+                latents_list = latents_list[0]
+                embeds_list = embeds_list[0]
             with accelerator.accumulate(model):
                 last_loss = loss
 
@@ -716,7 +719,7 @@ def main() -> None:
             accelerator.print(f'Using dataset loader: {dataset}')
             gc.collect()
 
-            train_dataloader = DataLoader(dataset=dataset, batch_size=None, batch_sampler=None, shuffle=False, multiprocessing_context="spawn" if config["max_load_workers"] > 0 else None, pin_memory=config["dataloader_pin_memory"], num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]) if config["max_load_workers"] > 0 else None)
+            train_dataloader = DataLoader(dataset=dataset, batch_size=1, batch_sampler=None, shuffle=False, multiprocessing_context="spawn" if config["max_load_workers"] > 0 else None, pin_memory=config["dataloader_pin_memory"], num_workers=config["max_load_workers"], prefetch_factor=int(config["load_queue_lenght"]/config["max_load_workers"]) if config["max_load_workers"] > 0 else None)
             train_dataloader = accelerator.prepare(train_dataloader)
             del dataset
             gc.collect()

@@ -94,7 +94,7 @@ class DiffusionDataset(Dataset):
         self.use_embed_dataset = config["use_embed_dataset"]
 
         if self.latent_type == "jpeg":
-            self.load_latent_type = "image"
+            self.load_latent_type = "image_pt"
             if self.encode_latents_with_cpu:
                 from raiflow import RaiFlowImageEncoder
                 self.image_encoder = RaiFlowImageEncoder.from_pretrained(config["model_path"], subfolder="image_encoder")
@@ -102,10 +102,10 @@ class DiffusionDataset(Dataset):
             if self.encode_latents_with_cpu:
                 if self.latent_type == "latent":
                     self.latent_encoder, self.image_processor = get_latent_model(config["model_type"], config["model_path"], "cpu", torch.float32, "no")
-                    self.load_latent_type = "image"
+                    self.load_latent_type = "image_tensor"
             else:
                 if self.latent_type == "latent":
-                    self.load_latent_type = "image"
+                    self.load_latent_type = "image_tensor"
 
         if self.embed_type == "token":
             self.tokenizer = AutoTokenizer.from_pretrained(config["model_path"], subfolder="tokenizer")
@@ -159,7 +159,7 @@ class DiffusionDataset(Dataset):
         elif self.load_latent_type == "image_tensor":
             latents = torch.stack(latents)
             latents = latents.permute(0,3,1,2).to(dtype=torch.float32)
-            latents = latents.div_(127.5).sub_(1)
+            latents = latents.div_(255)
 
 
         if self.latent_type == "jpeg" and self.encode_latents_with_cpu:
