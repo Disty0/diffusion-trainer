@@ -515,7 +515,7 @@ def main() -> None:
                                 del save_ema_model_state_dict
                             gc.collect()
                             accelerator.print(f"\nSaved states to {save_path}")
-                            accelerator.print(f"\nSave time: {round(time_0 - time.time(), 2)} seconds")
+                            accelerator.print(f"\nSave time: {round(time.time() - time_0, 2)} seconds")
                             accelerator.print(print_filler)
                         accelerator.wait_for_everyone()
                         time_0 = time.time()
