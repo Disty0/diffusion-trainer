@@ -12,9 +12,36 @@ from torch.optim.optimizer import Optimizer
 from torch.nn.parameter import Parameter
 from accelerate import Accelerator
 
-from sdnq.quantizer import check_param_name_in, add_module_skip_keys
+from sdnq.utils import check_param_name_in
+from sdnq.common import common_skip_keys, module_skip_keys_dict
 
 print_filler = "--------------------------------------------------"
+
+
+def add_module_skip_keys(model, modules_to_not_convert: list[str] | None = None):
+    if modules_to_not_convert is None:
+        modules_to_not_convert = []
+    if getattr(model, "_keep_in_fp32_modules", None) is not None:
+        modules_to_not_convert.extend(model._keep_in_fp32_modules) # pylint: disable=protected-access
+    if getattr(model, "_tied_weights_keys", None) is not None:
+        if isinstance(model._tied_weights_keys, dict): # pylint: disable=protected-access
+            modules_to_not_convert.extend(model._tied_weights_keys.keys()) # pylint: disable=protected-access
+            modules_to_not_convert.extend(model._tied_weights_keys.values()) # pylint: disable=protected-access
+        else:
+            modules_to_not_convert.extend(model._tied_weights_keys) # pylint: disable=protected-access
+
+    skip_key_list = module_skip_keys_dict.get(model.__class__.__name__, None)
+    if skip_key_list is not None:
+        modules_to_not_convert.extend(skip_key_list[0])
+    else:
+        modules_to_not_convert.extend(common_skip_keys)
+        if getattr(model, "_skip_layerwise_casting_patterns", None) is not None:
+            modules_to_not_convert.extend(model._skip_layerwise_casting_patterns) # pylint: disable=protected-access
+
+    # dedupe
+    modules_to_not_convert = list(set(modules_to_not_convert))
+
+    return model, modules_to_not_convert
 
 
 def get_optimizer(config: dict, parameters: Iterator[Parameter], accelerator: Accelerator, **kwargs) -> Optimizer:
