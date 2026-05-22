@@ -98,7 +98,7 @@ def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, accelerator: Accel
 def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator: Accelerator, fused_optimizer_hook: Callable) -> Tuple[Optimizer, LRScheduler]:
     sensitive_keys = config["sensitive_keys"]
     if not config["override_sensitive_keys"]:
-        model, sensitive_keys, _ = add_module_skip_keys(model, sensitive_keys)
+        model, sensitive_keys = add_module_skip_keys(model, sensitive_keys)
 
     optimizer_args = config["optimizer_args"].copy()
     optimizer_args["lr"] = torch.tensor(config["learning_rate"])
