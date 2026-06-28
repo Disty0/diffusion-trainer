@@ -45,8 +45,16 @@ def load_image_from_file(image_path: str, target_size: str) -> Image.Image:
         with Image.open(image_path) as img:
             background = Image.new("RGBA", img.size, (255, 255, 255))
             image = Image.alpha_composite(background, img.convert("RGBA")).convert("RGB")
-
         orig_size = image.size
+
+        # Resize down to 2048x2048 with LANCZOS first
+        image_size = orig_size[0] * orig_size[1]
+        if (target_size[0] * target_size[1]) < 4194304 and image_size > 4194304: # 2048x2048
+            resize_scale = math.sqrt(image_size / 4194304)
+            image = image.resize((int(orig_size[0]/resize_scale), int(orig_size[1]/resize_scale)), Image.LANCZOS)
+            orig_size = image.size
+            image_size = orig_size[0] * orig_size[1]
+
         new_size = [math.ceil(target_size[1] * orig_size[0] / orig_size[1]), math.ceil(target_size[0] * orig_size[1] / orig_size[0])]
         if new_size[0] > target_size[0]:
             image = image.resize((new_size[0], target_size[1]), Image.BICUBIC)
