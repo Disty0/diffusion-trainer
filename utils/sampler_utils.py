@@ -1,4 +1,3 @@
-from typing import Optional, Tuple
 import random
 import torch
 
@@ -8,8 +7,8 @@ def get_flowmatch_inputs(
     device: torch.device,
     sampler_config: dict,
     num_train_timesteps: int = 1000,
-    noise: Optional[torch.FloatTensor] = None,
-) -> Tuple[torch.FloatTensor]:
+    noise: torch.FloatTensor | None = None,
+) -> tuple[torch.FloatTensor]:
     latents = latents.to(dtype=torch.float32)
     shape = (latents.shape[0],)
 
@@ -44,7 +43,7 @@ def get_flowmatch_inputs(
     return noisy_model_input, timesteps, target, sigmas, noise
 
 
-def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, device: torch.device) -> Tuple[torch.FloatTensor, int]:
+def mask_noisy_model_input(noisy_model_input: torch.FloatTensor, config: dict, device: torch.device) -> tuple[torch.FloatTensor, int]:
     masked_count = 0
     batch_size, channels, height, width = noisy_model_input.shape
     noisy_model_input = noisy_model_input.to(dtype=torch.float32)
@@ -73,7 +72,7 @@ def get_self_corrected_targets(
     model_pred: torch.FloatTensor,
     config: dict,
     x0_pred: bool = False,
-) -> Tuple[torch.FloatTensor, torch.FloatTensor, int]:
+) -> tuple[torch.FloatTensor, torch.FloatTensor, int]:
     if x0_pred:
         model_x0_pred = model_pred
     else:

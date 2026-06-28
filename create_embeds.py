@@ -12,14 +12,12 @@ import argparse
 from glob import glob
 from tqdm import tqdm
 from utils import loader_utils, embed_utils
-
-from typing import List, Tuple
 from transformers import PreTrainedModel
 
 print_filler = "--------------------------------------------------"
 
 
-def get_paths(dataset_path: str, out_path: str, model_type: str, text_ext: str) -> Tuple[List[str], List[str]]:
+def get_paths(dataset_path: str, out_path: str, model_type: str, text_ext: str) -> tuple[list[str], list[str]]:
     print(print_filler)
     print(f"Searching for {text_ext} files")
     file_list = glob(f"{dataset_path}/**/*{text_ext}")
@@ -40,7 +38,7 @@ def get_paths(dataset_path: str, out_path: str, model_type: str, text_ext: str) 
     return texts, paths
 
 
-def get_batches(batch_size: str, dataset_path: str, out_path: str, model_type: str, text_ext: str) -> Tuple[List[List[str]], List[List[str]]]:
+def get_batches(batch_size: str, dataset_path: str, out_path: str, model_type: str, text_ext: str) -> tuple[list[list[str]], list[list[str]]]:
     texts, paths = get_paths(dataset_path, out_path, model_type, text_ext)
     print("Loading batches")
 
@@ -68,8 +66,8 @@ def write_embeds(
     device: torch.device,
     args: argparse.Namespace,
     cache_backend: loader_utils.SaveBackend,
-    text_batch: List[str],
-    embed_path: List[str]
+    text_batch: list[str],
+    embed_path: list[str]
 ) -> None:
     embeds = embed_utils.encode_embeds(embed_encoder, text_batch, device, args.model_type)
     getattr(torch, device.type).synchronize(device)

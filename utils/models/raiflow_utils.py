@@ -1,5 +1,3 @@
-from typing import List, Tuple, Optional, Union
-
 import copy
 import random
 import torch
@@ -13,7 +11,7 @@ from PIL import Image
 from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
 
-def get_raiflow_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_raiflow_diffusion_model(path: str, dtype: torch.dtype) -> tuple[ModelMixin, ImageProcessingMixin]:
     from raiflow import RaiFlowPipeline
     pipe = RaiFlowPipeline.from_pretrained(path, torch_dtype=dtype, tokenizer=None)
     processor = copy.deepcopy(pipe.image_processor)
@@ -22,7 +20,7 @@ def get_raiflow_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMix
     return diffusion_model, processor
 
 
-def get_raiflow_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_raiflow_latent_model(path: str, dtype: torch.dtype) -> tuple[ModelMixin, ImageProcessingMixin]:
     from raiflow import RaiFlowPipeline
     pipe = RaiFlowPipeline.from_pretrained(path, torch_dtype=dtype, transformer=None, tokenizer=None)
     image_processor = copy.deepcopy(pipe.image_processor)
@@ -31,7 +29,7 @@ def get_raiflow_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin,
     return latent_model, image_processor
 
 
-def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> tuple[PreTrainedModel, PreTrainedTokenizer]:
     from raiflow import RaiFlowPipeline
     if quantization_config is not None:
         from diffusers.quantizers import PipelineQuantizationConfig
@@ -49,11 +47,11 @@ def get_raiflow_embed_encoder(path: str, device: torch.device, dtype: torch.dtyp
 def encode_raiflow_prompt(
     text_encoder: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,
-    prompt: Union[str, List[str]],
-    prompt_images: Optional[PipelineImageInput] = None,
-    device: Optional[torch.device] = None,
+    prompt: str | list[str],
+    prompt_images: PipelineImageInput | None = None,
+    device: torch.device | None = None,
     max_sequence_length: int = 1024,
-) -> List[torch.FloatTensor]:
+) -> list[torch.FloatTensor]:
     device = device or text_encoder.device
 
     if prompt_images is None and (prompt == "" or prompt == [""]):
@@ -95,7 +93,7 @@ def encode_raiflow_prompt(
     return prompt_embeds_list
 
 
-def encode_raiflow_embeds(embed_encoders: Tuple[PreTrainedModel, PreTrainedTokenizer], texts: List[str], device: torch.device, prompt_images: Optional[List[Image.Image]] = None) -> List[torch.FloatTensor]:
+def encode_raiflow_embeds(embed_encoders: tuple[PreTrainedModel, PreTrainedTokenizer], texts: list[str], device: torch.device, prompt_images: list[Image.Image] | None = None) -> list[torch.FloatTensor]:
     return encode_raiflow_prompt(embed_encoders[0], embed_encoders[1], prompt=texts, prompt_images=prompt_images, device=device)
 
 
@@ -104,11 +102,11 @@ def run_raiflow_model_training(
     model_processor: ModelMixin,
     config: dict,
     accelerator: Accelerator,
-    latents_list: Union[List, torch.FloatTensor],
-    embeds_list: Union[List, torch.FloatTensor],
-    empty_embed: Union[List, torch.FloatTensor],
+    latents_list: list | torch.FloatTensor,
+    embeds_list: list | torch.FloatTensor,
+    empty_embed: list | torch.FloatTensor,
     loss_func: callable,
-) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
+) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, dict]:
     with torch.no_grad():
         if config["latent_type"] == "jpeg" and not config["encode_latents_with_cpu"]:
             latents = model_processor.encode(latents_list, device=accelerator.device).to(accelerator.device, dtype=torch.float32)

@@ -6,13 +6,13 @@ import imagesize
 
 from glob import glob
 from tqdm import tqdm
-from typing import Tuple
+
 from utils.jpeg_xl_utils import get_jxl_size
 
 img_ext_list = ("jpg", "png", "webp", "jpeg", "jxl")
 
 
-def calc_crop_res(width: int, height: int, target_size: int, res_steps: int) -> Tuple[int, int]:
+def calc_crop_res(width: int, height: int, target_size: int, res_steps: int) -> tuple[int, int]:
     orig_size = width * height
     if orig_size > target_size:
         scale = math.sqrt(orig_size / target_size)

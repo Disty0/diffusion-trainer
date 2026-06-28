@@ -1,5 +1,3 @@
-from typing import Dict, List, Tuple
-
 import os
 import gc
 import math
@@ -26,7 +24,7 @@ from utils.ema_model import EMAModel
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str, do_file_check: bool = True) -> Dict[str, List[str]]:
+def get_bucket_list(batch_size: int, dataset_paths: list[dict], empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str, do_file_check: bool = True) -> dict[str, list[str]]:
     print("Creating bucket list")
     bucket_list = {}
 
@@ -118,7 +116,7 @@ def get_bucket_list(batch_size: int, dataset_paths: List[dict], empty_embed_path
     return bucket_list
 
 
-def get_batches(batch_size: int, dataset_paths: List[Tuple[str, List[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str, do_file_check: bool = True) -> None:
+def get_batches(batch_size: int, dataset_paths: list[tuple[str, list[str], int]], dataset_index: str, empty_embed_path: str, latent_type: str, embed_suffix: str, model_type: str, do_file_check: bool = True) -> None:
     bucket_list = get_bucket_list(batch_size, dataset_paths, empty_embed_path, latent_type, embed_suffix, model_type, do_file_check=do_file_check)
     print("Creating epoch batches")
 
@@ -242,7 +240,7 @@ def main() -> None:
         model = accelerator.unwrap_model(model)
         return model._orig_mod if isinstance(model, torch._dynamo.eval_frame.OptimizedModule) else model
 
-    def save_model_hook(models: List[torch.nn.Module], weights: List[Dict[str, torch.Tensor]], output_dir: str) -> None:
+    def save_model_hook(models: list[torch.nn.Module], weights: list[dict[str, torch.Tensor]], output_dir: str) -> None:
         if accelerator.is_main_process:
             for i, model in enumerate(models):
                 if isinstance(unwrap_model(model), train_utils.get_model_class(config["model_type"])):
@@ -251,7 +249,7 @@ def main() -> None:
                     raise ValueError(f"Wrong model supplied: {type(model)=}.")
                 weights.pop()
 
-    def load_model_hook(models: List[torch.nn.Module], input_dir: str) -> None:
+    def load_model_hook(models: list[torch.nn.Module], input_dir: str) -> None:
         for _ in range(len(models)):
             model = models.pop()
             if isinstance(unwrap_model(model), train_utils.get_model_class(config["model_type"])):

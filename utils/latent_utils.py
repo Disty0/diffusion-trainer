@@ -1,13 +1,11 @@
 import torch
 import diffusers
 from PIL import Image
-
-from typing import List, Tuple, Union
 from transformers import ImageProcessingMixin
 from diffusers.models.modeling_utils import ModelMixin
 
 
-def get_latent_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_latent_model(model_type: str, path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str) -> tuple[ModelMixin, ImageProcessingMixin]:
     match model_type:
         case "sd3":
             from .models.sd3_utils import get_sd3_latent_model
@@ -49,7 +47,7 @@ def get_latent_model_class(model_type: str) -> type:
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
-def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], device: torch.device, model_type: str) -> torch.FloatTensor:
+def encode_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: list[Image.Image], device: torch.device, model_type: str) -> torch.FloatTensor:
     if model_type in {"flux2", "raiflow"}:
         from .models.flux2_utils import encode_flux2_latents
         return encode_flux2_latents(latent_model, image_processor, images, device)
@@ -67,7 +65,7 @@ def decode_latents(
     model_type: str,
     return_image: bool = True,
     mixed_precision: str = "no"
-) -> Union[Image.Image, torch.FloatTensor]:
+) -> Image.Image | torch.FloatTensor:
     if model_type in {"flux2", "raiflow"}:
         from .models.flux2_utils import decode_flux2_latents
         return decode_flux2_latents(latent_model, image_processor, latents, device, return_image=return_image, mixed_precision=mixed_precision)
@@ -77,7 +75,7 @@ def decode_latents(
         raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
-def encode_vae_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], device: torch.device) -> torch.FloatTensor:
+def encode_vae_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: list[Image.Image], device: torch.device) -> torch.FloatTensor:
     with torch.no_grad():
         tensor_images = image_processor.preprocess(images).to(device, dtype=latent_model.dtype)
         if hasattr(image_processor, "postprocess_video"):
@@ -108,7 +106,7 @@ def decode_vae_latents(
     device: torch.device,
     return_image: bool = True,
     mixed_precision: str = "no"
-) -> Union[Image.Image, torch.FloatTensor]:
+) -> Image.Image | torch.FloatTensor:
     with torch.no_grad():
         latents = latents.to(device, dtype=torch.float32)
 

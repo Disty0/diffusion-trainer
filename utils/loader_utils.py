@@ -16,8 +16,6 @@ from io import BytesIO
 from queue import Queue
 from torch.utils.data import Dataset
 from concurrent.futures import ThreadPoolExecutor
-
-from typing import List, Tuple, Union
 from transformers import ImageProcessingMixin, AutoTokenizer
 
 from .latent_utils import get_latent_model, encode_latents
@@ -135,7 +133,7 @@ class DiffusionDataset(Dataset):
         return f"DiffusionDataset(dataset_index={self.dataset_index}, num_of_batches={self.num_of_batches}, model_type={self.model_type}, latent_type={self.latent_type}, embed_type={self.embed_type}, load_latent_type={self.load_latent_type}, load_embed_type={self.load_embed_type}, encode_latents_with_cpu={self.encode_latents_with_cpu}, encode_embeds_with_cpu={self.encode_embeds_with_cpu}, use_latent_dataset={self.use_latent_dataset}, use_embed_dataset={self.use_embed_dataset})"
 
     @torch.no_grad()
-    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
+    def __getitem__(self, index: int) -> tuple[list[torch.FloatTensor], list[torch.FloatTensor]]:
         with open(os.path.join(self.dataset_index, str(int(index / 10000)), str(index)+".json"), "r") as f:
             current_batch = json.load(f)
         latents = []
@@ -201,7 +199,7 @@ class LatentDecoderDataset(Dataset):
         return f"LatentDecoderDataset(dataset_index={self.dataset_index}, num_of_batches={self.num_of_batches}, image_processor={self.image_processor})"
 
     @torch.no_grad()
-    def __getitem__(self, index: int) -> Tuple[List[torch.FloatTensor], List[torch.FloatTensor]]:
+    def __getitem__(self, index: int) -> tuple[list[torch.FloatTensor], list[torch.FloatTensor]]:
         with open(os.path.join(self.dataset_index, str(int(index / 10000)), str(index)+".json"), "r") as f:
             current_batch = json.load(f)
         latents = []
@@ -228,7 +226,7 @@ class SaveBackend():
         for _ in range(max_save_workers):
             self.save_thread.submit(self.save_thread_func)
 
-    def save(self, data: Union[List[torch.FloatTensor], torch.FloatTensor], path: str) -> None:
+    def save(self, data: list[torch.Tensor] | torch.Tensor, path: str) -> None:
         if isinstance(data, torch.Tensor):
             save_dtype = self.save_dtype if torch.is_floating_point(data) else None
             data = data.to("cpu", dtype=save_dtype).clone()
@@ -273,7 +271,7 @@ class SaveBackend():
 
 
 class ImageBackend():
-    def __init__(self, batches: List[Tuple[List[str], str]], load_queue_lenght: int = 32, max_load_workers: int = 8):
+    def __init__(self, batches: list[tuple[list[str], str]], load_queue_lenght: int = 32, max_load_workers: int = 8):
         self.load_queue_lenght = 0
         self.keep_loading = True
         self.batches = Queue()
@@ -285,7 +283,7 @@ class ImageBackend():
         for _ in range(max_load_workers):
             self.load_thread.submit(self.load_thread_func)
 
-    def get_images(self) -> List[Tuple[Image.Image, str]]:
+    def get_images(self) -> list[tuple[Image.Image, str]]:
         result = self.load_queue.get()
         self.load_queue_lenght -= 1
         return result

@@ -1,5 +1,3 @@
-from typing import List, Optional, Tuple, Union
-
 import os
 import copy
 import random
@@ -67,7 +65,7 @@ class AnimaTransformerWrapper(ModelMixin):
         )
 
 
-def get_anima_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_anima_diffusion_model(path: str, dtype: torch.dtype) -> tuple[ModelMixin, ImageProcessingMixin]:
     pipe = AnimaTextToImagePipeline.from_pretrained(path, torch_dtype=dtype, trust_remote_code=True, llm_adapter=None, vae=None, text_encoder=None, tokenizer=None, t5_tokenizer=None)
     processor = copy.deepcopy(pipe.video_processor)
     diffusion_model = AnimaTransformerWrapper(pipe.transformer, AnimaLLMAdapter.from_pretrained(path, torch_dtype=dtype, subfolder="llm_adapter"))
@@ -75,7 +73,7 @@ def get_anima_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin
     return diffusion_model, processor
 
 
-def get_anima_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_anima_latent_model(path: str, dtype: torch.dtype) -> tuple[ModelMixin, ImageProcessingMixin]:
     pipe = AnimaTextToImagePipeline.from_pretrained(path, torch_dtype=dtype, trust_remote_code=True, transformer=None, llm_adapter=None, text_encoder=None, tokenizer=None, t5_tokenizer=None)
     image_processor = copy.deepcopy(pipe.video_processor)
     latent_model = pipe.vae
@@ -83,7 +81,7 @@ def get_anima_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, I
     return latent_model, image_processor
 
 
-def get_anima_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
+def get_anima_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> tuple[tuple[PreTrainedModel], tuple[PreTrainedTokenizer]]:
     if quantization_config is not None:
         from diffusers.quantizers import PipelineQuantizationConfig
         quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder"])
@@ -100,9 +98,9 @@ def get_anima_embed_encoder(path: str, device: torch.device, dtype: torch.dtype,
 
 def encode_anima_prompt(
     text_encoder: PreTrainedModel,
-    tokenizers: Tuple[PreTrainedTokenizer],
-    prompt: Union[str, List[str]],
-    device: Optional[torch.device] = None,
+    tokenizers: tuple[PreTrainedTokenizer],
+    prompt: str | list[str],
+    device: torch.device | None = None,
     max_sequence_length=512,
 ) -> torch.FloatTensor:
         prompt = [prompt] if isinstance(prompt, str) else prompt
@@ -112,7 +110,7 @@ def encode_anima_prompt(
         return prompt_embeds, t5_input_ids
 
 
-def encode_anima_embeds(embed_encoders: Tuple[PreTrainedModel, Tuple[PreTrainedTokenizer]], texts: List[str], device: torch.device) -> List[List[torch.FloatTensor]]:
+def encode_anima_embeds(embed_encoders: tuple[PreTrainedModel, tuple[PreTrainedTokenizer]], texts: list[str], device: torch.device) -> list[list[torch.FloatTensor]]:
     prompt_embeds, t5_input_ids = encode_anima_prompt(embed_encoders[0], embed_encoders[1], texts, device=device)
     embeds = []
     for i in range(len(prompt_embeds)):
@@ -125,11 +123,11 @@ def run_anima_model_training(
     model_processor: ModelMixin,
     config: dict,
     accelerator: Accelerator,
-    latents_list: Union[List, torch.FloatTensor],
-    embeds_list: Union[List, torch.FloatTensor],
-    empty_embed: Union[List, torch.FloatTensor],
+    latents_list: list | torch.FloatTensor,
+    embeds_list: list | torch.FloatTensor,
+    empty_embed: list | torch.FloatTensor,
     loss_func: callable,
-) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
+) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, dict]:
     with torch.no_grad():
         if isinstance(latents_list, torch.Tensor):
             latents = latents_list.to(accelerator.device, dtype=torch.float32)

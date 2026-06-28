@@ -1,4 +1,4 @@
-from typing import Callable, Iterator, List, Optional, Tuple, Union
+from typing import Callable, Iterator
 
 import gc
 import importlib
@@ -95,7 +95,7 @@ def get_lr_scheduler(lr_scheduler: str, optimizer: Optimizer, accelerator: Accel
     return scheduler
 
 
-def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator: Accelerator, fused_optimizer_hook: Callable) -> Tuple[Optimizer, LRScheduler]:
+def get_optimizer_and_lr_scheduler(config: dict, model: ModelMixin, accelerator: Accelerator, fused_optimizer_hook: Callable) -> tuple[Optimizer, LRScheduler]:
     sensitive_keys = config["sensitive_keys"]
     if not config["override_sensitive_keys"]:
         model, sensitive_keys = add_module_skip_keys(model, sensitive_keys)
@@ -170,7 +170,7 @@ def get_loss_func(config: dict) -> Callable:
             return getattr(torch.nn.functional, config["loss_type"])
 
 
-def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, is_ema: bool = False) -> Tuple[ModelMixin]:
+def get_diffusion_model(config: dict, device: torch.device, dtype: torch.dtype, is_ema: bool = False) -> tuple[ModelMixin]:
     device = torch.device(device)
     match config["model_type"]:
         case "sd3":
@@ -234,7 +234,7 @@ def get_model_class(model_type: str) -> ModelMixin:
             raise NotImplementedError(f"Model type {model_type} is not implemented")
 
 
-def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, target: torch.FloatTensor, latents: torch.FloatTensor, sigmas: torch.FloatTensor) -> Tuple[torch.FloatTensor, torch.FloatTensor]:
+def get_loss_weighting(loss_weighting: str, model_pred: torch.FloatTensor, target: torch.FloatTensor, latents: torch.FloatTensor, sigmas: torch.FloatTensor) -> tuple[torch.FloatTensor, torch.FloatTensor]:
     if loss_weighting in {None, "none"}:
         return model_pred, target
     model_pred, target, sigmas = model_pred.to(dtype=torch.float32), target.to(dtype=torch.float32), sigmas.to(dtype=torch.float32)
@@ -267,11 +267,11 @@ def run_model(
     model_processor: ModelMixin,
     config: dict,
     accelerator: Accelerator,
-    latents_list: Union[List, torch.FloatTensor],
-    embeds_list: Union[List, torch.FloatTensor],
-    empty_embed: Union[List, torch.FloatTensor],
+    latents_list: list | torch.FloatTensor,
+    embeds_list: list | torch.FloatTensor,
+    empty_embed: list | torch.FloatTensor,
     loss_func: callable,
-) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
+) -> tuple[torch.FloatTensor, dict]:
     match config["model_type"]:
         case "sd3":
             from .models.sd3_utils import run_sd3_model_training

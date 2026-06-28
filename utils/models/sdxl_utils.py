@@ -1,5 +1,3 @@
-from typing import List, Optional, Tuple, Union
-
 import copy
 import random
 import torch
@@ -12,7 +10,7 @@ from accelerate import Accelerator
 from ..sampler_utils import get_flowmatch_inputs, get_self_corrected_targets, mask_noisy_model_input
 
 
-def get_sdxl_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_sdxl_diffusion_model(path: str, dtype: torch.dtype) -> tuple[ModelMixin, ImageProcessingMixin]:
     pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None, text_encoder_2=None, tokenizer=None, tokenizer_2=None)
     processor = copy.deepcopy(pipe.image_processor)
     diffusion_model = pipe.unet
@@ -20,7 +18,7 @@ def get_sdxl_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin,
     return diffusion_model, processor
 
 
-def get_sdxl_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_sdxl_latent_model(path: str, dtype: torch.dtype) -> tuple[ModelMixin, ImageProcessingMixin]:
     pipe = diffusers.AutoPipelineForText2Image.from_pretrained(path, torch_dtype=dtype, unet=None, text_encoder=None, text_encoder_2=None, tokenizer=None, tokenizer_2=None)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae
@@ -28,7 +26,7 @@ def get_sdxl_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, Im
     return latent_model, image_processor
 
 
-def get_sdxl_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]]:
+def get_sdxl_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> tuple[tuple[PreTrainedModel], tuple[PreTrainedTokenizer]]:
     if quantization_config is not None:
         from diffusers.quantizers import PipelineQuantizationConfig
         quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder_2"])
@@ -47,10 +45,10 @@ def get_sdxl_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, 
 
 
 def encode_sdxl_prompt(
-    text_encoders: Tuple[PreTrainedModel],
-    tokenizers: Tuple[PreTrainedTokenizer],
-    prompt: Union[str, List[str]],
-    device: Optional[torch.device] = None,
+    text_encoders: tuple[PreTrainedModel],
+    tokenizers: tuple[PreTrainedTokenizer],
+    prompt: str | list[str],
+    device: torch.device | None = None,
 ) -> torch.FloatTensor:
         prompt = [prompt] if isinstance(prompt, str) else prompt
 
@@ -72,7 +70,7 @@ def encode_sdxl_prompt(
         return prompt_embeds, pooled_prompt_embeds
 
 
-def encode_sdxl_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], texts: List[str], device: torch.device) -> List[List[torch.FloatTensor]]:
+def encode_sdxl_embeds(embed_encoders: tuple[tuple[PreTrainedModel], tuple[PreTrainedTokenizer]], texts: list[str], device: torch.device) -> list[list[torch.FloatTensor]]:
     prompt_embeds, pooled_prompt_embeds = encode_sdxl_prompt(embed_encoders[0], embed_encoders[1], texts, device=device)
     embeds = []
     for i in range(len(prompt_embeds)):
@@ -85,11 +83,11 @@ def run_sdxl_model_training(
     model_processor: ModelMixin,
     config: dict,
     accelerator: Accelerator,
-    latents_list: Union[List, torch.FloatTensor],
-    embeds_list: Union[List, torch.FloatTensor],
-    empty_embed: Union[List, torch.FloatTensor],
+    latents_list: list | torch.FloatTensor,
+    embeds_list: list | torch.FloatTensor,
+    empty_embed: list | torch.FloatTensor,
     loss_func: callable,
-) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
+) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, dict]:
     with torch.no_grad():
         if isinstance(latents_list, torch.Tensor):
             latents = latents_list.to(accelerator.device, dtype=torch.float32)

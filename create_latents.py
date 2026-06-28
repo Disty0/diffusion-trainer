@@ -13,7 +13,6 @@ import argparse
 from tqdm import tqdm
 from PIL import Image
 
-from typing import Dict, List, Tuple, Optional
 from transformers import ImageProcessingMixin
 from diffusers.models.modeling_utils import ModelMixin
 
@@ -22,7 +21,7 @@ from utils import loader_utils, latent_utils
 print_filler = "--------------------------------------------------"
 
 
-def get_bucket_list(model_type: str, dataset_path: str, out_path: str, bucket_list_path: str) -> Dict[str, List[str]]:
+def get_bucket_list(model_type: str, dataset_path: str, out_path: str, bucket_list_path: str) -> dict[str, list[str]]:
     print(print_filler)
     print("Creating bucket list")
 
@@ -81,7 +80,7 @@ def get_bucket_list(model_type: str, dataset_path: str, out_path: str, bucket_li
     return bucket_list
 
 
-def get_batches(batch_size: int, model_type: str, dataset_path: str, out_path: str, bucket_list_path: str) -> List[Tuple[List[str], str]]:
+def get_batches(batch_size: int, model_type: str, dataset_path: str, out_path: str, bucket_list_path: str) -> list[tuple[list[str], str]]:
     bucket_list = get_bucket_list(model_type, dataset_path, out_path, bucket_list_path)
     epoch_batch = []
 
@@ -114,7 +113,7 @@ def write_latents(
     args: argparse.Namespace,
     cache_backend: loader_utils.SaveBackend,
     save_image_backend: loader_utils.SaveImageBackend,
-    batch: List[Tuple[Image.Image, str]],
+    batch: list[tuple[Image.Image, str]],
 ) -> None:
     images = []
     latent_paths = []
@@ -185,7 +184,7 @@ def main():
             from flash_attn import flash_attn_func
             sdpa_pre_flash_atten = torch.nn.functional.scaled_dot_product_attention
             @wraps(sdpa_pre_flash_atten)
-            def sdpa_flash_atten(query: torch.FloatTensor, key: torch.FloatTensor, value: torch.FloatTensor, attn_mask: Optional[torch.FloatTensor] = None, dropout_p: float = 0.0, is_causal: bool = False, scale: Optional[float] = None, enable_gqa: bool = False, **kwargs) -> torch.FloatTensor:
+            def sdpa_flash_atten(query: torch.FloatTensor, key: torch.FloatTensor, value: torch.FloatTensor, attn_mask: torch.FloatTensor | None = None, dropout_p: float = 0.0, is_causal: bool = False, scale: float | None = None, enable_gqa: bool = False, **kwargs) -> torch.FloatTensor:
                 if query.shape[-1] <= 128 and attn_mask is None and query.dtype != torch.float32:
                     is_unsqueezed = False
                     if query.dim() == 3:

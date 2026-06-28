@@ -1,5 +1,3 @@
-from typing import Any, cast, Optional
-
 import inspect
 import torch
 
@@ -7,9 +5,7 @@ from torch.amp.grad_scaler import OptState
 
 class GradScaler(torch.amp.GradScaler):
     # modify scaler.step() to use optimizer.optimizer for accelerate
-    def step(
-        self, optimizer: torch.optim.Optimizer, *args: Any, **kwargs: Any
-    ) -> Optional[float]:
+    def step(self, optimizer: torch.optim.Optimizer, *args, **kwargs) -> float | None:
         """Invoke ``unscale_(optimizer)`` followed by parameter update, if gradients are not infs/NaN.
 
         :meth:`step` carries out the following two operations:
@@ -48,7 +44,7 @@ class GradScaler(torch.amp.GradScaler):
                 "step() has already been called since the last update()."
             )
 
-        retval: Optional[float] = None
+        retval: float | None = None
 
         if getattr(optimizer, "_step_supports_amp_scaling", False) or (hasattr(optimizer, "optimizer") and getattr(optimizer.optimizer, "_step_supports_amp_scaling", False)):
             kwargs_ = kwargs
@@ -60,15 +56,7 @@ class GradScaler(torch.amp.GradScaler):
                     self._check_inf_per_device(optimizer)
                 scaler = self._get_scale_async()
                 assert scaler is not None
-                found_inf = cast(
-                    torch.Tensor,
-                    sum(
-                        [  # noqa: C419
-                            t.to(scaler.device, non_blocking=True)
-                            for t in optimizer_state["found_inf_per_device"].values()
-                        ]
-                    ),
-                )
+                found_inf = torch.sum(torch.stack([t.to(scaler.device, non_blocking=True) for t in optimizer_state["found_inf_per_device"].values()]))
                 # Take the product of the scales, if the user has already set `optimizer.grad_scale`.
                 optimizer.grad_scale = (  # type: ignore[attr-defined]
                     getattr(optimizer, "grad_scale", None)

@@ -1,4 +1,4 @@
-from typing import Any, Dict, Iterable, Optional, Union
+from typing import Iterable
 
 import os
 import json
@@ -25,11 +25,11 @@ class EMAModel:
         min_decay: float = 0.0,
         update_after_step: int = 0,
         use_ema_warmup: bool = False,
-        inv_gamma: Union[float, int] = 1.0,
-        power: Union[float, int] = 2 / 3,
+        inv_gamma: float = 1.0,
+        power: float = 2 / 3,
         foreach: bool = False,
-        model_cls: Optional[Any] = None,
-        model_config: Dict[str, Any] = None,
+        model_cls = None,
+        model_config: dict[str] = None,
         **kwargs,
     ):
         """

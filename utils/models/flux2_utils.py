@@ -1,5 +1,3 @@
-from typing import List, Optional, Tuple, Union
-
 import copy
 import random
 import torch
@@ -22,7 +20,7 @@ current_latent_ids_height = 0
 current_latent_ids_width = 0
 
 
-def get_flux2_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_flux2_diffusion_model(path: str, dtype: torch.dtype) -> tuple[ModelMixin, ImageProcessingMixin]:
     pipe = diffusers.Flux2KleinPipeline.from_pretrained(path, torch_dtype=dtype, vae=None, text_encoder=None, tokenizer=None)
     processor = copy.deepcopy(pipe.image_processor)
     diffusion_model = pipe.transformer
@@ -30,7 +28,7 @@ def get_flux2_diffusion_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin
     return diffusion_model, processor
 
 
-def get_flux2_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, ImageProcessingMixin]:
+def get_flux2_latent_model(path: str, dtype: torch.dtype) -> tuple[ModelMixin, ImageProcessingMixin]:
     pipe = diffusers.Flux2KleinPipeline.from_pretrained(path, torch_dtype=dtype, transformer=None, text_encoder=None, tokenizer=None)
     image_processor = copy.deepcopy(pipe.image_processor)
     latent_model = pipe.vae
@@ -38,7 +36,7 @@ def get_flux2_latent_model(path: str, dtype: torch.dtype) -> Tuple[ModelMixin, I
     return latent_model, image_processor
 
 
-def encode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: List[Image.Image], device: torch.device) -> torch.FloatTensor:
+def encode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, images: list[Image.Image], device: torch.device) -> torch.FloatTensor:
     with torch.no_grad():
         tensor_images = image_processor.preprocess(images).to(device, dtype=latent_model.dtype)
         latents_bn_mean = latent_model.bn.running_mean.view(1, -1, 1, 1).to(device, dtype=torch.float32)
@@ -49,7 +47,7 @@ def encode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcess
     return latents
 
 
-def decode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, latents: torch.FloatTensor, device: torch.device, return_image: bool = True, mixed_precision: str = "no") -> Union[Image.Image, torch.FloatTensor]:
+def decode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcessingMixin, latents: torch.FloatTensor, device: torch.device, return_image: bool = True, mixed_precision: str = "no") -> Image.Image | torch.FloatTensor:
     with torch.no_grad():
         latents_bn_mean = latent_model.bn.running_mean.view(1, -1, 1, 1).to(device, dtype=torch.float32)
         latents_bn_std = latent_model.bn.running_var.view(1, -1, 1, 1).to(device, dtype=torch.float32).add(latent_model.config.batch_norm_eps).sqrt_()
@@ -64,7 +62,7 @@ def decode_flux2_latents(latent_model: ModelMixin, image_processor: ImageProcess
         return image_tensor
 
 
-def get_flux2_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> Tuple[PreTrainedModel, PreTrainedTokenizer]:
+def get_flux2_embed_encoder(path: str, device: torch.device, dtype: torch.dtype, dynamo_backend: str, quantization_config: dict = None) -> tuple[PreTrainedModel, PreTrainedTokenizer]:
     if quantization_config is not None:
         from diffusers.quantizers import PipelineQuantizationConfig
         quantization_config = PipelineQuantizationConfig(quant_backend="sdnq", quant_kwargs=quantization_config, components_to_quantize=["text_encoder"])
@@ -81,10 +79,10 @@ def get_flux2_embed_encoder(path: str, device: torch.device, dtype: torch.dtype,
 def encode_flux2_prompt(
     text_encoder: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,
-    prompt: Union[str, List[str]],
-    device: Optional[torch.device] = None,
+    prompt: str | list[str],
+    device: torch.device | None = None,
     max_sequence_length: int = 512,
-    hidden_states_layers: List[int] = (9, 18, 27),
+    hidden_states_layers: list[int] = (9, 18, 27),
 ) -> torch.FloatTensor:
     prompt = [prompt] if isinstance(prompt, str) else prompt
     prompt = [[{"role": "user", "content": p}] for p in prompt]
@@ -112,7 +110,7 @@ def encode_flux2_prompt(
     return prompt_embeds
 
 
-def encode_flux2_embeds(embed_encoders: Tuple[Tuple[PreTrainedModel], Tuple[PreTrainedTokenizer]], texts: List[str], device: torch.device) -> List[List[torch.FloatTensor]]:
+def encode_flux2_embeds(embed_encoders: tuple[tuple[PreTrainedModel], tuple[PreTrainedTokenizer]], texts: list[str], device: torch.device) -> list[list[torch.FloatTensor]]:
     return encode_flux2_prompt(embed_encoders[0], embed_encoders[1], texts, device=device)
 
 
@@ -139,11 +137,11 @@ def run_flux2_model_training(
     model_processor: ModelMixin,
     config: dict,
     accelerator: Accelerator,
-    latents_list: Union[List, torch.FloatTensor],
-    embeds_list: Union[List, torch.FloatTensor],
-    empty_embed: Union[List, torch.FloatTensor],
+    latents_list: list | torch.FloatTensor,
+    embeds_list: list | torch.FloatTensor,
+    empty_embed: list | torch.FloatTensor,
     loss_func: callable,
-) -> Tuple[Optional[torch.FloatTensor], torch.FloatTensor, torch.FloatTensor, dict]:
+) -> tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, dict]:
     with torch.no_grad():
         if isinstance(latents_list, torch.Tensor):
             latents = latents_list.to(accelerator.device, dtype=torch.float32)

@@ -2,7 +2,6 @@
 # Added partial read support for up to 200x speedup
 
 import os
-from typing import List, Tuple
 
 
 class JXLBitstream:
@@ -10,7 +9,7 @@ class JXLBitstream:
     A stream of bits with methods for easy handling.
     """
 
-    def __init__(self, file, offset: int = 0, offsets: List[List[int]] = None):
+    def __init__(self, file, offset: int = 0, offsets: list[list[int]] = None):
         self.shift = 0
         self.bitstream = bytearray()
         self.file = file
@@ -47,7 +46,7 @@ class JXLBitstream:
             self.partial_read(current_length, length)
 
 
-def decode_codestream(file, offset: int = 0, offsets: List[List[int]] = None) -> Tuple[int,int]:
+def decode_codestream(file, offset: int = 0, offsets: list[list[int]] = None) -> tuple[int,int]:
     """
     Decodes the actual codestream.
     JXL codestream specification: http://www-internal/2022/18181-1
@@ -107,7 +106,7 @@ def decode_codestream(file, offset: int = 0, offsets: List[List[int]] = None) ->
     return width, height
 
 
-def decode_container(file) -> Tuple[int,int]:
+def decode_container(file) -> tuple[int,int]:
     """
     Parses the ISOBMFF container, extracts the codestream, and decodes it.
     JXL container specification: http://www-internal/2022/18181-2
@@ -180,7 +179,7 @@ def decode_container(file) -> Tuple[int,int]:
     return decode_codestream(file, offset=offset, offsets=offsets)
 
 
-def get_jxl_size(path: str) -> Tuple[int,int]:
+def get_jxl_size(path: str) -> tuple[int,int]:
     with open(path, "rb") as file:
         if file.read(2) == bytes.fromhex("FF0A"):
             return decode_codestream(file)
