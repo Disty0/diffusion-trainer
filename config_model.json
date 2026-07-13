@@ -35,7 +35,7 @@
     "loss_reduction": "mean",
     "weights_dtype": "float16",
     "mixed_precision": "no",
-    "dynamo_backend": "inductor",
+    "dynamo_backend": "no",
     "use_grad_scaler": true,
     "quantization_config": {
         "weights_dtype": "float16",
