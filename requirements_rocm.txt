@@ -1,4 +1,4 @@
-torch==2.13.0+rocm7.2
-torchvision==0.28.0+rocm7.2
---extra-index-url https://download.pytorch.org/whl/rocm7.2
+torch==2.14.1+rocm7.14
+torchvision==0.29.1+rocm7.14
+--extra-index-url https://download.pytorch.org/whl/rocm7.14
 -r requirements.txt
